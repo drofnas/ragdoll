@@ -1,11 +1,3 @@
-# Environment
-.env
-.env.*
-!.env.example
-!**/*.env.example
-apps/api/.env
-apps/web/.env
-
 # Python
 __pycache__/
 *.py[cod]
@@ -18,6 +10,13 @@ ENV/
 build/
 dist/
 
+# Environment
+.env
+.env.*
+!.env.example
+!**/*.env.example
+apps/api/.env
+apps/web/.env
 !packages/config/env/
 !packages/config/env/*.env.example
 
