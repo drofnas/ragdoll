@@ -1,0 +1,45 @@
+# Environment
+.env
+.env.*
+!.env.example
+apps/api/.env
+apps/web/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+build/
+dist/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage/
+
+# Local app outputs
+_tmp/
+logs/
+docker-compose.override.yml
+
+# E2E outputs
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+tests/e2e/blob-report/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
