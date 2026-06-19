@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!**/*.env.example
 apps/api/.env
 apps/web/.env
 
@@ -16,6 +17,9 @@ ENV/
 *.egg-info/
 build/
 dist/
+
+!packages/config/env/
+!packages/config/env/*.env.example
 
 # Node
 node_modules/

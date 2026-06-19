@@ -16,35 +16,35 @@ Goal: establish the repository skeleton, shared conventions, and baseline develo
 
 Depends on: none
 
-- [ ] Phase complete
-- [ ] Create the canonical repo skeleton under `apps/`, `packages/`, `tests/`, `infra/`, `scripts/`, and `docs/`
-  - [ ] Add the `apps/api` directory scaffold
-  - [ ] Add the `apps/web` directory scaffold
-  - [ ] Add the `packages/contracts`, `packages/config`, and `packages/tooling` directory scaffold
-  - [ ] Add the `tests/e2e` directory scaffold
-  - [ ] Add the `infra/docker`, `infra/supabase`, and `infra/ollama` directory scaffold
-  - [ ] Add the `scripts/dev`, `scripts/test`, and `scripts/ops` directory scaffold
-  - [ ] Verify the on-disk structure matches the architecture docs
-  - [ ] Add a checklist note or README reference for any intentionally empty placeholder directories
-- [ ] Add root tooling baselines and environment examples
-  - [ ] Add root package/runtime documentation describing Python, web, and shared tooling expectations
-  - [ ] Add `packages/config/env/api.env.example`
-  - [ ] Add `packages/config/env/web.env.example`
-  - [ ] Add shared formatting, lint, and test config placeholders in `packages/config`
-  - [ ] Confirm `.gitignore` covers local env files, build outputs, caches, and `_tmp/`
-  - [ ] Verify no committed file requires private local path configuration
-- [ ] Define package and runtime conventions
-  - [ ] Decide the Python dependency and execution convention for `apps/api`
-  - [ ] Decide the Node package manager and app boot convention for `apps/web`
-  - [ ] Define naming and placement rules for shared tooling scripts
-  - [ ] Document how contracts are generated and consumed at a high level
-  - [ ] Ensure conventions align with `docs/architecture`
-- [ ] Establish local developer bootstrap commands and starter repo docs
-  - [ ] Add a root README with bootstrap expectations
-  - [ ] Add a minimal local development startup flow under `scripts/dev`
-  - [ ] Add a minimal local test entrypoint flow under `scripts/test`
-  - [ ] Add a note describing where future operational scripts belong
-  - [ ] Verify a new contributor can understand where each major subsystem will live
+- [x] Phase complete
+- [x] Create the canonical repo skeleton under `apps/`, `packages/`, `tests/`, `infra/`, `scripts/`, and `docs/`
+  - [x] Add the `apps/api` directory scaffold
+  - [x] Add the `apps/web` directory scaffold
+  - [x] Add the `packages/contracts`, `packages/config`, and `packages/tooling` directory scaffold
+  - [x] Add the `tests/e2e` directory scaffold
+  - [x] Add the `infra/docker`, `infra/supabase`, and `infra/ollama` directory scaffold
+  - [x] Add the `scripts/dev`, `scripts/test`, and `scripts/ops` directory scaffold
+  - [x] Verify the on-disk structure matches the architecture docs
+  - [x] Add a checklist note or README reference for any intentionally empty placeholder directories
+- [x] Add root tooling baselines and environment examples
+  - [x] Add root package/runtime documentation describing Python, web, and shared tooling expectations
+  - [x] Add `packages/config/env/api.env.example`
+  - [x] Add `packages/config/env/web.env.example`
+  - [x] Add shared formatting, lint, and test config placeholders in `packages/config`
+  - [x] Confirm `.gitignore` covers local env files, build outputs, caches, and `_tmp/`
+  - [x] Verify no committed file requires private local path configuration
+- [x] Define package and runtime conventions
+  - [x] Decide the Python dependency and execution convention for `apps/api`
+  - [x] Decide the Node package manager and app boot convention for `apps/web`
+  - [x] Define naming and placement rules for shared tooling scripts
+  - [x] Document how contracts are generated and consumed at a high level
+  - [x] Ensure conventions align with `docs/architecture`
+- [x] Establish local developer bootstrap commands and starter repo docs
+  - [x] Add a root README with bootstrap expectations
+  - [x] Add a minimal local development startup flow under `scripts/dev`
+  - [x] Add a minimal local test entrypoint flow under `scripts/test`
+  - [x] Add a note describing where future operational scripts belong
+  - [x] Verify a new contributor can understand where each major subsystem will live
 
 ## Phase 1 - Platform And Runtime Base
 
