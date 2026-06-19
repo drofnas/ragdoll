@@ -1,10 +1,13 @@
 # Ragdoll
 
-Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. Phase 0 establishes the repository shape, shared conventions, and contributor entrypoints without migrating feature code yet.
+Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. The repository now includes the Phase 0 foundation work plus the first Phase 1 backend runtime bootstrap for `apps/api`.
 
 ## Current Status
 
-This repository currently implements **Phase 0 - Repo Foundation** only.
+This repository currently implements:
+
+- **Phase 0 - Repo Foundation**
+- the initial **Phase 1 `apps/api` runtime bootstrap**
 
 - The canonical application roots are `apps/api` and `apps/web`.
 - Shared contracts live in `packages/contracts`.
@@ -13,11 +16,11 @@ This repository currently implements **Phase 0 - Repo Foundation** only.
 - Local infrastructure assets live under `infra/`.
 - The previous repository is private migration input only and is not part of the public structure here.
 
-Feature runtime bootstrap, API wiring, database wiring, and web app bootstrapping are deferred to Phase 1.
+The backend app now boots with a clean FastAPI scaffold, versioned router composition, and health/problem-response scaffolding. Database wiring, feature modules, and the web runtime are still deferred.
 
 ## Preserved Phase 0 Conventions
 
-Phase 0 intentionally preserves the current stack direction while the repo is restructured:
+The rebuild currently preserves the original stack direction while the structure is being cleaned up:
 
 - Backend runtime: FastAPI in `apps/api`
 - Backend dependency convention: `requirements.txt` plus Docker-based local execution
@@ -56,7 +59,7 @@ See [docs/migration-map.md](docs/migration-map.md) for the old-to-new root mappi
 
 ## Bootstrap Entry Points
 
-Phase 0 provides the command surface and canonical locations, not a full runnable product stack.
+The repo now has a partial runnable backend bootstrap plus the Phase 0 command surface and canonical locations.
 
 - Development entrypoints: `scripts/dev/`
 - Test entrypoints: `scripts/test/`
@@ -67,14 +70,13 @@ Phase 0 provides the command surface and canonical locations, not a full runnabl
 
 ## What Is Deferred
 
-The following work starts in Phase 1 or later:
+The following work is still deferred:
 
-- FastAPI app bootstrapping and `/api/v1` router composition
 - Vite app bootstrapping and route shell rendering
 - Database engine/session wiring and migrations setup
 - Worker entrypoints
 - Contract generation tooling
-- Real backend, frontend, and E2E automation
+- frontend and E2E automation wiring
 
 ## Placeholder Directories
 

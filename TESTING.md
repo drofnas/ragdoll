@@ -1,6 +1,6 @@
 # Testing
 
-Phase 0 defines the ownership and entrypoints for testing without introducing product-runtime test execution yet.
+The repository now includes the first backend platform bootstrap tests in `apps/api/tests/platform/`, while most feature and integration coverage is still deferred.
 
 ## Ownership
 
@@ -16,15 +16,17 @@ Phase 0 defines the ownership and entrypoints for testing without introducing pr
 - `scripts/test/frontend.sh`
 - `scripts/test/e2e.sh`
 
-These scripts are lightweight scaffolds in Phase 0. They establish the canonical command surface that later phases will wire to real backend, frontend, and E2E execution.
+These scripts are still lightweight scaffolds. The first real backend bootstrap tests live directly under `apps/api/tests/platform/` and can be run from the app directory with `pytest`.
 
-## Scope For This Phase
+## Current Scope
 
-Phase 0 validation is repository-level only:
+Current validation includes repository-level checks plus backend bootstrap coverage:
 
 - confirm the directory structure matches the architecture docs
 - confirm the shared env examples exist
 - confirm the scripts and infra locations are obvious to contributors
 - confirm no private machine-specific paths are committed
+- confirm `ragdoll.main:app` imports without DB, worker, or feature wiring
+- confirm `GET /health` and `GET /api/v1/health` return the bootstrap scaffold responses
 
-Feature-level test automation is deferred until the corresponding runtime layers exist.
+Feature-level and cross-system automation remain deferred until the corresponding runtime layers exist.

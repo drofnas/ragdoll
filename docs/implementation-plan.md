@@ -53,13 +53,13 @@ Goal: stand up the runtime skeleton for the API, web app, config, auth primitive
 Depends on: Phase 0
 
 - [ ] Phase complete
-- [ ] Bootstrap the `apps/api` runtime
-  - [ ] Create the FastAPI app entrypoint in `apps/api`
-  - [ ] Add base router composition for `/api/v1`
-  - [ ] Add shared dependency wiring for request-scoped concerns
-  - [ ] Add error translation scaffolding for consistent problem responses
-  - [ ] Add health and readiness endpoint scaffolding
-  - [ ] Verify the API app can boot without feature modules fully implemented
+- [x] Bootstrap the `apps/api` runtime
+  - [x] Create the FastAPI app entrypoint in `apps/api`
+  - [x] Add base router composition for `/api/v1`
+  - [x] Add shared dependency wiring for request-scoped concerns
+  - [x] Add error translation scaffolding for consistent problem responses
+  - [x] Add health and readiness endpoint scaffolding
+  - [x] Verify the API app can boot without feature modules fully implemented
 - [ ] Bootstrap the `apps/web` runtime
   - [ ] Create the web app entrypoint in `apps/web`
   - [ ] Add the app router scaffold
