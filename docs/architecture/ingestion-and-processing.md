@@ -10,7 +10,6 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 
 - `modules/documents`: metadata lifecycle after a document exists
 - `modules/ingestion`: upload intake, processing commands, retry commands, status APIs
-- `modules/integrations/dropbox`: connection, mapping, sync orchestration
 - `workers/document_pipeline.py`: background job runner
 - `platform/storage`, `platform/vector`, `platform/graph`, `platform/llm`, `platform/queues`: external systems
 
@@ -42,8 +41,6 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 - `RetryMode`
 - `DocumentStatus`
 - `ProcessingError`
-- `DropboxConnectionStatus`
-- `SyncPreview` and `SyncRunResult`
 
 ## Primary Workflows
 
@@ -63,24 +60,16 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 3. Worker replays the required stages idempotently.
 4. Status and change feed reflect retry outcome.
 
-### Dropbox sync
-
-1. User connects Dropbox and configures folder mappings.
-2. Sync command enumerates changed files by mapping.
-3. New or changed files create or update document records for the mapped Space.
-4. Each imported file is pushed through the same background pipeline as upload-origin documents.
-
 ## Failure Modes and Edge Cases
 
 - File parses can succeed while embeddings or graph projection fail later.
 - Retry mode must distinguish full reprocess from vector-only or graph-only repair.
-- Sync rename, delete, and revision changes must not create duplicate logical documents.
 - Large documents may require truncation or chunk-window extraction policies that are explicitly documented.
 - Worker crashes must leave recoverable stage state and re-runnable jobs.
 
 ## Acceptance Checks
 
-- Upload and sync both converge into the same document-processing pipeline.
+- Upload and reprocessing flows converge into the same document-processing pipeline where appropriate.
 - Stage transitions are explicit and observable through API status.
 - Worker retries are idempotent for blobs, vectors, entities, and graph writes.
 - Manual and automated repair paths do not bypass provenance recording.

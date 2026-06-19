@@ -55,8 +55,6 @@ apps/api/
       corrections/
       admin/
       usage/
-      integrations/
-        dropbox/
   tests/
 ```
 
@@ -122,7 +120,6 @@ modules/<module>/
 - `corrections`: submit, verify, reject, edit, delete, promote-to-fact behavior
 - `admin`: user operations, runtime testers, readiness, guarded operational mutations
 - `usage`: per-user usage and quota reporting
-- `integrations/dropbox`: OAuth, folder mapping, sync orchestration, disconnect
 
 ## Public Interfaces and Shared Types
 

@@ -35,7 +35,6 @@ Define canonical data ownership across relational data, object storage, vector s
 - `ChangeEvent`
 - `CorrectionRecord`
 - `UsageRecord` or usage projection
-- Dropbox connection and folder mapping records
 
 ## Responsibilities and Boundaries
 

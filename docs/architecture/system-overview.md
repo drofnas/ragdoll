@@ -38,7 +38,6 @@ Ragdoll includes these capability areas:
 - Authentication and user profile management
 - Spaces and active/all-spaces scope
 - Document upload, indexing, preview, deletion, and reprocessing
-- Dropbox integration and sync
 - Entity and decision extraction
 - Knowledge graph storage and exploration
 - Unified search and hybrid retrieval
@@ -96,7 +95,7 @@ Ragdoll locks in these public seams:
 ## Primary Workflows
 
 1. User signs in through `apps/web`, receives session state, selected Space, and resolved feature flags from `apps/api`.
-2. User uploads or syncs documents into a Space.
+2. User uploads documents into a Space.
 3. Background workers parse content, store originals, chunk text, create embeddings, extract entities, and populate graph structures.
 4. Search and chat query vector, graph, and relational projections through application services.
 5. Users review current state, history, citations, tracked fields, and corrections from scoped product surfaces.

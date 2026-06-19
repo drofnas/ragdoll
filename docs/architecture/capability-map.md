@@ -27,7 +27,6 @@ tests/
 | Spaces and scope selection | `modules/spaces` | `features/spaces` | space list, detail, and scope contracts | backend module tests + frontend feature tests |
 | Document library | `modules/documents` | `features/documents` | document list, detail, mutation, and status contracts | backend module tests + frontend feature tests |
 | Upload and reprocessing | `modules/ingestion` | `features/documents` | upload, retry, and processing status contracts | backend module tests + E2E |
-| Dropbox integration | `modules/integrations/dropbox` | `features/account` | Dropbox connection, mapping, and sync contracts | backend module tests + E2E |
 | Search and discovery | `modules/search` | `features/search` | search query, filters, results, and related contracts | backend module tests + frontend feature tests |
 | Chat and answer generation | `modules/chat` | `features/chat` | chat message, session, citation, and suggestion contracts | backend module tests + E2E |
 | Entities and graph exploration | `modules/entities` and `modules/knowledge_graph` | `features/entities` | entity detail, provenance, history, and graph contracts | backend module tests + frontend feature tests |

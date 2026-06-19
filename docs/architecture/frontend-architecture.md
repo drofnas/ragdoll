@@ -81,7 +81,7 @@ features/<feature>/
 - `changes`: feed, detail, read-state actions
 - `corrections`: verification dashboard
 - `admin`: user admin, document tester, Supabase tester, feature or tier controls
-- `account`: profile, password, usage, Dropbox account management
+- `account`: profile, password, and usage management
 - `marketing`: home, product, pricing, contact
 
 ## Public Interfaces and Shared Types

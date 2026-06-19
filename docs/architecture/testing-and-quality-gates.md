@@ -60,7 +60,6 @@ tests/e2e/
 - Tracked-state conflict resolution
 - Corrections verification path
 - Admin guards and plan/flag behavior
-- Dropbox sync critical flows
 
 ## Public Interfaces and Shared Types
 
