@@ -1,9 +1,11 @@
 from datetime import timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from ragdoll.api import health as health_module
 from ragdoll.api.health import build_readiness_payload
+from ragdoll.core import config as config_module
 from ragdoll.core.config import Settings
 from ragdoll.core.exceptions import AuthenticationRequiredError, ConfigurationError
 from ragdoll.core.feature_flags import (
@@ -15,6 +17,7 @@ from ragdoll.core.feature_flags import (
 )
 from ragdoll.core.pagination import PaginationParams
 from ragdoll.core.security import create_access_token, decode_access_token, get_password_hash, verify_password
+from ragdoll.main import create_app
 from ragdoll.platform.db import engine as engine_module
 
 
@@ -96,6 +99,54 @@ def test_settings_falls_back_to_legacy_split_database_fields():
         supabase_postgres_password="secret",
     )
     assert settings.legacy_supabase_db_url == "postgresql://postgres:secret@db.example:5432/postgres"
+
+
+def test_settings_accept_allowed_origins_as_single_string():
+    settings = Settings(allowed_origins="http://localhost:8030")
+    assert settings.allowed_origins == ["http://localhost:8030"]
+
+
+def test_settings_accept_allowed_origins_as_csv_string():
+    settings = Settings(allowed_origins="http://localhost:8030, http://localhost:3000")
+    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_settings_accept_allowed_origins_as_json_array_string():
+    settings = Settings(allowed_origins='["http://localhost:8030", "http://localhost:3000"]')
+    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_settings_accept_allowed_origins_as_direct_list():
+    settings = Settings(allowed_origins=["http://localhost:8030", " http://localhost:3000 "])
+    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_settings_reject_invalid_allowed_origins_from_env(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", "[1, 2]")
+    with pytest.raises(ValidationError, match="ALLOWED_ORIGINS"):
+        Settings(_env_file=None)
+
+
+def test_settings_load_allowed_origins_from_env_csv(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:8030,http://localhost:3000")
+    settings = Settings(_env_file=None)
+    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_settings_load_allowed_origins_from_env_json(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", '["http://localhost:8030", "http://localhost:3000"]')
+    settings = Settings(_env_file=None)
+    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_create_app_succeeds_with_single_origin_env(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:8030")
+    config_module.get_settings.cache_clear()
+    try:
+        app = create_app()
+        assert app.title == "Ragdoll API"
+    finally:
+        config_module.get_settings.cache_clear()
 
 
 def test_password_hash_round_trip():

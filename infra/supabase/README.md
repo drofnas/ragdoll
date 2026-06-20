@@ -4,7 +4,7 @@ Canonical home for Supabase setup notes, local expectations, and future helper a
 
 ## Local Setup Expectations
 
-Create `apps/api/.env` from `packages/config/env/api.env.example`.
+Use `apps/api/.env.example` as the local template for backend env values. `./dev-setup.sh up` will create `apps/api/.env` from it automatically when the file is missing.
 
 Required for a healthy Phase 1 readiness response:
 

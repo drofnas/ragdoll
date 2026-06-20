@@ -64,18 +64,25 @@ See [docs/migration-map.md](docs/migration-map.md) for the old-to-new root mappi
 
 ## Bootstrap Entry Points
 
-The repo now has a runnable two-app development skeleton plus canonical `scripts/` entrypoints.
+The repo now has a runnable two-app development skeleton with `./dev-setup.sh` as the main convenience entrypoint and `scripts/` as the underlying thin command owners.
 
-Before starting local runtime flows, create:
-
-- `apps/api/.env` from `packages/config/env/api.env.example`
-- `apps/web/.env` from `packages/config/env/web.env.example`
-
+- Primary convenience entrypoint: `./dev-setup.sh`
+- Typical first commands:
+  - `./dev-setup.sh up`
+  - `./dev-setup.sh daemon`
+  - `./dev-setup.sh ps`
+  - `./dev-setup.sh test`
+- Runtime startup commands auto-create:
+  - `apps/api/.env` from `apps/api/.env.example`
+  - `apps/web/.env` from `apps/web/.env.example`
+- Edit app-local defaults here when needed:
+  - `apps/api/.env.example`
+  - `apps/web/.env.example`
 - Development entrypoints: `scripts/dev/`
 - Test entrypoints: `scripts/test/`
 - Ops notes and future operational commands: `scripts/ops/`
 - Testing ownership and expectations: [TESTING.md](TESTING.md)
-- Environment examples: `packages/config/env/`
+- Shared mirrored env templates: `packages/config/env/`
 - Local Docker ownership: `infra/docker/`
 
 ## What Is Deferred

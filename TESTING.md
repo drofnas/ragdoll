@@ -11,12 +11,17 @@ The repository now includes backend platform tests in `apps/api/tests/platform/`
 
 ## Entry Points
 
+- `./dev-setup.sh test-backend`
+- `./dev-setup.sh test-frontend`
+- `./dev-setup.sh test`
 - `scripts/test/all.sh`
 - `scripts/test/backend.sh`
 - `scripts/test/frontend.sh`
 - `scripts/test/e2e.sh`
 
-These scripts now run the app-local bootstrap suites for backend and frontend. E2E remains intentionally partial until later phases.
+The root wrapper is the primary human-facing entrypoint. The underlying `scripts/test/*` files still own the thin app-local bootstrap suites for backend and frontend. E2E remains intentionally partial until later phases.
+
+Runtime startup commands can auto-create missing app `.env` files, but test commands do not do that setup in this phase.
 
 ## Current Scope
 

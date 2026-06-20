@@ -1,8 +1,40 @@
+import json
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalize_allowed_origins(value: object) -> list[str]:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            try:
+                decoded = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "ALLOWED_ORIGINS must be a comma-separated string or JSON array of strings."
+                ) from exc
+            if not isinstance(decoded, list):
+                raise ValueError("ALLOWED_ORIGINS JSON form must decode to an array of strings.")
+            value = decoded
+        else:
+            value = text.split(",")
+
+    if isinstance(value, (list, tuple)):
+        normalized: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError("ALLOWED_ORIGINS entries must be strings.")
+            trimmed = item.strip()
+            if trimmed:
+                normalized.append(trimmed)
+        return normalized
+
+    raise ValueError("ALLOWED_ORIGINS must be a string, JSON array string, or list of strings.")
 
 
 class Settings(BaseSettings):
@@ -12,7 +44,11 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     log_level: str = "INFO"
-    allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:8030"])
+    allowed_origins_raw: str = Field(
+        default="http://localhost:8030",
+        validation_alias=AliasChoices("ALLOWED_ORIGINS", "allowed_origins"),
+        exclude=True,
+    )
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
@@ -65,12 +101,15 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("allowed_origins", mode="before")
+    @field_validator("allowed_origins_raw", mode="before")
     @classmethod
-    def parse_allowed_origins(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        return value
+    def parse_allowed_origins_raw(cls, value: object) -> str:
+        normalized = _normalize_allowed_origins(value)
+        return ",".join(normalized)
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return _normalize_allowed_origins(self.allowed_origins_raw)
 
     @property
     def legacy_supabase_db_url(self) -> str:

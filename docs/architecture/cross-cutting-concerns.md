@@ -35,7 +35,9 @@ Capture shared rules for auth, authorization, config, feature flags, secrets, ob
 ### Config
 
 - Environment variables are parsed once by `core/config.py`.
-- Examples live under `packages/config/env/`.
+- App-local examples live at `apps/api/.env.example` and `apps/web/.env.example`.
+- Mirrored shared copies remain under `packages/config/env/` for centralized repo config assets.
+- `ALLOWED_ORIGINS` accepts either CSV syntax or a JSON array of strings and is normalized by backend config.
 - `apps/api/.env` and `apps/web/.env` are runtime conveniences, not architecture anchors outside the `apps/` shape.
 
 ### Feature flags and plans
