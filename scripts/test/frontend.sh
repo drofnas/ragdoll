@@ -1,4 +1,8 @@
 #!/bin/sh
 
-echo "Phase 0 scaffold only: frontend tests are not wired yet."
-echo "Canonical frontend test ownership is the apps/web feature tree."
+set -eu
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$ROOT_DIR/apps/web"
+
+npm run test -- "$@"

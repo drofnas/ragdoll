@@ -1,3 +1,4 @@
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -5,6 +6,28 @@ from fastapi.responses import JSONResponse
 from ragdoll.core.exceptions import ApplicationError
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
+
+
+class ProblemResponse(BaseModel):
+    type: str = Field(..., json_schema_extra={"example": "https://ragdoll.dev/problems/request-validation"})
+    title: str = Field(..., json_schema_extra={"example": "Request validation failed"})
+    status: int = Field(..., json_schema_extra={"example": 422})
+    detail: str = Field(..., json_schema_extra={"example": "The request payload or parameters did not match the expected schema."})
+    instance: str = Field(..., json_schema_extra={"example": "http://localhost:8000/api/v1/health"})
+    code: str | None = Field(default=None, json_schema_extra={"example": "request_validation_failed"})
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "type": "https://ragdoll.dev/problems/request-validation",
+                "title": "Request validation failed",
+                "status": 422,
+                "detail": "The request payload or parameters did not match the expected schema.",
+                "instance": "http://localhost:8000/api/v1/health",
+                "code": "request_validation_failed",
+            }
+        }
+    )
 
 
 def _problem_response(

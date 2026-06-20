@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ragdoll.api.errors import register_exception_handlers
 from ragdoll.api.router import router as api_router
 from ragdoll.core.config import get_settings
+from ragdoll.core.logging import install_request_logging_middleware, setup_logging
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create the FastAPI application instance."""
     settings = get_settings()
+    setup_logging(settings)
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
@@ -35,6 +37,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    install_request_logging_middleware(app)
     register_exception_handlers(app)
     app.include_router(api_router)
     return app

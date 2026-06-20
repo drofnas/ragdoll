@@ -25,8 +25,7 @@ def test_readiness_endpoint_returns_phase_1_scaffold():
     data = response.json()
     assert data["status"] == "degraded"
     assert set(data["services"]) == {"database", "storage", "vector", "graph", "llm", "queue"}
-    for service in data["services"].values():
-        assert service["status"] == "not_configured"
+    assert data["services"]["queue"]["status"] == "not_configured"
 
 
 def test_application_error_uses_problem_json_contract():

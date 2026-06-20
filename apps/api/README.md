@@ -2,12 +2,14 @@
 
 Canonical home for the FastAPI backend application.
 
-Phase 1 now includes the initial runtime bootstrap:
+Phase 1 now includes the backend runtime and DB foundations:
 
 - application package under `src/ragdoll/`
 - FastAPI app entrypoint at `ragdoll.main:app`
 - clean liveness endpoint at `GET /health`
-- clean readiness scaffold at `GET /api/v1/health`
+- clean readiness contract at `GET /api/v1/health`
+- shared backend core services under `src/ragdoll/core/`
+- DB engine, session, and Alembic scaffolding under `src/ragdoll/platform/db/`
 - backend platform bootstrap tests under `tests/platform/`
 
 Current nearby ownership:
@@ -19,7 +21,13 @@ Current nearby ownership:
 
 Still deferred:
 
-- database session and migration wiring
-- auth, security, and feature flag primitives
 - module route mounts under `/api/v1`
 - worker startup and platform adapters
+- feature-specific models and migrations
+- queue runtime and long-running worker execution
+
+## Local Commands
+
+- start dev server: `uvicorn ragdoll.main:app --host 0.0.0.0 --port 8000 --reload`
+- run platform tests: `python3 -m pytest tests/platform -q`
+- run Alembic upgrades: `alembic upgrade head`

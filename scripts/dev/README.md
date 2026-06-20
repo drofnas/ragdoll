@@ -2,10 +2,8 @@
 
 Thin local development entrypoints belong here.
 
-Phase 0 provides the canonical surface and file placement only:
+Phase 1 wires these scripts to `infra/docker/compose.dev.yml`:
 
 - `up.sh`
 - `down.sh`
 - `status.sh`
-
-These scripts intentionally avoid product logic and will be wired to the repo-owned Docker assets in later phases.

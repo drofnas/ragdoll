@@ -2,9 +2,13 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, Request
+from sqlalchemy.orm import Session
 
+from ragdoll.core.auth import AuthenticatedPrincipal
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.core.exceptions import RuntimeScaffoldNotReadyError
+from ragdoll.core.pagination import PaginationParams, resolve_pagination_params
+from ragdoll.platform.db.session import get_db_session
 
 
 def get_app_settings() -> Settings:
@@ -22,29 +26,25 @@ def get_request_id(request: Request) -> str:
     return request_id
 
 
-def get_pagination_params() -> dict[str, int]:
-    """Placeholder pagination dependency until shared pagination primitives land."""
-    return {"page": 1, "page_size": 20}
-
-
-def require_current_user() -> None:
+def require_current_user() -> AuthenticatedPrincipal:
     """Placeholder current-user dependency for future auth wiring."""
     raise RuntimeScaffoldNotReadyError("Current-user dependency is not wired yet.")
 
 
-def require_admin_user() -> None:
+def require_admin_user() -> AuthenticatedPrincipal:
     """Placeholder admin guard dependency for future auth wiring."""
     raise RuntimeScaffoldNotReadyError("Admin guard dependency is not wired yet.")
 
 
-def require_space_scope() -> None:
+def require_space_scope() -> dict[str, object]:
     """Placeholder Space-scope dependency for future scope resolution."""
     raise RuntimeScaffoldNotReadyError("Space-scope dependency is not wired yet.")
 
 
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 RequestIdDep = Annotated[str, Depends(get_request_id)]
-PaginationDep = Annotated[dict[str, int], Depends(get_pagination_params)]
-CurrentUserDep = Annotated[None, Depends(require_current_user)]
-AdminUserDep = Annotated[None, Depends(require_admin_user)]
-SpaceScopeDep = Annotated[None, Depends(require_space_scope)]
+PaginationDep = Annotated[PaginationParams, Depends(resolve_pagination_params)]
+DatabaseSessionDep = Annotated[Session, Depends(get_db_session)]
+CurrentUserDep = Annotated[AuthenticatedPrincipal, Depends(require_current_user)]
+AdminUserDep = Annotated[AuthenticatedPrincipal, Depends(require_admin_user)]
+SpaceScopeDep = Annotated[dict[str, object], Depends(require_space_scope)]

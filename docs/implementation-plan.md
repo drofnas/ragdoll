@@ -52,7 +52,7 @@ Goal: stand up the runtime skeleton for the API, web app, config, auth primitive
 
 Depends on: Phase 0
 
-- [ ] Phase complete
+- [x] Phase complete
 - [x] Bootstrap the `apps/api` runtime
   - [x] Create the FastAPI app entrypoint in `apps/api`
   - [x] Add base router composition for `/api/v1`
@@ -60,30 +60,30 @@ Depends on: Phase 0
   - [x] Add error translation scaffolding for consistent problem responses
   - [x] Add health and readiness endpoint scaffolding
   - [x] Verify the API app can boot without feature modules fully implemented
-- [ ] Bootstrap the `apps/web` runtime
-  - [ ] Create the web app entrypoint in `apps/web`
-  - [ ] Add the app router scaffold
-  - [ ] Add provider scaffolding for auth/session, query state, and Space scope
-  - [ ] Add public, authenticated, and admin shell placeholders
-  - [ ] Verify the web app can render shell routes without feature pages completed
-- [ ] Add shared core runtime services
-  - [ ] Implement config loading and validation scaffolding
-  - [ ] Implement logging scaffolding for API requests and workers
-  - [ ] Implement auth primitives for token signing and password hashing
-  - [ ] Implement feature-flag resolution scaffolding
-  - [ ] Implement pagination and shared response primitives
-  - [ ] Verify shared core services can be imported without circular dependency issues
-- [ ] Add database session and migration foundations
-  - [ ] Add DB engine and session management scaffolding
-  - [ ] Add model base and migration directory scaffolding
-  - [ ] Add migration execution workflow documentation
-  - [ ] Verify the API runtime can start with DB wiring enabled
-- [ ] Add local infra and readiness foundations
-  - [ ] Add Docker compose definitions for local app development
-  - [ ] Add Supabase dependency notes and local setup expectations
-  - [ ] Add Ollama dependency notes and local setup expectations
-  - [ ] Add readiness checks for DB, storage, vector, graph, and LLM dependencies
-  - [ ] Verify the readiness contract is stable enough for later automated tests
+- [x] Bootstrap the `apps/web` runtime
+  - [x] Create the web app entrypoint in `apps/web`
+  - [x] Add the app router scaffold
+  - [x] Add provider scaffolding for auth/session, query state, and Space scope
+  - [x] Add public, authenticated, and admin shell placeholders
+  - [x] Verify the web app can render shell routes without feature pages completed
+- [x] Add shared core runtime services
+  - [x] Implement config loading and validation scaffolding
+  - [x] Implement logging scaffolding for API requests and workers
+  - [x] Implement auth primitives for token signing and password hashing
+  - [x] Implement feature-flag resolution scaffolding
+  - [x] Implement pagination and shared response primitives
+  - [x] Verify shared core services can be imported without circular dependency issues
+- [x] Add database session and migration foundations
+  - [x] Add DB engine and session management scaffolding
+  - [x] Add model base and migration directory scaffolding
+  - [x] Add migration execution workflow documentation
+  - [x] Verify the API runtime can start with DB wiring enabled
+- [x] Add local infra and readiness foundations
+  - [x] Add Docker compose definitions for local app development
+  - [x] Add Supabase dependency notes and local setup expectations
+  - [x] Add Ollama dependency notes and local setup expectations
+  - [x] Add readiness checks for DB, storage, vector, graph, and LLM dependencies
+  - [x] Verify the readiness contract is stable enough for later automated tests
 
 ## Phase 2 - Shared Contracts And API Skeleton
 

@@ -1,13 +1,13 @@
 # Ragdoll
 
-Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. The repository now includes the Phase 0 foundation work plus the first Phase 1 backend runtime bootstrap for `apps/api`.
+Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. The repository now includes the Phase 0 foundation work and a full Phase 1 platform/runtime skeleton across `apps/api`, `apps/web`, and local dev infrastructure.
 
 ## Current Status
 
 This repository currently implements:
 
 - **Phase 0 - Repo Foundation**
-- the initial **Phase 1 `apps/api` runtime bootstrap**
+- **Phase 1 - Platform And Runtime Base**
 
 - The canonical application roots are `apps/api` and `apps/web`.
 - Shared contracts live in `packages/contracts`.
@@ -16,7 +16,12 @@ This repository currently implements:
 - Local infrastructure assets live under `infra/`.
 - The previous repository is private migration input only and is not part of the public structure here.
 
-The backend app now boots with a clean FastAPI scaffold, versioned router composition, and health/problem-response scaffolding. Database wiring, feature modules, and the web runtime are still deferred.
+The clean repo now provides:
+
+- a bootable FastAPI scaffold with shared core/runtime primitives
+- a bootable Vite + React scaffold with role-aware shells and providers
+- lazy DB/Alembic foundations
+- runnable local dev Docker wiring for the new app roots
 
 ## Preserved Phase 0 Conventions
 
@@ -59,7 +64,12 @@ See [docs/migration-map.md](docs/migration-map.md) for the old-to-new root mappi
 
 ## Bootstrap Entry Points
 
-The repo now has a partial runnable backend bootstrap plus the Phase 0 command surface and canonical locations.
+The repo now has a runnable two-app development skeleton plus canonical `scripts/` entrypoints.
+
+Before starting local runtime flows, create:
+
+- `apps/api/.env` from `packages/config/env/api.env.example`
+- `apps/web/.env` from `packages/config/env/web.env.example`
 
 - Development entrypoints: `scripts/dev/`
 - Test entrypoints: `scripts/test/`
@@ -72,12 +82,13 @@ The repo now has a partial runnable backend bootstrap plus the Phase 0 command s
 
 The following work is still deferred:
 
-- Vite app bootstrapping and route shell rendering
-- Database engine/session wiring and migrations setup
-- Worker entrypoints
+- feature module API routes and feature pages
+- generated shared contracts
+- real auth/session bootstrap endpoints
+- worker entrypoints and queue runtime
 - Contract generation tooling
-- frontend and E2E automation wiring
+- full E2E compose parity
 
 ## Placeholder Directories
 
-Some directories intentionally contain only README or placeholder files in Phase 0 so the documented structure exists before feature code is migrated. Those placeholders are intentional and should be replaced incrementally as later phases land.
+Some directories intentionally remain scaffolds so the architecture stays clean while feature code is migrated incrementally in later phases.

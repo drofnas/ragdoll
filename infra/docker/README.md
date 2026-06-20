@@ -2,11 +2,16 @@
 
 Canonical home for local Docker Compose assets and related container-runtime notes.
 
-Phase 0 includes placeholder compose definitions so ownership is clear before the app runtimes are bootstrapped.
+Phase 1 now includes a runnable local development compose file rooted in the clean-room app structure.
 
-Planned files:
+- `compose.dev.yml` boots:
+  - `apps/api` on host port `8031`
+  - `apps/web` on host port `8030`
+- backend healthcheck uses `GET /health`
+- frontend waits for backend liveness before starting
 
-- `compose.dev.yml`
-- `compose.e2e.yml`
+Still deferred:
 
-These will become the repo-owned replacements for the old root-level compose files.
+- full E2E compose parity
+- worker-specific compose services
+- local compose automation for third-party dependencies beyond app boot

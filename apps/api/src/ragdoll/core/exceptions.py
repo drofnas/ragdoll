@@ -18,6 +18,19 @@ class ApplicationError(Exception):
         self.code = code
 
 
+class ConfigurationError(ApplicationError):
+    """Raised when required runtime configuration is missing or invalid."""
+
+    def __init__(self, detail: str = "Runtime configuration is incomplete.") -> None:
+        super().__init__(
+            detail,
+            status_code=500,
+            title="Configuration error",
+            type_uri="https://ragdoll.dev/problems/configuration-error",
+            code="configuration_error",
+        )
+
+
 class RuntimeScaffoldNotReadyError(ApplicationError):
     """Raised when a placeholder runtime dependency is used before being wired."""
 
@@ -28,4 +41,30 @@ class RuntimeScaffoldNotReadyError(ApplicationError):
             title="Runtime scaffold not ready",
             type_uri="https://ragdoll.dev/problems/runtime-scaffold-not-ready",
             code="runtime_scaffold_not_ready",
+        )
+
+
+class AuthenticationRequiredError(ApplicationError):
+    """Raised when a request requires authentication."""
+
+    def __init__(self, detail: str = "Authentication is required.") -> None:
+        super().__init__(
+            detail,
+            status_code=401,
+            title="Authentication required",
+            type_uri="https://ragdoll.dev/problems/authentication-required",
+            code="authentication_required",
+        )
+
+
+class AuthorizationError(ApplicationError):
+    """Raised when an authenticated request is forbidden."""
+
+    def __init__(self, detail: str = "You do not have access to this resource.") -> None:
+        super().__init__(
+            detail,
+            status_code=403,
+            title="Forbidden",
+            type_uri="https://ragdoll.dev/problems/forbidden",
+            code="forbidden",
         )

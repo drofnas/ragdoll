@@ -1,4 +1,8 @@
 #!/bin/sh
 
-echo "Phase 0 scaffold only: backend tests are not wired yet."
-echo "Canonical backend test ownership is apps/api/tests/."
+set -eu
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$ROOT_DIR/apps/api"
+
+python3 -m pytest tests/platform -q "$@"

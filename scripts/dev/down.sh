@@ -1,4 +1,8 @@
 #!/bin/sh
 
-echo "Phase 0 scaffold only: no local dev stack teardown is wired yet."
-echo "Future teardown logic should target infra/docker/compose.dev.yml."
+set -eu
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$ROOT_DIR"
+
+docker compose -f infra/docker/compose.dev.yml down --remove-orphans "$@"

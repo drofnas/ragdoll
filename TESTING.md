@@ -1,6 +1,6 @@
 # Testing
 
-The repository now includes the first backend platform bootstrap tests in `apps/api/tests/platform/`, while most feature and integration coverage is still deferred.
+The repository now includes backend platform tests in `apps/api/tests/platform/` and frontend runtime/bootstrap tests in `apps/web/src/app/tests/` and `apps/web/src/shared/api/tests/`.
 
 ## Ownership
 
@@ -16,17 +16,18 @@ The repository now includes the first backend platform bootstrap tests in `apps/
 - `scripts/test/frontend.sh`
 - `scripts/test/e2e.sh`
 
-These scripts are still lightweight scaffolds. The first real backend bootstrap tests live directly under `apps/api/tests/platform/` and can be run from the app directory with `pytest`.
+These scripts now run the app-local bootstrap suites for backend and frontend. E2E remains intentionally partial until later phases.
 
 ## Current Scope
 
-Current validation includes repository-level checks plus backend bootstrap coverage:
+Current validation includes repository-level checks plus runtime/bootstrap coverage:
 
 - confirm the directory structure matches the architecture docs
 - confirm the shared env examples exist
 - confirm the scripts and infra locations are obvious to contributors
 - confirm no private machine-specific paths are committed
 - confirm `ragdoll.main:app` imports without DB, worker, or feature wiring
-- confirm `GET /health` and `GET /api/v1/health` return the bootstrap scaffold responses
+- confirm `GET /health` and `GET /api/v1/health` return the scaffold/runtime readiness responses
+- confirm `apps/web` renders public, authenticated, and admin scaffold shells
 
-Feature-level and cross-system automation remain deferred until the corresponding runtime layers exist.
+Feature-level and cross-system automation remain deferred until the corresponding module and contract layers exist.
