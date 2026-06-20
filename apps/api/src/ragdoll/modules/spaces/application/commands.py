@@ -69,6 +69,9 @@ def update_space(
                 code="request_validation_failed",
             )
         repo.clear_default_for_owner(owner_user_id, exclude_space_id=space.id)
+        # Flush the old default change before promoting the new one so SQLite's
+        # partial unique index never sees two defaults in the same statement batch.
+        session.flush()
         space.is_default = True
     elif payload.is_default is False and space.is_default:
         raise ApplicationError(

@@ -48,3 +48,10 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    uploaded_documents: Mapped[list["Document"]] = relationship(back_populates="uploader")
+    usage_events: Mapped[list["UsageEvent"]] = relationship(back_populates="user")
+    usage_snapshot: Mapped["UserUsageSnapshot | None"] = relationship(
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -14,6 +14,9 @@ from ragdoll.core.exceptions import ApplicationError, AuthenticationRequiredErro
 from ragdoll.core.pagination import PaginationParams, resolve_pagination_params
 from ragdoll.modules.users.application.queries import build_authenticated_principal, get_user_by_subject
 from ragdoll.platform.db.session import get_db_session
+from ragdoll.platform.graph import GraphCleanupService, get_graph_cleanup_service
+from ragdoll.platform.storage import DocumentStorageService, get_document_storage
+from ragdoll.platform.vector import VectorCleanupService, get_vector_cleanup_service
 
 
 def get_app_settings() -> Settings:
@@ -35,6 +38,18 @@ SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 RequestIdDep = Annotated[str, Depends(get_request_id)]
 PaginationDep = Annotated[PaginationParams, Depends(resolve_pagination_params)]
 DatabaseSessionDep = Annotated[Session, Depends(get_db_session)]
+
+
+def get_document_storage_service() -> DocumentStorageService:
+    return get_document_storage()
+
+
+def get_vector_cleanup() -> VectorCleanupService:
+    return get_vector_cleanup_service()
+
+
+def get_graph_cleanup() -> GraphCleanupService:
+    return get_graph_cleanup_service()
 
 
 def require_current_user(
@@ -77,3 +92,6 @@ def require_space_scope(
 CurrentUserDep = Annotated[AuthenticatedPrincipal, Depends(require_current_user)]
 AdminUserDep = Annotated[AuthenticatedPrincipal, Depends(require_admin_user)]
 SpaceScopeDep = Annotated[SpaceScope, Depends(require_space_scope)]
+DocumentStorageDep = Annotated[DocumentStorageService, Depends(get_document_storage_service)]
+VectorCleanupDep = Annotated[VectorCleanupService, Depends(get_vector_cleanup)]
+GraphCleanupDep = Annotated[GraphCleanupService, Depends(get_graph_cleanup)]

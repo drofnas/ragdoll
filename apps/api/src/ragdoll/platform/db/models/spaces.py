@@ -55,3 +55,4 @@ class Space(Base):
     )
 
     owner: Mapped["User"] = relationship(back_populates="spaces")
+    documents: Mapped[list["Document"]] = relationship(back_populates="space")

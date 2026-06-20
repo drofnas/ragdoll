@@ -70,4 +70,7 @@ def test_contract_generation_script_exports_openapi_and_typescript_manifest(tmp_
 
     assert openapi_payload["info"]["title"] == "Ragdoll API"
     assert "/api/v1/health" in openapi_payload["paths"]
+    assert "/api/v1/documents" in openapi_payload["paths"]
+    assert "/api/v1/usage/me" in openapi_payload["paths"]
+    assert "ProcessingStatus" in openapi_payload["components"]["schemas"]
     assert manifest_payload["status"] == "scaffold_only"

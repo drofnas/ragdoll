@@ -1,0 +1,9 @@
+{
+  "notes": [
+    "Phase 2 fixes the generation path and ownership only.",
+    "Replace this manifest with real generated TypeScript output when the chosen generator is introduced."
+  ],
+  "output_directory": "packages/contracts/typescript",
+  "source": "packages/contracts/openapi/ragdoll.openapi.json",
+  "status": "scaffold_only"
+}

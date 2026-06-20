@@ -241,6 +241,59 @@ Depends on: Phase 1, Phase 2, Phase 2A, Phase 3
   - [ ] Update usage contracts
   - [ ] Verify usage summaries can support account and admin surfaces
 
+## Phase 3A - Document And Usage Foundations
+
+Goal: finish the minimum shared data and adapter groundwork needed for the first post-auth vertical slice without prematurely pulling in ingestion, search, chat, or graph-query implementation scope.
+
+Depends on: Phase 1, Phase 2, Phase 2A
+
+- [x] Phase complete
+- [x] Add the first document and usage relational records
+  - [x] Add the `Document` model with required Space scope, uploader ownership, storage reference, preview fields, stage-aware processing status, chunk counters, soft-delete support, and audit timestamps
+  - [x] Add the `UsageEvent` and `UserUsageSnapshot` models for later quota and account summaries
+  - [x] Add the follow-on Alembic revision for document and usage foundations
+  - [x] Verify active-document indexes include a soft-delete-aware path for list reads
+- [x] Add provider-agnostic storage and cleanup adapters
+  - [x] Add original-file storage and derived-artifact cleanup interfaces under `platform/storage`
+  - [x] Add the configured Supabase-backed document storage implementation
+  - [x] Add in-memory document storage and cleanup test doubles for module tests
+  - [x] Verify storage metadata remains relationally authoritative
+- [x] Add minimal vector and graph cleanup seams
+  - [x] Add document cleanup interfaces under `platform/vector` and `platform/graph`
+  - [x] Add idempotent in-memory cleanup doubles for tests
+  - [x] Keep live vector query, embedding write, graph write, and graph read behavior deferred
+- [x] Lock in the first document-slice state conventions
+  - [x] Use shared `ProcessingStatus` as the public transport contract for document state
+  - [x] Keep all new document rows Space-scoped from day one
+  - [x] Treat object, vector, and graph stores as cleanup-aware derived systems rather than metadata sources of truth
+  - [x] Keep provider-specific sync metadata deferred to later ingestion work
+
+## Phase 4A - Document Library And Usage Summary
+
+Goal: land the first live clean-room vertical slice after auth and Spaces by implementing document-library reads and moves plus a read-only usage summary surface.
+
+Depends on: Phase 3A
+
+- [x] Phase complete
+- [x] Implement the documents module
+  - [x] Add document list, detail, move, delete, and download routes under `/api/v1/documents`
+  - [x] Add concrete document wire schemas using nested shared `ProcessingStatus`
+  - [x] Add document queries, commands, domain policies, and repository behavior in the canonical module shape
+  - [x] Support Space-scoped filters for `space_id`, `all_spaces`, `date_from`, `date_to`, `file_type`, and `uploaded_by`
+  - [x] Use soft delete plus storage, vector, and graph cleanup hooks during document deletion
+  - [x] Return a typed `409` problem when document metadata exists but the original blob is unavailable
+  - [x] Add document module tests for auth, visibility, filtering, moves, deletes, and download error handling
+- [x] Implement the usage module
+  - [x] Add `GET /api/v1/usage/me`
+  - [x] Add concrete usage summary wire schemas
+  - [x] Add plan-limit resolution and usage recompute queries in the canonical module shape
+  - [x] Add usage repository behavior for snapshots, owned-document metrics, and usage-event windows
+  - [x] Keep document, chunk, and storage totals live while token windows default to zero until later chat and worker phases emit events
+  - [x] Add usage module tests for summaries, percentages, recompute behavior, and token reset windows
+- [x] Update contract export coverage for the new slice
+  - [x] Verify OpenAPI export includes documents and usage paths
+  - [x] Verify generated contract artifacts include shared `ProcessingStatus`
+
 ## Phase 5 - Ingestion And Background Processing
 
 Goal: implement the document intake and processing pipeline that transforms uploads into searchable, citeable, graph-aware knowledge.
