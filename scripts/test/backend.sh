@@ -31,4 +31,4 @@ ensure_api_env_file
 
 cd "$ROOT_DIR"
 exec docker compose -f "$COMPOSE_FILE" run --rm -w /workspace/apps/api backend \
-  python3 -m pytest tests/platform -q "$@"
+  python3 -m pytest tests -q "$@"

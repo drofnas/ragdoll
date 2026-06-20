@@ -1,3 +1,3 @@
-from ragdoll.modules._scaffold import build_scaffold_router
+from fastapi import APIRouter
 
-router = build_scaffold_router("/users", "users")
+router = APIRouter(prefix="/users", tags=["users"])

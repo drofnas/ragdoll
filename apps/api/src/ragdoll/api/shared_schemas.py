@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Generic, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
 from ragdoll.core.feature_flags import PlanTier
 
@@ -99,6 +99,12 @@ class SpaceScope(BaseModel):
 
     space_id: UUID | None = Field(default=None)
     all_spaces: bool = Field(default=False)
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> "SpaceScope":
+        if self.space_id is not None and self.all_spaces:
+            raise ValueError("space_id and all_spaces=true cannot be used together.")
+        return self
 
     model_config = ConfigDict(
         json_schema_extra={

@@ -91,7 +91,7 @@ Goal: define shared wire contracts, module route surfaces, and a baseline API te
 
 Depends on: Phase 0, Phase 1
 
-- [ ] Phase complete
+- [x] Phase complete
 - [x] Create the `packages/contracts` foundation
   - [x] Add the contracts directory structure for OpenAPI, schemas, and generated TypeScript types
   - [x] Add baseline contract docs describing contract ownership
@@ -131,10 +131,51 @@ Depends on: Phase 0, Phase 1
 - [x] Add the baseline API test strategy
   - [x] Add module-registry coverage tests for mounted routers where possible
   - [x] Add OpenAPI export smoke coverage
-  - [ ] Add request and response schema tests where possible
-  - [ ] Add auth guard tests for protected endpoints where applicable
   - [x] Add problem response tests for common failure cases where possible
   - [x] Verify the implementation plan explicitly covers testing every API endpoint where practical
+
+## Phase 2A - Identity And Space Migration Slice
+
+Goal: implement the first concrete clean-room migration slice for identity and Space ownership so later document, search, and chat work can reuse stable auth and scope contracts instead of ad hoc legacy behavior.
+
+Depends on: Phase 1, Phase 2
+
+- [x] Phase complete
+- [x] Add the minimal relational groundwork for identity and Space ownership
+  - [x] Define user records with `plan_tier`, `feature_flag_overrides`, `must_change_password`, `is_admin`, and `last_login`
+  - [x] Define Space records with `is_default`, `archived_at`, ownership, and audit timestamps
+  - [x] Add ownership and one-default-space-per-user index constraints
+  - [x] Add the first Alembic revision for the identity and Space slice
+  - [x] Verify the runtime can boot and export contracts with the new models registered
+- [x] Implement the auth module
+  - [x] Add auth routes and concrete wire schemas
+  - [x] Add auth registration and login commands
+  - [x] Add current-user profile queries and patch behavior
+  - [x] Add auth domain and infrastructure scaffolding in the canonical module shape
+  - [x] Verify login, registration, session bootstrap, and protected route behavior under `/api/v1/auth`
+- [x] Implement the users internal ownership layer
+  - [x] Add user profile and update schemas consumed by auth-owned endpoints
+  - [x] Add user commands and queries for profile updates and principal loading
+  - [x] Add user domain policies for email normalization and plan-tier resolution
+  - [x] Add user repository behavior for identity lookups and login-state writes
+  - [x] Verify plan tier and feature-flag resolution are owned by `modules/users`
+- [x] Implement the spaces module
+  - [x] Add Space routes and concrete wire schemas
+  - [x] Add Space commands and queries for create, list, detail, update, and archive flows
+  - [x] Add Space domain policies for default-space protection
+  - [x] Add Space repository behavior for owned-space reads and default-space reassignment
+  - [x] Verify active-space and all-spaces behavior has API-contract support via stable Space records and scope primitives
+- [x] Replace runtime scaffolds with real identity and scope dependencies
+  - [x] Replace the current-user dependency scaffold with bearer-token principal loading
+  - [x] Replace the admin guard scaffold with real admin authorization checks
+  - [x] Finalize `SpaceScope` validation so `space_id` and `all_spaces=true` are mutually exclusive
+  - [x] Keep later document, search, and chat route adoption deferred until their phases
+- [x] Add the Phase 2A auth and Space test layer
+  - [x] Add request and response schema tests where practical
+  - [x] Add auth guard tests for protected endpoints where applicable
+  - [x] Port auth and spaces API tests into `apps/api/tests/modules`
+  - [x] Add contract export assertions for auth and Space schemas
+  - [x] Verify the backend test wrapper runs module tests, not only platform tests
 
 ## Phase 3 - Core Data And Storage
 
@@ -144,8 +185,8 @@ Depends on: Phase 1, Phase 2
 
 - [ ] Phase complete
 - [ ] Add relational schema foundations
-  - [ ] Define user records and plan-tier fields
-  - [ ] Define Space records and scope-related fields
+  - [x] Define user records and plan-tier fields
+  - [x] Define Space records and scope-related fields
   - [ ] Define document metadata and processing-state fields
   - [ ] Define entity and canonical entity fields
   - [ ] Define chat session and message fields
@@ -178,35 +219,11 @@ Depends on: Phase 1, Phase 2
 
 ## Phase 4 - Core Backend Modules
 
-Goal: implement the foundational backend modules that other capabilities depend on, starting with identity, ownership, document metadata, and usage surfaces.
+Goal: implement the next foundational backend modules that depend on stable identity and Space ownership, starting with documents and usage surfaces before later ingestion, retrieval, and graph features.
 
-Depends on: Phase 1, Phase 2, Phase 3
+Depends on: Phase 1, Phase 2, Phase 2A, Phase 3
 
 - [ ] Phase complete
-- [ ] Implement the auth module
-  - [ ] Add auth routes and wire schemas
-  - [ ] Add auth commands and queries
-  - [ ] Add auth domain types and policies
-  - [ ] Add auth repository behavior
-  - [ ] Add auth module tests
-  - [ ] Update auth contracts
-  - [ ] Verify login, registration, session bootstrap, and protected route behavior
-- [ ] Implement the users module
-  - [ ] Add user routes and wire schemas where needed
-  - [ ] Add user commands and queries
-  - [ ] Add user domain types and policies
-  - [ ] Add user repository behavior
-  - [ ] Add user module tests
-  - [ ] Update user and usage-adjacent contracts
-  - [ ] Verify plan tier and feature-flag override ownership
-- [ ] Implement the spaces module
-  - [ ] Add Space routes and wire schemas
-  - [ ] Add Space commands and queries
-  - [ ] Add Space domain types and policies
-  - [ ] Add Space repository behavior
-  - [ ] Add Space module tests
-  - [ ] Update Space contracts
-  - [ ] Verify active-space and all-spaces behaviors have API support
 - [ ] Implement the documents module
   - [ ] Add document routes and wire schemas
   - [ ] Add document commands and queries

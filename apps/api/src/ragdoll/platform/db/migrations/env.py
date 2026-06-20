@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from ragdoll.core.config import get_settings
+from ragdoll.platform.db import models  # noqa: F401
 from ragdoll.platform.db.models_base import Base
 
 config = context.config
