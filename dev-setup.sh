@@ -31,7 +31,7 @@ Commands:
   test-backend       Run backend platform tests from apps/api
   test-frontend      Run frontend runtime/bootstrap tests from apps/web
   test, test-all     Run backend and frontend test entrypoints in sequence
-  test-e2e           Show the current deferred E2E placeholder message
+  test-e2e           Run the Docker-backed Playwright smoke E2E suite
   help, -h, --help   Show this help message
 EOF
 }

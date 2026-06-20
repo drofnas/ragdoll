@@ -86,7 +86,10 @@ class FakeAsyncClient:
 
 
 def test_settings_prefers_main_supabase_database_url():
-    settings = Settings(supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres")
+    settings = Settings(
+        supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres",
+        _env_file=None,
+    )
     assert settings.effective_database_url == "postgresql://postgres:secret@db.example:5432/postgres"
 
 
@@ -97,28 +100,32 @@ def test_settings_falls_back_to_legacy_split_database_fields():
         supabase_postgres_db="postgres",
         supabase_postgres_user="postgres",
         supabase_postgres_password="secret",
+        _env_file=None,
     )
     assert settings.legacy_supabase_db_url == "postgresql://postgres:secret@db.example:5432/postgres"
 
 
 def test_settings_accept_allowed_origins_as_single_string():
-    settings = Settings(allowed_origins="http://localhost:8030")
-    assert settings.allowed_origins == ["http://localhost:8030"]
+    assert config_module._normalize_allowed_origins("http://localhost:8030") == ["http://localhost:8030"]
 
 
 def test_settings_accept_allowed_origins_as_csv_string():
-    settings = Settings(allowed_origins="http://localhost:8030, http://localhost:3000")
-    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+    assert config_module._normalize_allowed_origins("http://localhost:8030, http://localhost:3000") == [
+        "http://localhost:8030",
+        "http://localhost:3000",
+    ]
 
 
 def test_settings_accept_allowed_origins_as_json_array_string():
-    settings = Settings(allowed_origins='["http://localhost:8030", "http://localhost:3000"]')
-    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+    assert config_module._normalize_allowed_origins(
+        '["http://localhost:8030", "http://localhost:3000"]'
+    ) == ["http://localhost:8030", "http://localhost:3000"]
 
 
 def test_settings_accept_allowed_origins_as_direct_list():
-    settings = Settings(allowed_origins=["http://localhost:8030", " http://localhost:3000 "])
-    assert settings.allowed_origins == ["http://localhost:8030", "http://localhost:3000"]
+    assert config_module._normalize_allowed_origins(
+        ["http://localhost:8030", " http://localhost:3000 "]
+    ) == ["http://localhost:8030", "http://localhost:3000"]
 
 
 def test_settings_reject_invalid_allowed_origins_from_env(monkeypatch):
@@ -156,14 +163,14 @@ def test_password_hash_round_trip():
 
 
 def test_access_token_round_trip_uses_runtime_settings():
-    settings = Settings(secret_key="test-secret", access_token_expire_minutes=5)
+    settings = Settings(secret_key="test-secret", access_token_expire_minutes=5, _env_file=None)
     token = create_access_token({"sub": "user-1"}, expires_delta=timedelta(minutes=5), settings=settings)
     payload = decode_access_token(token, settings=settings)
     assert payload["sub"] == "user-1"
 
 
 def test_invalid_access_token_raises_authentication_error():
-    settings = Settings(secret_key="test-secret")
+    settings = Settings(secret_key="test-secret", _env_file=None)
     with pytest.raises(AuthenticationRequiredError):
         decode_access_token("invalid-token", settings=settings)
 
@@ -199,13 +206,13 @@ def test_db_engine_module_does_not_create_engine_until_requested():
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_queue_not_configured_by_default():
-    payload = await build_readiness_payload(Settings())
+    payload = await build_readiness_payload(Settings(_env_file=None))
     assert payload.services["queue"].status == "not_configured"
 
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_database_healthy_when_probe_succeeds(monkeypatch):
-    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres")
+    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres", _env_file=None)
 
     monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
     payload = await build_readiness_payload(settings)
@@ -219,6 +226,7 @@ async def test_readiness_payload_marks_storage_healthy_when_bucket_exists(monkey
         supabase_url="https://supabase.example",
         supabase_service_role_key="service-role-key",
         supabase_storage_bucket="ragdoll",
+        _env_file=None,
     )
 
     monkeypatch.setattr(
@@ -235,7 +243,7 @@ async def test_readiness_payload_marks_storage_healthy_when_bucket_exists(monkey
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_vector_not_configured_without_pgvector(monkeypatch):
-    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres")
+    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres", _env_file=None)
 
     monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine(vector_installed=False))
     payload = await build_readiness_payload(settings)
@@ -245,14 +253,14 @@ async def test_readiness_payload_marks_vector_not_configured_without_pgvector(mo
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_graph_healthy_in_memory_mode():
-    payload = await build_readiness_payload(Settings(e2e_memory_backends=True))
+    payload = await build_readiness_payload(Settings(e2e_memory_backends=True, _env_file=None))
     assert payload.services["graph"].status == "healthy"
     assert payload.services["graph"].backend == "memory"
 
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_llm_unhealthy_when_probe_fails(monkeypatch):
-    settings = Settings(ollama_base_url="http://ollama.local:11434")
+    settings = Settings(ollama_base_url="http://ollama.local:11434", _env_file=None)
 
     monkeypatch.setattr(
         health_module.httpx,
@@ -266,7 +274,14 @@ async def test_readiness_payload_marks_llm_unhealthy_when_probe_fails(monkeypatc
 
 
 def test_get_engine_requires_database_configuration(monkeypatch):
-    monkeypatch.setattr(engine_module, "get_settings", lambda: Settings())
+    monkeypatch.delenv("SUPABASE_DB_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_POSTGRES_HOST", raising=False)
+    monkeypatch.delenv("SUPABASE_POSTGRES_PORT", raising=False)
+    monkeypatch.delenv("SUPABASE_POSTGRES_DB", raising=False)
+    monkeypatch.delenv("SUPABASE_POSTGRES_USER", raising=False)
+    monkeypatch.delenv("SUPABASE_POSTGRES_PASSWORD", raising=False)
+    monkeypatch.setattr(engine_module, "get_settings", lambda: Settings(_env_file=None))
     engine_module.get_engine.cache_clear()
     try:
         with pytest.raises(ConfigurationError):

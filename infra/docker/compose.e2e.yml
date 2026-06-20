@@ -1,1 +1,11 @@
-services: {}
+services:
+  e2e:
+    build:
+      context: ../../tests/e2e
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    environment:
+      E2E_BASE_URL: http://frontend:3000
+    depends_on:
+      frontend:
+        condition: service_started

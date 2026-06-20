@@ -2,7 +2,14 @@
 
 Canonical home for product-level end-to-end verification.
 
-Phase 0 reserves these subdirectories:
+The initial clean-room E2E suite is intentionally minimal and smoke-focused.
+
+Current coverage:
+
+- public shell renders the known scaffold title
+- anonymous access to `/dashboard` redirects to `/login`
+
+Current structure:
 
 - `fixtures/`
 - `helpers/`

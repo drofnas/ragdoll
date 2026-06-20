@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from ragdoll.api.shared_schemas import SpaceScope
 from ragdoll.core.auth import AuthenticatedPrincipal
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.core.exceptions import RuntimeScaffoldNotReadyError
@@ -36,7 +37,7 @@ def require_admin_user() -> AuthenticatedPrincipal:
     raise RuntimeScaffoldNotReadyError("Admin guard dependency is not wired yet.")
 
 
-def require_space_scope() -> dict[str, object]:
+def require_space_scope() -> SpaceScope:
     """Placeholder Space-scope dependency for future scope resolution."""
     raise RuntimeScaffoldNotReadyError("Space-scope dependency is not wired yet.")
 
@@ -47,4 +48,4 @@ PaginationDep = Annotated[PaginationParams, Depends(resolve_pagination_params)]
 DatabaseSessionDep = Annotated[Session, Depends(get_db_session)]
 CurrentUserDep = Annotated[AuthenticatedPrincipal, Depends(require_current_user)]
 AdminUserDep = Annotated[AuthenticatedPrincipal, Depends(require_admin_user)]
-SpaceScopeDep = Annotated[dict[str, object], Depends(require_space_scope)]
+SpaceScopeDep = Annotated[SpaceScope, Depends(require_space_scope)]

@@ -22,6 +22,7 @@ The clean repo now provides:
 - a bootable Vite + React scaffold with role-aware shells and providers
 - lazy DB/Alembic foundations
 - runnable local dev Docker wiring for the new app roots
+- a Phase 2 contract package layout and `/api/v1` module registry scaffold
 
 ## Preserved Phase 0 Conventions
 
@@ -33,7 +34,7 @@ The rebuild currently preserves the original stack direction while the structure
 - Frontend package manager: `npm`
 - Database migrations: Alembic
 - Local development orchestration: Docker Compose
-- Shared contracts: scaffolded now in `packages/contracts`, with generation deferred to a later phase
+- Shared contracts: scaffolded now in `packages/contracts`, with a Phase 2 OpenAPI export and TypeScript-generation workflow stub
 - Script ownership: thin developer entrypoints under `scripts/dev`, `scripts/test`, and `scripts/ops`
 
 ## Repository Structure
@@ -93,7 +94,6 @@ The following work is still deferred:
 - generated shared contracts
 - real auth/session bootstrap endpoints
 - worker entrypoints and queue runtime
-- Contract generation tooling
 - full E2E compose parity
 
 ## Placeholder Directories

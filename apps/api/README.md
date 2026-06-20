@@ -11,6 +11,8 @@ Phase 1 now includes the backend runtime and DB foundations:
 - shared backend core services under `src/ragdoll/core/`
 - DB engine, session, and Alembic scaffolding under `src/ragdoll/platform/db/`
 - backend platform bootstrap tests under `tests/platform/`
+- a Phase 2 `/api/v1` module registry scaffold across planned backend modules
+- a Phase 2 contract-export entrypoint in `packages/tooling/scripts/generate_contracts.py`
 
 Current nearby ownership:
 
@@ -21,7 +23,7 @@ Current nearby ownership:
 
 Still deferred:
 
-- module route mounts under `/api/v1`
+- concrete feature behavior behind module route mounts under `/api/v1`
 - worker startup and platform adapters
 - feature-specific models and migrations
 - queue runtime and long-running worker execution
@@ -29,5 +31,6 @@ Still deferred:
 ## Local Commands
 
 - start dev server: `uvicorn ragdoll.main:app --host 0.0.0.0 --port 8000 --reload`
-- run platform tests: `python3 -m pytest tests/platform -q`
+- run platform tests: `../../scripts/test/backend.sh`
+- export OpenAPI + contract scaffold from Docker: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace backend python3 packages/tooling/scripts/generate_contracts.py`
 - run Alembic upgrades: `alembic upgrade head`

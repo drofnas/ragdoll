@@ -92,39 +92,49 @@ Goal: define shared wire contracts, module route surfaces, and a baseline API te
 Depends on: Phase 0, Phase 1
 
 - [ ] Phase complete
-- [ ] Create the `packages/contracts` foundation
-  - [ ] Add the contracts directory structure for OpenAPI, schemas, and generated TypeScript types
-  - [ ] Add baseline contract docs describing contract ownership
-  - [ ] Add placeholder schema groupings for all planned product areas
-  - [ ] Verify contract directories match the architecture docs
-- [ ] Define the initial schema set
-  - [ ] Add auth schema placeholders
-  - [ ] Add spaces schema placeholders
-  - [ ] Add documents schema placeholders
-  - [ ] Add search schema placeholders
-  - [ ] Add chat schema placeholders
-  - [ ] Add entities schema placeholders
-  - [ ] Add tracked state schema placeholders
-  - [ ] Add changes schema placeholders
-  - [ ] Add admin schema placeholders
-  - [ ] Add usage schema placeholders
-  - [ ] Define shared response envelopes such as pagination, mutation results, and problem responses
-- [ ] Define contract generation strategy
-  - [ ] Add OpenAPI generation workflow notes
-  - [ ] Add TypeScript type generation workflow notes
-  - [ ] Add a placeholder tooling entrypoint in `packages/tooling` for contract generation
-  - [ ] Verify the generation strategy supports both backend-first and frontend consumption flows
-- [ ] Build the `/api/v1` skeleton
-  - [ ] Add versioned router composition for all planned backend modules
-  - [ ] Add placeholder route mounts for auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, tracked state, changes, corrections, admin, and usage
-  - [ ] Add endpoint inventory notes or route placeholder coverage for each module
-  - [ ] Verify every capability in `docs/architecture/capability-map.md` has an API home where applicable
-- [ ] Add the baseline API test strategy
-  - [ ] Add route presence tests for mounted endpoints where possible
+- [x] Create the `packages/contracts` foundation
+  - [x] Add the contracts directory structure for OpenAPI, schemas, and generated TypeScript types
+  - [x] Add baseline contract docs describing contract ownership
+  - [x] Add placeholder schema groupings for all planned product areas
+  - [x] Verify contract directories match the architecture docs
+- [x] Define the initial schema set
+  - [x] Add shared public wire primitives for `ProblemResponse`, `MutationResult`, `PaginatedResponse`, `HealthStatusResponse`, `SpaceScope`, `ProcessingStatus`, `PlanTier`, `FeatureFlags`, `SourceTier`, and `Citation`
+  - [x] Add auth schema placeholders
+  - [x] Add users schema placeholders
+  - [x] Add spaces schema placeholders
+  - [x] Add documents schema placeholders
+  - [x] Add ingestion schema placeholders
+  - [x] Add search schema placeholders
+  - [x] Add chat schema placeholders
+  - [x] Add entities schema placeholders
+  - [x] Add knowledge graph schema placeholders
+  - [x] Add tracked state schema placeholders
+  - [x] Add changes schema placeholders
+  - [x] Add corrections schema placeholders
+  - [x] Add admin schema placeholders
+  - [x] Add usage schema placeholders
+- [x] Define contract generation strategy
+  - [x] Add OpenAPI generation workflow notes
+  - [x] Add TypeScript type generation workflow notes
+  - [x] Add a scaffolded tooling entrypoint in `packages/tooling` for contract generation
+  - [x] Verify the generation strategy supports both backend-first and frontend consumption flows
+- [x] Build the `/api/v1` skeleton
+  - [x] Add versioned router composition for all planned backend modules
+  - [x] Add placeholder route mounts for auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, tracked state, changes, corrections, admin, and usage
+  - [x] Add endpoint inventory notes for each module
+  - [x] Verify every capability in `docs/architecture/capability-map.md` has an API home where applicable
+- [x] Add the auth and spaces migration-prep inventory
+  - [x] Map legacy auth behavior into `modules/auth` and `modules/users`
+  - [x] Map legacy spaces behavior into `modules/spaces`
+  - [x] Record preserved, renamed, deferred, and dropped migration decisions
+  - [x] Explicitly defer document, search, and chat migration until auth identity and Space scope contracts are stable
+- [x] Add the baseline API test strategy
+  - [x] Add module-registry coverage tests for mounted routers where possible
+  - [x] Add OpenAPI export smoke coverage
   - [ ] Add request and response schema tests where possible
   - [ ] Add auth guard tests for protected endpoints where applicable
-  - [ ] Add problem response tests for common failure cases where possible
-  - [ ] Verify the implementation plan explicitly covers testing every API endpoint where practical
+  - [x] Add problem response tests for common failure cases where possible
+  - [x] Verify the implementation plan explicitly covers testing every API endpoint where practical
 
 ## Phase 3 - Core Data And Storage
 

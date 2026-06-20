@@ -1,5 +1,10 @@
 # `packages/tooling/codegen`
 
-Placeholder home for contract generation and related build helpers.
+Home for contract-generation and related build helpers.
 
-OpenAPI and TypeScript generation are intentionally deferred until the runtime and schema foundations exist.
+Phase 2 fixes the workflow direction:
+
+1. export OpenAPI from the FastAPI app
+2. generate TypeScript output from that snapshot
+
+The initial implementation is intentionally scaffold-level, but the ownership and invocation pattern should remain stable as concrete generators are added later.

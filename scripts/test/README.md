@@ -4,7 +4,7 @@ Thin test entrypoints belong here.
 
 These scripts are the underlying owners for test flows and are also routed through the root `./dev-setup.sh` convenience wrapper.
 
-Test commands remain host-local and do not auto-create app `.env` files in this phase.
+Backend Python test commands are Docker-first and should not rely on host Python tooling.
 
 Phase 1 wires the backend and frontend bootstrap commands:
 
@@ -13,4 +13,10 @@ Phase 1 wires the backend and frontend bootstrap commands:
 - `frontend.sh`
 - `e2e.sh`
 
-`e2e.sh` remains intentionally partial until later phases, so `./dev-setup.sh test-e2e` is not yet a real E2E runner.
+`e2e.sh` now runs a Docker-backed Playwright smoke suite against the live frontend and backend containers.
+
+Current split:
+
+- `backend.sh`: runs backend platform tests inside the Docker backend service
+- `frontend.sh`: runs frontend tests inside the Docker frontend service
+- `e2e.sh`: auto-starts the Docker app stack if needed and runs Playwright smoke specs inside the E2E container

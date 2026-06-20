@@ -1,32 +1,23 @@
 from __future__ import annotations
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
 from fastapi import APIRouter
 from sqlalchemy import text
 
+from ragdoll.api.shared_schemas import DependencyStatus, HealthStatusResponse
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.platform.db.engine import get_engine
 
 PHASE_1_NOT_CONFIGURED_DETAIL = "Phase 1 scaffold: probe not wired yet"
 DEPENDENCY_KEYS = ("database", "storage", "vector", "graph", "llm", "queue")
 
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class LivenessResponse(BaseModel):
     status: str = Field(default="ok")
 
     model_config = ConfigDict(json_schema_extra={"example": {"status": "ok"}})
-
-
-class DependencyStatus(BaseModel):
-    status: str = Field(default="not_configured")
-    detail: str = Field(default=PHASE_1_NOT_CONFIGURED_DETAIL)
-    backend: str | None = Field(default=None)
-
-
-class ReadinessResponse(BaseModel):
-    status: str = Field(default="degraded")
-    services: dict[str, DependencyStatus]
 
 
 def _service(status: str, detail: str, *, backend: str | None = None) -> DependencyStatus:
@@ -125,7 +116,7 @@ async def _check_llm(settings: Settings) -> DependencyStatus:
         return _service("unhealthy", f"Ollama probe failed: {exc}")
 
 
-async def build_readiness_payload(settings: Settings | None = None) -> ReadinessResponse:
+async def build_readiness_payload(settings: Settings | None = None) -> HealthStatusResponse:
     runtime_settings = settings or get_settings()
     database_status = _check_database(runtime_settings)
     services = {
@@ -137,7 +128,7 @@ async def build_readiness_payload(settings: Settings | None = None) -> Readiness
         "queue": _check_queue(),
     }
     overall_status = "ok" if all(service.status == "healthy" for service in services.values()) else "degraded"
-    return ReadinessResponse(status=overall_status, services=services)
+    return HealthStatusResponse(status=overall_status, services=services)
 
 
 liveness_router = APIRouter()
@@ -149,6 +140,6 @@ async def health_liveness() -> LivenessResponse:
     return LivenessResponse(status="ok")
 
 
-@readiness_router.get("/health", response_model=ReadinessResponse, tags=["health"])
-async def health_readiness() -> ReadinessResponse:
+@readiness_router.get("/health", response_model=HealthStatusResponse, tags=["health"])
+async def health_readiness() -> HealthStatusResponse:
     return await build_readiness_payload()

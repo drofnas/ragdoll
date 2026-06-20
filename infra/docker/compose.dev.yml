@@ -13,6 +13,7 @@ services:
       - ../../apps/api/tests:/app/tests
       - ../../apps/api/scripts:/app/scripts
       - ../../apps/api/alembic.ini:/app/alembic.ini
+      - ../../:/workspace
     healthcheck:
       test:
         [
