@@ -2,6 +2,13 @@
 
 This repository is Docker-first for backend and Python work.
 
+## Navigation Rule
+
+- Read `INDEX.md` at the repository root before broad codebase traversal when you need to edit an existing file or decide where a new file should go.
+- Use `INDEX.md` first to narrow the target area for pages, logic, tests, contracts, scripts, and new files.
+- Fall back to deeper traversal only after `INDEX.md` has narrowed the likely ownership area.
+- Keep `INDEX.md` up to date when structural ownership or file-placement conventions change.
+
 ## Backend Python Rule
 
 - Do not rely on host-installed `python3`, `pip`, `pytest`, `alembic`, or similar tools for repo backend tasks.
