@@ -24,6 +24,10 @@ describe("AppRouter", () => {
   it("renders public home route", () => {
     renderRoute("/");
     expect(screen.getByText("Ragdoll Clean-Room Rebuild")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Status" })).toHaveAttribute(
+      "href",
+      "http://localhost:8031/status"
+    );
   });
 
   it("renders protected dashboard for scaffold user mode", () => {

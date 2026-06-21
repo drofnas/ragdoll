@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from ragdoll.api import health as health_module
-from ragdoll.api.health import build_readiness_payload
+from ragdoll.api.health import build_readiness_payload, build_runtime_status_payload
 from ragdoll.core import config as config_module
 from ragdoll.core.config import Settings
 from ragdoll.core.exceptions import AuthenticationRequiredError, ConfigurationError
@@ -271,6 +271,108 @@ async def test_readiness_payload_marks_llm_unhealthy_when_probe_fails(monkeypatc
     payload = await build_readiness_payload(settings)
 
     assert payload.services["llm"].status == "unhealthy"
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_marks_configured_ollama_models_present(monkeypatch):
+    settings = Settings(
+        app_name="Ragdoll API",
+        app_env="development",
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
+    monkeypatch.setattr(
+        health_module.httpx,
+        "get",
+        lambda *args, **kwargs: FakeResponse([{"name": "documents"}]),
+    )
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(
+            payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]}
+        ),
+    )
+
+    payload = await build_runtime_status_payload(settings, app_version="0.1.0")
+
+    models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
+    assert payload.application.version == "0.1.0"
+    assert payload.ollama.status == "healthy"
+    assert models["qwen3.5:0.8b"].status == "present"
+    assert set(models["qwen3.5:0.8b"].roles) == {"primary_chat", "orchestrator", "worker"}
+    assert models["nomic-embed-text"].status == "present"
+    assert models["nomic-embed-text"].roles == ["embedding"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_marks_missing_ollama_models(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(payload={"models": [{"name": "qwen3.5:0.8b"}]}),
+    )
+
+    payload = await build_runtime_status_payload(settings)
+
+    models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
+    assert models["qwen3.5:0.8b"].status == "present"
+    assert models["nomic-embed-text"].status == "missing"
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_marks_models_not_configured_without_base_url():
+    payload = await build_runtime_status_payload(
+        Settings(
+            ollama_base_url=None,
+            ollama_model="qwen3.5:0.8b",
+            ollama_embedding_model="nomic-embed-text",
+            _env_file=None,
+        )
+    )
+
+    assert payload.ollama.status == "not_configured"
+    assert {entry.status for entry in payload.ollama.configured_models} == {"not_configured"}
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_rolls_up_supabase_status(monkeypatch):
+    settings = Settings(
+        database_url="postgresql://postgres:secret@db.example:5432/postgres",
+        supabase_url="https://supabase.example",
+        supabase_service_role_key="service-role-key",
+        supabase_storage_bucket="documents",
+        ollama_base_url="http://ollama.local:11434",
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine(vector_installed=False))
+    monkeypatch.setattr(
+        health_module.httpx,
+        "get",
+        lambda *args, **kwargs: FakeResponse([{"name": "documents"}]),
+    )
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(payload={"models": []}),
+    )
+
+    payload = await build_runtime_status_payload(settings)
+
+    assert payload.supabase.status == "degraded"
+    assert payload.supabase.services["vector"].status == "not_configured"
 
 
 def test_get_engine_requires_database_configuration(monkeypatch):

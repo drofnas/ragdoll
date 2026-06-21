@@ -33,4 +33,5 @@ docker compose -f infra/docker/compose.dev.yml run --rm -w /workspace backend py
 
 - Backend and repo-owned validation commands should prefer Docker-backed wrappers over host-local toolchains.
 - Frontend-only Node tasks should also prefer the repo wrappers when available.
+- Keep [docs](docs/) up to date when a fundamental architectural change lands so the repository documentation stays aligned with the source of truth.
 - The old private repository remains reconstruction input only; this repository is the canonical source of truth.

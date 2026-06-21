@@ -140,17 +140,69 @@ class HealthStatusResponse(BaseModel):
     services: dict[str, DependencyStatus]
 
 
+class RuntimeApplicationStatus(BaseModel):
+    """Public runtime metadata for the status page."""
+
+    name: str
+    environment: str
+    version: str
+    generated_at: str
+
+
+class RuntimeSupabaseStatus(BaseModel):
+    """Rollup status for the configured Supabase-backed runtime."""
+
+    status: str = Field(default="not_configured")
+    backend: str | None = Field(default=None)
+    detail: str = Field(default="Supabase is not configured.")
+    services: dict[str, DependencyStatus]
+
+
+class OllamaConfiguredModelStatus(BaseModel):
+    """Configured Ollama model presence status."""
+
+    name: str | None = Field(default=None)
+    roles: list[str] = Field(default_factory=list)
+    status: str = Field(default="not_configured")
+    detail: str = Field(default="Model is not configured.")
+
+
+class RuntimeOllamaStatus(BaseModel):
+    """Ollama reachability and configured model inventory."""
+
+    status: str = Field(default="not_configured")
+    detail: str = Field(default="Ollama is not configured.")
+    configured_base_url: bool = Field(default=False)
+    catalog_reachable: bool = Field(default=False)
+    configured_models: list[OllamaConfiguredModelStatus] = Field(default_factory=list)
+
+
+class RuntimeStatusResponse(BaseModel):
+    """Public runtime status payload used by /status and /status?type=json."""
+
+    status: str = Field(default="degraded")
+    application: RuntimeApplicationStatus
+    services: dict[str, DependencyStatus]
+    supabase: RuntimeSupabaseStatus
+    ollama: RuntimeOllamaStatus
+
+
 __all__ = [
     "Citation",
     "DependencyStatus",
     "FeatureFlags",
     "HealthStatusResponse",
     "MutationResult",
+    "OllamaConfiguredModelStatus",
     "PaginatedResponse",
     "PlanTier",
     "ProblemResponse",
     "ProcessingStageStatus",
     "ProcessingStatus",
+    "RuntimeApplicationStatus",
+    "RuntimeOllamaStatus",
+    "RuntimeStatusResponse",
+    "RuntimeSupabaseStatus",
     "SourceTier",
     "SpaceScope",
 ]

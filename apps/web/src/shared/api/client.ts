@@ -1,6 +1,10 @@
 import type { ProblemResponse } from "../types/app";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8031";
+export const DEFAULT_API_BASE_URL = "http://localhost:8031";
+
+export function resolveApiBaseUrl(baseUrl = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL) {
+  return baseUrl.replace(/\/$/, "");
+}
 
 export class ApiProblemError extends Error {
   readonly problem: ProblemResponse;
@@ -49,7 +53,7 @@ interface RequestOptions {
 }
 
 export function createApiClient(baseUrl = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL) {
-  const resolvedBaseUrl = baseUrl.replace(/\/$/, "");
+  const resolvedBaseUrl = resolveApiBaseUrl(baseUrl);
 
   async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = `${resolvedBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
