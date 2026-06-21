@@ -50,7 +50,7 @@ def test_graph_cleanup_is_idempotent():
     assert service.cleanup_document(document_id) is False
 
 
-def test_alembic_upgrade_head_creates_document_and_usage_tables(monkeypatch, tmp_path):
+def test_alembic_upgrade_head_creates_document_usage_and_ingestion_tables(monkeypatch, tmp_path):
     db_path = tmp_path / "phase3a.sqlite3"
     repo_root = Path(__file__).resolve().parents[4]
     alembic_ini = repo_root / "apps" / "api" / "alembic.ini"
@@ -67,7 +67,13 @@ def test_alembic_upgrade_head_creates_document_and_usage_tables(monkeypatch, tmp
     command.upgrade(config, "head")
 
     inspector = inspect(create_engine(f"sqlite+pysqlite:///{db_path}"))
-    assert {"documents", "usage_events", "user_usage_snapshots"}.issubset(set(inspector.get_table_names()))
+    assert {
+        "documents",
+        "document_chunks",
+        "document_processing_jobs",
+        "usage_events",
+        "user_usage_snapshots",
+    }.issubset(set(inspector.get_table_names()))
     assert "ix_documents_active_space_uploaded_at" in {index["name"] for index in inspector.get_indexes("documents")}
 
     reset_runtime_caches()

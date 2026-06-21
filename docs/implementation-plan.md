@@ -183,6 +183,8 @@ Goal: define the durable record model, storage abstractions, provenance conventi
 
 Depends on: Phase 1, Phase 2
 
+Note: the broad foundations in this umbrella phase are being delivered through bounded slices such as Phase 3A and later follow-on slices, rather than by completing this section top-to-bottom in one pass.
+
 - [ ] Phase complete
 - [ ] Add relational schema foundations
   - [x] Define user records and plan-tier fields
@@ -222,6 +224,8 @@ Depends on: Phase 1, Phase 2
 Goal: implement the next foundational backend modules that depend on stable identity and Space ownership, starting with documents and usage surfaces before later ingestion, retrieval, and graph features.
 
 Depends on: Phase 1, Phase 2, Phase 2A, Phase 3
+
+Note: this umbrella phase is now tracked through slice phases such as Phase 4A and later bounded migrations, so the unchecked items below are superseded by those narrower implementation passes.
 
 - [ ] Phase complete
 - [ ] Implement the documents module
@@ -294,32 +298,89 @@ Depends on: Phase 3A
   - [x] Verify OpenAPI export includes documents and usage paths
   - [x] Verify generated contract artifacts include shared `ProcessingStatus`
 
+## Phase 5A - Manual Upload And Processing Backbone
+
+Goal: land the first live ingestion slice by implementing manual uploads, queue-backed parsing, chunk projection, status reads, and parsing repair paths without prematurely pulling embeddings, retrieval, entities, or graph projection into scope.
+
+Depends on: Phase 3A, Phase 4A
+
+- [x] Phase complete
+- [x] Implement the ingestion module
+  - [x] Add upload, status, batch-status, reprocess, and retry-parsing routes under `/api/v1/ingestion`
+  - [x] Add concrete ingestion wire schemas for upload responses, job status, and batch status reads
+  - [x] Add ingestion commands, queries, policies, and repository behavior in the canonical module shape
+  - [x] Re-home filename sanitization, file-type validation, and upload guard behavior into `modules/ingestion/domain`
+  - [x] Resolve uploads into an owned Space or the caller's active default Space
+  - [x] Reuse usage-plan file-size, document-count, storage, and per-document chunk constraints
+- [x] Add parsing-job and chunk relational foundations
+  - [x] Add the `DocumentChunk` relational projection with stable chunk identity, previews, checksums, and Space scope
+  - [x] Add the `DocumentProcessingJob` record for queued parsing work, retry attempts, timestamps, and visible failure detail
+  - [x] Add the follow-on Alembic revision for chunk and processing-job tables
+  - [x] Verify reprocess can replace chunk projections idempotently
+- [x] Add queue and worker runtime seams
+  - [x] Add the first concrete `platform/queues` adapter with SQL-backed claiming and in-memory test registration
+  - [x] Add `workers/document_pipeline.py` as the document parsing worker entrypoint
+  - [x] Keep request handlers limited to metadata creation and queue submission rather than inline parsing
+  - [x] Verify queued jobs can be processed without HTTP request context
+- [x] Implement text extraction and chunking for the manual-upload slice
+  - [x] Support manual upload parsing for `pdf`, `docx`, `md`, `markdown`, and `txt`
+  - [x] Store extracted preview and original text back onto `Document`
+  - [x] Write logical chunk projections and update chunk counters after parsing completes
+  - [x] Mark `vector`, `extraction`, and `graph` stages as `deferred` in public processing status during this slice
+- [x] Add contract and test coverage for the slice
+  - [x] Add ingestion module tests for auth, Space ownership, validation, upload success, and batch visibility
+  - [x] Add platform and worker tests for queue claiming, missing-blob failure handling, and chunk replacement
+  - [x] Verify OpenAPI export includes ingestion paths and the `deferred` processing-stage enum value
+  - [x] Verify parsed uploads are visible through existing document list and detail reads
+
+## Phase 5B - Retrieval Projection And Enrichment
+
+Goal: extend the ingestion backbone with derived retrieval projections and enrichment stages once manual upload, parsing, and chunk state are stable.
+
+Depends on: Phase 5A
+
+- [ ] Phase complete
+- [ ] Implement embeddings and vector upsert flow
+  - [ ] Add embedding provider integration
+  - [ ] Add vector upsert behavior
+  - [ ] Add vector retry and cleanup behavior
+  - [ ] Add embeddings and vector tests
+  - [ ] Verify reprocessing does not duplicate vector projections
+- [ ] Implement entity extraction and graph projection flow
+  - [ ] Add entity extraction integration
+  - [ ] Add relational entity persistence behavior
+  - [ ] Add graph projection behavior
+  - [ ] Add entity and graph stage tests
+  - [ ] Verify provenance survives extraction and graph projection
+
 ## Phase 5 - Ingestion And Background Processing
 
 Goal: implement the document intake and processing pipeline that transforms uploads into searchable, citeable, graph-aware knowledge.
 
 Depends on: Phase 1, Phase 2, Phase 3, Phase 4
 
+Note: the concrete ingestion roadmap is now split between Phase 5A and Phase 5B. This umbrella phase remains as the high-level capability bucket, while execution tracking lives in those narrower slices.
+
 - [ ] Phase complete
-- [ ] Implement upload intake
-  - [ ] Add upload routes and wire schemas
-  - [ ] Add upload validation for file types and limits
-  - [ ] Add initial object storage write behavior
-  - [ ] Add initial document record creation and processing-state updates
-  - [ ] Add upload endpoint tests
-  - [ ] Update upload contracts
-- [ ] Implement processing job and queue foundations
-  - [ ] Define processing job payloads
-  - [ ] Define queue interface and retry semantics
-  - [ ] Add worker bootstrap and execution wiring
-  - [ ] Add queue and worker tests where practical
-  - [ ] Verify jobs can run without coupling to HTTP request context
-- [ ] Implement text extraction and chunking
-  - [ ] Add text extraction pipeline behavior
-  - [ ] Add chunking rules and chunk identity behavior
-  - [ ] Add extraction failure handling and status reporting
-  - [ ] Add extraction and chunking tests
-  - [ ] Verify chunk output supports later citation behavior
+- [x] Implement upload intake
+  - [x] Add upload routes and wire schemas
+  - [x] Add upload validation for file types and limits
+  - [x] Add initial object storage write behavior
+  - [x] Add initial document record creation and processing-state updates
+  - [x] Add upload endpoint tests
+  - [x] Update upload contracts
+- [x] Implement processing job and queue foundations
+  - [x] Define processing job payloads
+  - [x] Define queue interface and retry semantics
+  - [x] Add worker bootstrap and execution wiring
+  - [x] Add queue and worker tests where practical
+  - [x] Verify jobs can run without coupling to HTTP request context
+- [x] Implement text extraction and chunking
+  - [x] Add text extraction pipeline behavior
+  - [x] Add chunking rules and chunk identity behavior
+  - [x] Add extraction failure handling and status reporting
+  - [x] Add extraction and chunking tests
+  - [x] Verify chunk output supports later citation behavior
 - [ ] Implement embeddings and vector upsert flow
   - [ ] Add embedding provider integration
   - [ ] Add vector upsert behavior
@@ -333,17 +394,17 @@ Depends on: Phase 1, Phase 2, Phase 3, Phase 4
   - [ ] Add entity and graph stage tests
   - [ ] Verify provenance survives extraction and graph projection
 - [ ] Implement reprocess, retry, and status APIs
-  - [ ] Add full reprocess endpoint behavior
-  - [ ] Add targeted retry endpoint behavior
-  - [ ] Add batch or single-document status reads
-  - [ ] Add retry and status tests
-  - [ ] Update processing contracts
+  - [x] Add full reprocess endpoint behavior
+  - [x] Add targeted retry endpoint behavior
+  - [x] Add batch or single-document status reads
+  - [x] Add retry and status tests
+  - [x] Update processing contracts
 
 ## Phase 6 - Retrieval, Graph, And Chat
 
 Goal: implement the knowledge and interaction layers that turn processed data into search, graph, tracked-state, correction, and chat experiences.
 
-Depends on: Phase 2, Phase 3, Phase 4, Phase 5
+Depends on: Phase 2, Phase 3, Phase 4, Phase 5B
 
 - [ ] Phase complete
 - [ ] Implement search
@@ -400,7 +461,7 @@ Depends on: Phase 2, Phase 3, Phase 4, Phase 5
 
 Goal: implement the core web shells, shared client behavior, and primary authenticated product features after the API, contracts, and backend capabilities are stable.
 
-Depends on: Phase 1, Phase 2, Phase 4, Phase 5, Phase 6
+Depends on: Phase 1, Phase 2, Phase 4A, Phase 5A, Phase 5B, Phase 6
 
 - [ ] Phase complete
 - [ ] Implement app-level shells and shared frontend runtime

@@ -46,6 +46,23 @@ class SpacesRepository:
             )
         return space
 
+    def get_default_owned_space_or_404(self, owner_user_id: UUID) -> Space:
+        stmt = select(Space).where(
+            Space.owner_user_id == owner_user_id,
+            Space.is_default.is_(True),
+            Space.archived_at.is_(None),
+        )
+        space = self.session.scalar(stmt)
+        if space is None:
+            raise ApplicationError(
+                "An active default space is required before uploading documents.",
+                status_code=409,
+                title="Conflict",
+                type_uri="https://ragdoll.dev/problems/conflict",
+                code="default_space_required",
+            )
+        return space
+
     def clear_default_for_owner(self, owner_user_id: UUID, *, exclude_space_id: UUID) -> None:
         stmt = select(Space).where(
             Space.owner_user_id == owner_user_id,

@@ -80,6 +80,7 @@ class ProcessingStageStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    DEFERRED = "deferred"
 
 
 class ProcessingStatus(BaseModel):

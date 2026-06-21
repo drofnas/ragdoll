@@ -15,6 +15,7 @@ from ragdoll.core.pagination import PaginationParams, resolve_pagination_params
 from ragdoll.modules.users.application.queries import build_authenticated_principal, get_user_by_subject
 from ragdoll.platform.db.session import get_db_session
 from ragdoll.platform.graph import GraphCleanupService, get_graph_cleanup_service
+from ragdoll.platform.queues import DocumentProcessingQueueService, get_document_processing_queue
 from ragdoll.platform.storage import DocumentStorageService, get_document_storage
 from ragdoll.platform.vector import VectorCleanupService, get_vector_cleanup_service
 
@@ -50,6 +51,10 @@ def get_vector_cleanup() -> VectorCleanupService:
 
 def get_graph_cleanup() -> GraphCleanupService:
     return get_graph_cleanup_service()
+
+
+def get_document_processing_queue_service() -> DocumentProcessingQueueService:
+    return get_document_processing_queue()
 
 
 def require_current_user(
@@ -95,3 +100,6 @@ SpaceScopeDep = Annotated[SpaceScope, Depends(require_space_scope)]
 DocumentStorageDep = Annotated[DocumentStorageService, Depends(get_document_storage_service)]
 VectorCleanupDep = Annotated[VectorCleanupService, Depends(get_vector_cleanup)]
 GraphCleanupDep = Annotated[GraphCleanupService, Depends(get_graph_cleanup)]
+DocumentProcessingQueueDep = Annotated[
+    DocumentProcessingQueueService, Depends(get_document_processing_queue_service)
+]

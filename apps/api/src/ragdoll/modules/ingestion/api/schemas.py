@@ -1,2 +1,47 @@
-"""Phase 2 ingestion schema placeholders."""
+from __future__ import annotations
 
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from ragdoll.api.shared_schemas import ProcessingStatus
+
+
+class DocumentProcessingJobResponse(BaseModel):
+    id: UUID
+    requested_stage: str
+    status: str
+    attempt: int = Field(ge=1)
+    visible_error_detail: str | None = None
+    queued_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UploadDocumentResponse(BaseModel):
+    document_id: UUID
+    job_id: UUID
+    filename: str
+    processing_status: ProcessingStatus
+
+
+class DocumentProcessingStatusResponse(BaseModel):
+    document_id: UUID
+    space_id: UUID
+    uploaded_by: UUID
+    processing_status: ProcessingStatus
+    chunk_count: int = Field(ge=0)
+    indexed_chunk_count: int = Field(ge=0)
+    latest_job: DocumentProcessingJobResponse | None = None
+    updated_at: datetime
+
+
+class BatchDocumentStatusRequest(BaseModel):
+    document_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class BatchDocumentStatusResponse(BaseModel):
+    statuses: list[DocumentProcessingStatusResponse]

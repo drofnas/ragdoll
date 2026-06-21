@@ -16,6 +16,7 @@ from ragdoll.platform.db import models  # noqa: F401
 from ragdoll.platform.db import session as session_module
 from ragdoll.platform.db.models_base import Base
 from ragdoll.platform.graph import service as graph_service_module
+from ragdoll.platform.queues import service as queue_service_module
 from ragdoll.platform.storage import service as storage_service_module
 from ragdoll.platform.vector import service as vector_service_module
 
@@ -27,6 +28,7 @@ def reset_runtime_caches() -> None:
     storage_service_module.get_document_storage.cache_clear()
     vector_service_module.get_vector_cleanup_service.cache_clear()
     graph_service_module.get_graph_cleanup_service.cache_clear()
+    queue_service_module.get_document_processing_queue.cache_clear()
 
 
 @pytest.fixture

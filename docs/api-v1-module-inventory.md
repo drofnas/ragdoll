@@ -12,7 +12,7 @@ The current goal is ownership and composition, not feature parity. Empty module 
 | `users` | `/api/v1/users` | scaffolded | Owns user lifecycle, plan tier, and feature-flag concerns even when early profile reads stay under auth. |
 | `spaces` | `/api/v1/spaces` | scaffolded | First concrete migration slice after Phase 2. |
 | `documents` | `/api/v1/documents` | implemented in Phase 4A | Owns list, detail, move, delete, and download flows with shared `SpaceScope` filtering and nested `ProcessingStatus`. |
-| `ingestion` | `/api/v1/ingestion` | scaffolded | Upload and background processing stay deferred until later phases. |
+| `ingestion` | `/api/v1/ingestion` | implemented in Phase 5A | Owns manual upload, parsing-job queueing, status reads, and parsing retries; vector, entity, and graph projection remain deferred. |
 | `search` | `/api/v1/search` | scaffolded | Deferred until shared retrieval contracts are stable. |
 | `chat` | `/api/v1/chat` | scaffolded | Deferred until search and citation contracts are stable. |
 | `entities` | `/api/v1/entities` | scaffolded | Deferred until relational and provenance foundations land. |
