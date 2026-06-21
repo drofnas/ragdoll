@@ -1,4 +1,4 @@
-"""Users transport schemas used by auth-owned endpoints in the Phase 2A slice."""
+"""Users transport schemas used by auth-owned endpoints in Phase 3."""
 
 from __future__ import annotations
 

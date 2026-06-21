@@ -1,4 +1,4 @@
-"""Auth transport schemas for the Phase 2A migration slice."""
+"""Auth transport schemas for the Phase 3 identity migration phase."""
 
 from __future__ import annotations
 

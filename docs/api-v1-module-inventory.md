@@ -11,8 +11,8 @@ The current goal is ownership and composition, not feature parity. Empty module 
 | `auth` | `/api/v1/auth` | scaffolded | First concrete migration slice after Phase 2. |
 | `users` | `/api/v1/users` | scaffolded | Owns user lifecycle, plan tier, and feature-flag concerns even when early profile reads stay under auth. |
 | `spaces` | `/api/v1/spaces` | scaffolded | First concrete migration slice after Phase 2. |
-| `documents` | `/api/v1/documents` | implemented in Phase 4A | Owns list, detail, move, delete, and download flows with shared `SpaceScope` filtering and nested `ProcessingStatus`. |
-| `ingestion` | `/api/v1/ingestion` | implemented in Phase 5A | Owns manual upload, parsing-job queueing, status reads, and parsing retries; vector, entity, and graph projection remain deferred. |
+| `documents` | `/api/v1/documents` | implemented in Phase 5 | Owns list, detail, move, delete, and download flows with shared `SpaceScope` filtering and nested `ProcessingStatus`. |
+| `ingestion` | `/api/v1/ingestion` | implemented in Phase 6 | Owns manual upload, parsing-job queueing, status reads, and parsing retries; vector, entity, and graph projection remain deferred. |
 | `search` | `/api/v1/search` | scaffolded | Deferred until shared retrieval contracts are stable. |
 | `chat` | `/api/v1/chat` | scaffolded | Deferred until search and citation contracts are stable. |
 | `entities` | `/api/v1/entities` | scaffolded | Deferred until relational and provenance foundations land. |
@@ -21,7 +21,7 @@ The current goal is ownership and composition, not feature parity. Empty module 
 | `changes` | `/api/v1/changes` | scaffolded | Deferred until provenance and tracked-state surfaces are stable. |
 | `corrections` | `/api/v1/corrections` | scaffolded | Deferred until chat and provenance flows are in place. |
 | `admin` | `/api/v1/admin` | scaffolded | Guarded operational APIs remain deferred. |
-| `usage` | `/api/v1/usage` | implemented in Phase 4A | Exposes read-only account usage summary at `/me`; later admin and plan-control surfaces remain deferred. |
+| `usage` | `/api/v1/usage` | implemented in Phase 5 | Exposes read-only account usage summary at `/me`; later admin and plan-control surfaces remain deferred. |
 
 ## Phase 2 Rules
 

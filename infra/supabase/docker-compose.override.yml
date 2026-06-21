@@ -1,0 +1,7 @@
+# Repo-owned Supabase overrides that stay stable across upstream refreshes.
+#
+# The fetched upstream stack and the app stack both attach to the same named
+# Docker network so backend services can resolve db/kong/storage/ollama locally.
+networks:
+  default:
+    name: ${RAGDOLL_DOCKER_NETWORK:-ragdoll-dev}

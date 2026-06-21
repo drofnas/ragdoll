@@ -1,17 +1,32 @@
 # `infra/supabase`
 
-Canonical home for Supabase setup notes, local expectations, and future helper assets.
+Canonical home for the repo-owned local Supabase wrapper assets and setup notes.
 
 ## Local Setup Expectations
 
-Use `apps/api/.env.example` as the local template for backend env values. `./dev-setup.sh up` will create `apps/api/.env` from it automatically when the file is missing.
+- `./dev-setup.sh infra up` will create `infra/docker/.env.infra` from `infra/docker/.env.infra.example` when it is missing.
+- `./dev-setup.sh up` will create `apps/api/.env` from `apps/api/.env.example` when it is missing.
+- `./dev-setup.sh infra up` also hydrates the local backend env when its Supabase integration values are still placeholders or old scaffold defaults.
+- `./dev-setup.sh infra up` fetches upstream Supabase self-hosted Docker assets into ignored `infra/supabase/self-hosted/` when they are missing.
+- `./dev-setup.sh infra upgrade` refreshes that ignored upstream tree to the repo-selected pinned commit before pulling newer images and restarting the local dependency stack.
+- Tracked wrapper files live at `infra/supabase/docker-compose.yml` and `infra/supabase/docker-compose.override.yml`.
+- `SUPABASE_UPSTREAM_GIT_SHA` can be set locally to test a different upstream commit without changing the repo default.
 
-Required for a healthy Phase 1 readiness response:
+Required for a healthy local readiness response:
 
 - `SUPABASE_DB_URL`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_STORAGE_BUCKET`
+
+This repo's local stack also ensures:
+
+- Postgres starts with `pgvector` installed
+- the `documents` storage bucket is created automatically
+- the app and infra stacks share the `ragdoll-dev` Docker network
+- checked-in env examples keep placeholders only; real local secrets live in ignored `infra/docker/.env.infra`
+- a local ignored `infra/docker/.env.infra.backup` is maintained so accidental deletion of `.env.infra` does not silently regenerate incompatible secrets on top of initialized Supabase data
+- fresh clones do not carry the upstream Supabase Docker tree in git; local bootstrap fetches the repo-selected current upstream content on demand
 
 Phase 1 readiness meanings:
 

@@ -1,0 +1,74 @@
+name: ragdoll-infra
+
+include:
+  - ../supabase/docker-compose.yml
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    expose:
+      - "11434"
+    ports:
+      - "${OLLAMA_HOST_PORT:-13434}:11434"
+    environment:
+      OLLAMA_CONTEXT_LENGTH: 8192
+      OLLAMA_FLASH_ATTENTION: 1
+      OLLAMA_KEEP_ALIVE: 12h
+      OLLAMA_KV_CACHE_TYPE: q8_0
+      OLLAMA_MAX_LOADED_MODELS: 2
+    volumes:
+      - ragdoll_ollama_storage:/root/.ollama
+    networks:
+      default:
+        aliases:
+          - ollama
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    restart: "no"
+    depends_on:
+      - ollama
+    entrypoint: /bin/sh
+    command:
+      - "-ec"
+      - |
+        sleep 3
+        OLLAMA_HOST=ollama:11434 ollama pull "${OLLAMA_MODEL}"
+        OLLAMA_HOST=ollama:11434 ollama pull "${OLLAMA_EMBEDDING_MODEL}"
+    volumes:
+      - ragdoll_ollama_storage:/root/.ollama
+
+  supabase-bootstrap:
+    image: curlimages/curl:8.13.0
+    restart: "no"
+    depends_on:
+      kong:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - "-ec"
+      - |
+        bucket_url="http://kong:8000/storage/v1/bucket/${SUPABASE_STORAGE_BUCKET}"
+        auth_header="Authorization: Bearer ${SERVICE_ROLE_KEY}"
+        api_key_header="apikey: ${SERVICE_ROLE_KEY}"
+        status="$$(curl -sS -o /tmp/bucket.json -w '%{http_code}' -H "$$auth_header" -H "$$api_key_header" "$$bucket_url" || true)"
+        if [ "$$status" = "200" ]; then
+          exit 0
+        fi
+        if [ "$$status" != "404" ]; then
+          cat /tmp/bucket.json
+          exit 1
+        fi
+        curl -fsS \
+          -X POST \
+          -H "$$auth_header" \
+          -H "$$api_key_header" \
+          -H "Content-Type: application/json" \
+          -d "{\"id\":\"${SUPABASE_STORAGE_BUCKET}\",\"name\":\"${SUPABASE_STORAGE_BUCKET}\",\"public\":false}" \
+          "http://kong:8000/storage/v1/bucket"
+
+volumes:
+  ragdoll_ollama_storage:

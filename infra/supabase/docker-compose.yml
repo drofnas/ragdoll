@@ -1,0 +1,8 @@
+# Repo-owned Supabase wrapper.
+#
+# The upstream self-hosted Docker assets are fetched on demand into
+# ./self-hosted/ by ./dev-setup.sh infra up|upgrade. This wrapper keeps the
+# local include path stable while allowing the upstream tree to stay gitignored.
+include:
+  - ./self-hosted/docker-compose.yml
+  - ./docker-compose.override.yml

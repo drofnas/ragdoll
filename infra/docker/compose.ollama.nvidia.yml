@@ -1,0 +1,12 @@
+services:
+  ollama:
+    shm_size: 8G
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 32G

@@ -25,6 +25,7 @@ Commands:
   build              Alias of up
   build-daemon       Alias of daemon
   build-d, bd        Alias of build-daemon
+  infra [command]    Manage the local dependency stack (up, down, ps, logs, upgrade)
   down               Stop the Phase 1 dev stack
   ps, status         Show Phase 1 dev stack status
   logs               Tail Phase 1 dev stack logs
@@ -90,6 +91,13 @@ case "$COMMAND" in
     require_docker_compose
     require_runtime_env_files
     run_compose_up_daemon "$@"
+    ;;
+  infra)
+    require_docker_compose
+    if [ $# -eq 0 ]; then
+      set -- up
+    fi
+    exec "$ROOT_DIR/scripts/dev/infra.sh" "$@"
     ;;
   down)
     require_docker_compose

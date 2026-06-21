@@ -1,15 +1,26 @@
 # `infra/ollama`
 
-Canonical home for Ollama setup notes and future local AI runtime helpers.
+Canonical home for Ollama setup notes and the local runtime expectations used by `./dev-setup.sh infra up`.
 
 ## Local Setup Expectations
 
-Use `apps/api/.env.example` as the local template for backend env values. `./dev-setup.sh up` will create `apps/api/.env` from it automatically when the file is missing.
+- `./dev-setup.sh infra up` will create `infra/docker/.env.infra` from `infra/docker/.env.infra.example` when it is missing.
+- `./dev-setup.sh up` will create `apps/api/.env` from `apps/api/.env.example` when it is missing.
+- `./dev-setup.sh infra up` also hydrates the local backend env with Ollama connection defaults when those values are still placeholders or legacy scaffold defaults.
+- `./dev-setup.sh infra upgrade` is the explicit refresh path for pulling newer Ollama images after first bootstrap.
+- The local stack supports `OLLAMA_RUNTIME=cpu|amd|nvidia` and selects the matching override file automatically.
 
 Relevant Phase 1 values:
 
 - `OLLAMA_BASE_URL`
 - optional `OLLAMA_WORKER_BASE_URL`
+- `OLLAMA_MODEL`
+- `OLLAMA_EMBEDDING_MODEL`
+
+Relevant local infra values:
+
+- `OLLAMA_HOST_PORT`
+- `OLLAMA_RUNTIME`
 - `OLLAMA_MODEL`
 - `OLLAMA_EMBEDDING_MODEL`
 

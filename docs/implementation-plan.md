@@ -2,12 +2,12 @@
 
 ## How To Use This Plan
 
-This document is the canonical progress tracker for building Ragdoll. Each phase is ordered by dependency, starting with the foundations every later capability relies on and ending with the user-facing web application and OSS hardening work.
+This document is the canonical progress tracker for building Ragdoll. The phases below are intentionally linear: each one represents the next bounded chunk of work rather than a broad umbrella that is later split into lettered sub-phases.
 
 Use the checkboxes as follows:
 
-- Mark major deliverables complete only when all child tasks and acceptance checks under them are done.
-- Keep implementation updates in this file synchronized with architecture or contract changes.
+- Mark a phase complete only when all child tasks and acceptance checks under it are done.
+- Keep implementation updates in this file synchronized with architecture, contract, and workflow changes.
 - Leave later-phase items unchecked rather than removing them when they are intentionally deferred.
 
 ## Phase 0 - Repo Foundation
@@ -89,7 +89,7 @@ Depends on: Phase 0
 
 Goal: define shared wire contracts, module route surfaces, and a baseline API test strategy so every later backend and frontend feature builds against explicit schemas rather than informal payloads.
 
-Depends on: Phase 0, Phase 1
+Depends on: Phase 1
 
 - [x] Phase complete
 - [x] Create the `packages/contracts` foundation
@@ -99,20 +99,7 @@ Depends on: Phase 0, Phase 1
   - [x] Verify contract directories match the architecture docs
 - [x] Define the initial schema set
   - [x] Add shared public wire primitives for `ProblemResponse`, `MutationResult`, `PaginatedResponse`, `HealthStatusResponse`, `SpaceScope`, `ProcessingStatus`, `PlanTier`, `FeatureFlags`, `SourceTier`, and `Citation`
-  - [x] Add auth schema placeholders
-  - [x] Add users schema placeholders
-  - [x] Add spaces schema placeholders
-  - [x] Add documents schema placeholders
-  - [x] Add ingestion schema placeholders
-  - [x] Add search schema placeholders
-  - [x] Add chat schema placeholders
-  - [x] Add entities schema placeholders
-  - [x] Add knowledge graph schema placeholders
-  - [x] Add tracked state schema placeholders
-  - [x] Add changes schema placeholders
-  - [x] Add corrections schema placeholders
-  - [x] Add admin schema placeholders
-  - [x] Add usage schema placeholders
+  - [x] Add auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, tracked state, changes, corrections, admin, and usage schema placeholders
 - [x] Define contract generation strategy
   - [x] Add OpenAPI generation workflow notes
   - [x] Add TypeScript type generation workflow notes
@@ -120,7 +107,7 @@ Depends on: Phase 0, Phase 1
   - [x] Verify the generation strategy supports both backend-first and frontend consumption flows
 - [x] Build the `/api/v1` skeleton
   - [x] Add versioned router composition for all planned backend modules
-  - [x] Add placeholder route mounts for auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, tracked state, changes, corrections, admin, and usage
+  - [x] Add placeholder route mounts for all planned modules
   - [x] Add endpoint inventory notes for each module
   - [x] Verify every capability in `docs/architecture/capability-map.md` has an API home where applicable
 - [x] Add the auth and spaces migration-prep inventory
@@ -134,11 +121,11 @@ Depends on: Phase 0, Phase 1
   - [x] Add problem response tests for common failure cases where possible
   - [x] Verify the implementation plan explicitly covers testing every API endpoint where practical
 
-## Phase 2A - Identity And Space Migration Slice
+## Phase 3 - Identity And Space Migration
 
 Goal: implement the first concrete clean-room migration slice for identity and Space ownership so later document, search, and chat work can reuse stable auth and scope contracts instead of ad hoc legacy behavior.
 
-Depends on: Phase 1, Phase 2
+Depends on: Phase 2
 
 - [x] Phase complete
 - [x] Add the minimal relational groundwork for identity and Space ownership
@@ -170,86 +157,18 @@ Depends on: Phase 1, Phase 2
   - [x] Replace the admin guard scaffold with real admin authorization checks
   - [x] Finalize `SpaceScope` validation so `space_id` and `all_spaces=true` are mutually exclusive
   - [x] Keep later document, search, and chat route adoption deferred until their phases
-- [x] Add the Phase 2A auth and Space test layer
+- [x] Add the Phase 3 auth and Space test layer
   - [x] Add request and response schema tests where practical
   - [x] Add auth guard tests for protected endpoints where applicable
   - [x] Port auth and spaces API tests into `apps/api/tests/modules`
   - [x] Add contract export assertions for auth and Space schemas
   - [x] Verify the backend test wrapper runs module tests, not only platform tests
 
-## Phase 3 - Core Data And Storage
-
-Goal: define the durable record model, storage abstractions, provenance conventions, and cross-store boundaries needed before feature modules and processing pipelines can be implemented safely.
-
-Depends on: Phase 1, Phase 2
-
-Note: the broad foundations in this umbrella phase are being delivered through bounded slices such as Phase 3A and later follow-on slices, rather than by completing this section top-to-bottom in one pass.
-
-- [ ] Phase complete
-- [ ] Add relational schema foundations
-  - [x] Define user records and plan-tier fields
-  - [x] Define Space records and scope-related fields
-  - [ ] Define document metadata and processing-state fields
-  - [ ] Define entity and canonical entity fields
-  - [ ] Define chat session and message fields
-  - [ ] Define tracked field and tracked value fields
-  - [ ] Define changes feed fields
-  - [ ] Define correction and verification fields
-  - [ ] Define usage tracking fields
-  - [ ] Verify stable IDs and audit timestamps are present where required
-- [ ] Add object storage abstraction
-  - [ ] Define original file storage interface
-  - [ ] Define derived artifact storage interface
-  - [ ] Add storage error and cleanup behavior expectations
-  - [ ] Verify object storage is not treated as the source of truth for metadata
-- [ ] Add vector store abstraction
-  - [ ] Define embedding write and query interfaces
-  - [ ] Define chunk identity and payload requirements
-  - [ ] Define delete and reprocess behavior for vector records
-  - [ ] Verify vector operations align with citation and provenance needs
-- [ ] Add graph store abstraction
-  - [ ] Define graph node and edge write interfaces
-  - [ ] Define graph exploration query interfaces
-  - [ ] Define graph rebuild and idempotency expectations
-  - [ ] Verify graph state is treated as a controlled projection
-- [ ] Lock in provenance and state conventions
-  - [ ] Define source-tier behavior
-  - [ ] Define processing status model
-  - [ ] Define current-state versus history conventions
-  - [ ] Define Space scoping rules across relational and derived stores
-  - [ ] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
-
-## Phase 4 - Core Backend Modules
-
-Goal: implement the next foundational backend modules that depend on stable identity and Space ownership, starting with documents and usage surfaces before later ingestion, retrieval, and graph features.
-
-Depends on: Phase 1, Phase 2, Phase 2A, Phase 3
-
-Note: this umbrella phase is now tracked through slice phases such as Phase 4A and later bounded migrations, so the unchecked items below are superseded by those narrower implementation passes.
-
-- [ ] Phase complete
-- [ ] Implement the documents module
-  - [ ] Add document routes and wire schemas
-  - [ ] Add document commands and queries
-  - [ ] Add document domain types and policies
-  - [ ] Add document repository behavior
-  - [ ] Add document module tests
-  - [ ] Update document contracts
-  - [ ] Verify list, detail, move, download, delete, and status behaviors
-- [ ] Implement the usage module
-  - [ ] Add usage routes and wire schemas
-  - [ ] Add usage queries and plan-limit logic
-  - [ ] Add usage domain types and policies
-  - [ ] Add usage repository behavior
-  - [ ] Add usage module tests
-  - [ ] Update usage contracts
-  - [ ] Verify usage summaries can support account and admin surfaces
-
-## Phase 3A - Document And Usage Foundations
+## Phase 4 - Document And Usage Foundations
 
 Goal: finish the minimum shared data and adapter groundwork needed for the first post-auth vertical slice without prematurely pulling in ingestion, search, chat, or graph-query implementation scope.
 
-Depends on: Phase 1, Phase 2, Phase 2A
+Depends on: Phase 3
 
 - [x] Phase complete
 - [x] Add the first document and usage relational records
@@ -272,11 +191,11 @@ Depends on: Phase 1, Phase 2, Phase 2A
   - [x] Treat object, vector, and graph stores as cleanup-aware derived systems rather than metadata sources of truth
   - [x] Keep provider-specific sync metadata deferred to later ingestion work
 
-## Phase 4A - Document Library And Usage Summary
+## Phase 5 - Document Library And Usage Summary
 
 Goal: land the first live clean-room vertical slice after auth and Spaces by implementing document-library reads and moves plus a read-only usage summary surface.
 
-Depends on: Phase 3A
+Depends on: Phase 4
 
 - [x] Phase complete
 - [x] Implement the documents module
@@ -298,11 +217,11 @@ Depends on: Phase 3A
   - [x] Verify OpenAPI export includes documents and usage paths
   - [x] Verify generated contract artifacts include shared `ProcessingStatus`
 
-## Phase 5A - Manual Upload And Processing Backbone
+## Phase 6 - Manual Upload And Processing Backbone
 
 Goal: land the first live ingestion slice by implementing manual uploads, queue-backed parsing, chunk projection, status reads, and parsing repair paths without prematurely pulling embeddings, retrieval, entities, or graph projection into scope.
 
-Depends on: Phase 3A, Phase 4A
+Depends on: Phase 5
 
 - [x] Phase complete
 - [x] Implement the ingestion module
@@ -333,13 +252,48 @@ Depends on: Phase 3A, Phase 4A
   - [x] Verify OpenAPI export includes ingestion paths and the `deferred` processing-stage enum value
   - [x] Verify parsed uploads are visible through existing document list and detail reads
 
-## Phase 5B - Retrieval Projection And Enrichment
+## Phase 7 - Local Dependency Runtime And Integration Foundations
 
-Goal: extend the ingestion backbone with derived retrieval projections and enrichment stages once manual upload, parsing, and chunk state are stable.
+Goal: pull the third-party local runtime forward so developers can run the app against Dockerized Supabase, Postgres, and Ollama before deeper retrieval and enrichment work continues.
 
-Depends on: Phase 5A
+Depends on: Phase 6
 
 - [ ] Phase complete
+- [ ] Add the repo-owned local dependency stack
+  - [ ] Add the repo-owned Supabase wrapper assets and fetch the upstream self-hosted Docker tree into ignored local storage on demand
+  - [ ] Add the repo-owned Ollama compose assets and runtime overrides for `cpu`, `amd`, and `nvidia`
+  - [ ] Share a stable local Docker network between the app stack and the dependency stack
+  - [ ] Keep all checked-in compose and docs free of absolute local filesystem paths
+- [ ] Add local dependency lifecycle commands
+  - [ ] Add `./dev-setup.sh infra up`
+  - [ ] Add `./dev-setup.sh infra down`
+  - [ ] Add `./dev-setup.sh infra ps`
+  - [ ] Add `./dev-setup.sh infra logs`
+  - [ ] Add `./dev-setup.sh infra upgrade`
+  - [ ] Verify the infra workflow auto-creates a local env file from the repo-owned example when missing
+- [ ] Align local env and readiness behavior
+  - [ ] Update backend env examples to target the shared local Docker network cleanly
+  - [ ] Ensure local Postgres comes up with `pgvector` installed
+  - [ ] Ensure the local Supabase storage bucket used by the app is created automatically
+  - [ ] Verify local readiness can report `healthy` for `database`, `storage`, `vector`, `graph`, and `llm` when the dependency stack is running
+- [ ] Add local integration acceptance coverage
+  - [ ] Document how to boot the app stack and infra stack together
+  - [ ] Verify manual upload flows can be smoke-tested locally against the Dockerized dependencies
+  - [ ] Keep worker/runtime integration limited to what is required for local ingestion confidence in this phase
+
+## Phase 8 - Retrieval Projection And Enrichment
+
+Goal: extend the ingestion backbone with derived retrieval projections and enrichment stages once manual upload, parsing, chunk state, and the local dependency runtime are stable.
+
+Depends on: Phase 7
+
+- [ ] Phase complete
+- [ ] Complete the retrieval-facing data and adapter foundations
+  - [ ] Define entity and canonical entity relational fields
+  - [ ] Define vector chunk identity and payload requirements
+  - [ ] Define graph node and edge write interfaces
+  - [ ] Define graph rebuild and idempotency expectations
+  - [ ] Verify graph state is treated as a controlled projection
 - [ ] Implement embeddings and vector upsert flow
   - [ ] Add embedding provider integration
   - [ ] Add vector upsert behavior
@@ -353,60 +307,24 @@ Depends on: Phase 5A
   - [ ] Add entity and graph stage tests
   - [ ] Verify provenance survives extraction and graph projection
 
-## Phase 5 - Ingestion And Background Processing
-
-Goal: implement the document intake and processing pipeline that transforms uploads into searchable, citeable, graph-aware knowledge.
-
-Depends on: Phase 1, Phase 2, Phase 3, Phase 4
-
-Note: the concrete ingestion roadmap is now split between Phase 5A and Phase 5B. This umbrella phase remains as the high-level capability bucket, while execution tracking lives in those narrower slices.
-
-- [ ] Phase complete
-- [x] Implement upload intake
-  - [x] Add upload routes and wire schemas
-  - [x] Add upload validation for file types and limits
-  - [x] Add initial object storage write behavior
-  - [x] Add initial document record creation and processing-state updates
-  - [x] Add upload endpoint tests
-  - [x] Update upload contracts
-- [x] Implement processing job and queue foundations
-  - [x] Define processing job payloads
-  - [x] Define queue interface and retry semantics
-  - [x] Add worker bootstrap and execution wiring
-  - [x] Add queue and worker tests where practical
-  - [x] Verify jobs can run without coupling to HTTP request context
-- [x] Implement text extraction and chunking
-  - [x] Add text extraction pipeline behavior
-  - [x] Add chunking rules and chunk identity behavior
-  - [x] Add extraction failure handling and status reporting
-  - [x] Add extraction and chunking tests
-  - [x] Verify chunk output supports later citation behavior
-- [ ] Implement embeddings and vector upsert flow
-  - [ ] Add embedding provider integration
-  - [ ] Add vector upsert behavior
-  - [ ] Add vector retry and cleanup behavior
-  - [ ] Add embeddings and vector tests
-  - [ ] Verify reprocessing does not duplicate chunk records
-- [ ] Implement entity extraction and graph projection flow
-  - [ ] Add entity extraction integration
-  - [ ] Add relational entity persistence behavior
-  - [ ] Add graph projection behavior
-  - [ ] Add entity and graph stage tests
-  - [ ] Verify provenance survives extraction and graph projection
-- [ ] Implement reprocess, retry, and status APIs
-  - [x] Add full reprocess endpoint behavior
-  - [x] Add targeted retry endpoint behavior
-  - [x] Add batch or single-document status reads
-  - [x] Add retry and status tests
-  - [x] Update processing contracts
-
-## Phase 6 - Retrieval, Graph, And Chat
+## Phase 9 - Retrieval, Graph, And Chat
 
 Goal: implement the knowledge and interaction layers that turn processed data into search, graph, tracked-state, correction, and chat experiences.
 
-Depends on: Phase 2, Phase 3, Phase 4, Phase 5B
+Depends on: Phase 8
 
 - [ ] Phase complete
+- [ ] Lock in the remaining cross-store and provenance conventions
+  - [ ] Define source-tier behavior
+  - [ ] Define current-state versus history conventions
+  - [ ] Define Space scoping rules across relational and derived stores
+  - [ ] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
+- [ ] Add the remaining relational schema foundations
+  - [ ] Define chat session and message fields
+  - [ ] Define tracked field and tracked value fields
+  - [ ] Define changes feed fields
+  - [ ] Define correction and verification fields
+  - [ ] Verify stable IDs and audit timestamps are present where required
 - [ ] Implement search
   - [ ] Complete the search backend module
   - [ ] Add vector, graph, boolean, and combined query behavior
@@ -457,11 +375,11 @@ Depends on: Phase 2, Phase 3, Phase 4, Phase 5B
   - [ ] Update chat contracts
   - [ ] Verify chat depends on stable search and retrieval contracts
 
-## Phase 7 - Core Web Application
+## Phase 10 - Core Web Application
 
 Goal: implement the core web shells, shared client behavior, and primary authenticated product features after the API, contracts, and backend capabilities are stable.
 
-Depends on: Phase 1, Phase 2, Phase 4A, Phase 5A, Phase 5B, Phase 6
+Depends on: Phase 9
 
 - [ ] Phase complete
 - [ ] Implement app-level shells and shared frontend runtime
@@ -536,11 +454,11 @@ Depends on: Phase 1, Phase 2, Phase 4A, Phase 5A, Phase 5B, Phase 6
   - [ ] Add account feature tests
   - [ ] Verify account and usage contract alignment
 
-## Phase 8 - Capability Completion
+## Phase 11 - Capability Completion
 
 Goal: complete the remaining planned product surfaces that depend on the core runtime, processing, retrieval, and web foundations but are not required to establish the primary product path.
 
-Depends on: Phase 4, Phase 5, Phase 6, Phase 7
+Depends on: Phase 10
 
 - [ ] Phase complete
 - [ ] Implement admin tooling
@@ -563,11 +481,11 @@ Depends on: Phase 4, Phase 5, Phase 6, Phase 7
   - [ ] Add marketing feature tests
   - [ ] Verify public pages remain cleanly separated from authenticated product surfaces
 
-## Phase 9 - Hardening, QA, And OSS Readiness
+## Phase 12 - Hardening, QA, And OSS Readiness
 
 Goal: close testing gaps, verify end-to-end quality, align docs with implementation, and polish the repository for public open source use.
 
-Depends on: Phase 0 through Phase 8
+Depends on: Phase 11
 
 - [ ] Phase complete
 - [ ] Review API and backend test coverage
@@ -615,6 +533,7 @@ Depends on: Phase 0 through Phase 8
 ## Done Criteria
 
 - [ ] Repo structure is complete and matches the architecture docs
+- [ ] Local app and dependency stacks can be started through repo-owned workflows
 - [ ] Platform adapters for storage, vector, graph, queue, and LLM services are wired
 - [ ] All planned API modules have implemented routes
 - [ ] All feasible endpoints have automated tests

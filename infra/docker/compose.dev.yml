@@ -45,3 +45,7 @@ services:
 
 volumes:
   frontend_dev_node_modules:
+
+networks:
+  default:
+    name: ragdoll-dev
