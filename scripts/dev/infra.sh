@@ -2,11 +2,11 @@
 
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-INFRA_COMPOSE_FILE="$ROOT_DIR/infra/docker/compose.infra.yml"
-INFRA_ENV_FILE="$ROOT_DIR/infra/docker/.env.infra"
-INFRA_ENV_EXAMPLE="$ROOT_DIR/infra/docker/.env.infra.example"
-SUPABASE_UPSTREAM_COMPOSE_FILE="$ROOT_DIR/infra/supabase/self-hosted/docker-compose.yml"
+ROOT_DIR="${RAGDOLL_ROOT_DIR:-$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)}"
+INFRA_COMPOSE_FILE="${RAGDOLL_INFRA_COMPOSE_FILE:-$ROOT_DIR/infra/docker/compose.infra.yml}"
+INFRA_ENV_FILE="${RAGDOLL_INFRA_ENV_FILE:-$ROOT_DIR/infra/docker/.env.infra}"
+INFRA_ENV_EXAMPLE="${RAGDOLL_INFRA_ENV_EXAMPLE:-$ROOT_DIR/infra/docker/.env.infra.example}"
+SUPABASE_UPSTREAM_COMPOSE_FILE="${RAGDOLL_SUPABASE_UPSTREAM_COMPOSE_FILE:-$ROOT_DIR/infra/supabase/self-hosted/docker-compose.yml}"
 ACTIVE_INFRA_ENV_FILE=
 
 select_infra_env_file() {
@@ -85,6 +85,13 @@ require_supabase_upstream() {
 COMMAND=${1:-up}
 if [ $# -gt 0 ]; then
   shift
+fi
+
+if [ "${RAGDOLL_ECHO_OLLAMA_RUNTIME_COMPOSE:-0}" = "1" ]; then
+  select_infra_env_file
+  load_ollama_runtime
+  printf '%s\n' "$OLLAMA_RUNTIME_COMPOSE_FILE"
+  exit 0
 fi
 
 case "$COMMAND" in

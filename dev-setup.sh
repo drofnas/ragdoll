@@ -32,6 +32,7 @@ Commands:
   test-backend       Run backend platform tests from apps/api
   test-frontend      Run frontend runtime/bootstrap tests from apps/web
   test, test-all     Run backend and frontend test entrypoints in sequence
+  test-infra         Run the opt-in Docker-backed Phase 7 local dependency smoke suite
   test-e2e           Run the Docker-backed Playwright smoke E2E suite
   help, -h, --help   Show this help message
 EOF
@@ -128,6 +129,12 @@ case "$COMMAND" in
       shift
     fi
     exec "$ROOT_DIR/scripts/test/all.sh" "$@"
+    ;;
+  test-infra)
+    if [ "${1:-}" = "--" ]; then
+      shift
+    fi
+    exec "$ROOT_DIR/scripts/test/infra.sh" "$@"
     ;;
   test-e2e)
     if [ "${1:-}" = "--" ]; then

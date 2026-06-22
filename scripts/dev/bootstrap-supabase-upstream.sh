@@ -2,9 +2,10 @@
 
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-SUPABASE_UPSTREAM_DIR="$ROOT_DIR/infra/supabase/self-hosted"
-SUPABASE_UPSTREAM_COMPOSE="$SUPABASE_UPSTREAM_DIR/docker-compose.yml"
+ROOT_DIR="${RAGDOLL_ROOT_DIR:-$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)}"
+SUPABASE_UPSTREAM_DIR="${RAGDOLL_SUPABASE_UPSTREAM_DIR:-$ROOT_DIR/infra/supabase/self-hosted}"
+SUPABASE_UPSTREAM_COMPOSE="${RAGDOLL_SUPABASE_UPSTREAM_COMPOSE:-$SUPABASE_UPSTREAM_DIR/docker-compose.yml}"
+SUPABASE_UPSTREAM_GIT_REMOTE="${SUPABASE_UPSTREAM_GIT_REMOTE:-https://github.com/supabase/supabase.git}"
 SUPABASE_UPSTREAM_GIT_SHA="${SUPABASE_UPSTREAM_GIT_SHA:-3a72b128de26e966e445463af09aa2b3468400fd}"
 
 require_command() {
@@ -31,7 +32,7 @@ fetch_supabase_upstream() {
 
   mkdir -p "$ws"
   git -C "$ws" init -q
-  git -C "$ws" remote add origin https://github.com/supabase/supabase.git
+  git -C "$ws" remote add origin "$SUPABASE_UPSTREAM_GIT_REMOTE"
 
   if ! git -C "$ws" fetch --depth 1 origin "$SUPABASE_UPSTREAM_GIT_SHA"; then
     echo "Error: git fetch failed for supabase/supabase commit $SUPABASE_UPSTREAM_GIT_SHA."

@@ -20,9 +20,20 @@ This directory now owns both the app stack and the local dependency stack used d
 Key workflows:
 
 - `./dev-setup.sh up` starts the app stack
+- `./dev-setup.sh daemon` starts the app stack in the background
 - `./dev-setup.sh infra up` creates `infra/docker/.env.infra` when missing, fetches the repo-selected upstream Supabase Docker tree into ignored local storage when missing, hydrates matching local backend env values when needed, and starts the local dependency stack
 - `./dev-setup.sh infra upgrade` refreshes the local upstream Supabase Docker tree to the repo-selected pinned commit, pulls newer infra images, and restarts the dependency stack
+- `./dev-setup.sh test-infra` runs the opt-in Docker-backed Phase 7 readiness and manual-upload smoke suite
 - `./dev-setup.sh infra logs` tails local dependency logs
+
+Recommended local full-stack flow:
+
+- `./dev-setup.sh infra up`
+- `./dev-setup.sh daemon`
+- `./dev-setup.sh test-infra`
+- `./dev-setup.sh logs` or `./dev-setup.sh infra logs`
+- `./dev-setup.sh down`
+- `./dev-setup.sh infra down`
 
 Local env behavior:
 
@@ -36,4 +47,6 @@ Local env behavior:
 Still deferred:
 
 - worker-specific long-running compose services beyond the current ingestion entrypoint
-- deeper critical-path E2E coverage beyond the initial shell smoke suite
+- deeper critical-path E2E coverage beyond the initial shell smoke suite and the opt-in Phase 7 infra smoke path
+
+Phase 7 readiness remains infrastructure-focused. A healthy readiness response and a passing `test-infra` run prove local database, storage, vector prerequisites, graph prerequisites, LLM reachability, and manual-upload processing confidence. They do not prove retrieval, embeddings, entities, or graph projection behavior.

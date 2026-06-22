@@ -2,13 +2,13 @@
 
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-INFRA_ENV_FILE="$ROOT_DIR/infra/docker/.env.infra"
-INFRA_ENV_BACKUP_FILE="$ROOT_DIR/infra/docker/.env.infra.backup"
-INFRA_ENV_EXAMPLE="$ROOT_DIR/infra/docker/.env.infra.example"
-API_ENV_FILE="$ROOT_DIR/apps/api/.env"
-API_ENV_EXAMPLE="$ROOT_DIR/apps/api/.env.example"
-SUPABASE_DB_DATA_DIR="$ROOT_DIR/infra/supabase/self-hosted/volumes/db/data"
+ROOT_DIR="${RAGDOLL_ROOT_DIR:-$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)}"
+INFRA_ENV_FILE="${RAGDOLL_INFRA_ENV_FILE:-$ROOT_DIR/infra/docker/.env.infra}"
+INFRA_ENV_BACKUP_FILE="${RAGDOLL_INFRA_ENV_BACKUP_FILE:-$ROOT_DIR/infra/docker/.env.infra.backup}"
+INFRA_ENV_EXAMPLE="${RAGDOLL_INFRA_ENV_EXAMPLE:-$ROOT_DIR/infra/docker/.env.infra.example}"
+API_ENV_FILE="${RAGDOLL_API_ENV_FILE:-$ROOT_DIR/apps/api/.env}"
+API_ENV_EXAMPLE="${RAGDOLL_API_ENV_EXAMPLE:-$ROOT_DIR/apps/api/.env.example}"
+SUPABASE_DB_DATA_DIR="${RAGDOLL_SUPABASE_DB_DATA_DIR:-$ROOT_DIR/infra/supabase/self-hosted/volumes/db/data}"
 MODE=full
 
 OLD_LOCAL_POSTGRES_PASSWORD="103659aff166f7b92932fcac7a19c544"

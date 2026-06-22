@@ -4,6 +4,26 @@ include:
   - ../supabase/docker-compose.yml
 
 services:
+  supabase-db-bootstrap:
+    image: postgres:17
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - "-ec"
+      - |
+        attempts=0
+        until PGPASSWORD="${POSTGRES_PASSWORD}" psql -h db -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null 2>&1; do
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 30 ]; then
+            echo "Failed to ensure pgvector extension after $$attempts attempts."
+            exit 1
+          fi
+          sleep 2
+        done
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -54,13 +74,26 @@ services:
         bucket_url="http://kong:8000/storage/v1/bucket/${SUPABASE_STORAGE_BUCKET}"
         auth_header="Authorization: Bearer ${SERVICE_ROLE_KEY}"
         api_key_header="apikey: ${SERVICE_ROLE_KEY}"
-        status="$$(curl -sS -o /tmp/bucket.json -w '%{http_code}' -H "$$auth_header" -H "$$api_key_header" "$$bucket_url" || true)"
+        attempts=0
+        status=""
+        while :; do
+          status="$$(curl -sS -o /tmp/bucket.json -w '%{http_code}' -H "$$auth_header" -H "$$api_key_header" "$$bucket_url" || true)"
+          if [ "$$status" = "200" ] || [ "$$status" = "404" ]; then
+            break
+          fi
+          if [ "$$status" = "400" ] && grep -Fq "Bucket not found" /tmp/bucket.json; then
+            status="404"
+            break
+          fi
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 30 ]; then
+            cat /tmp/bucket.json
+            exit 1
+          fi
+          sleep 2
+        done
         if [ "$$status" = "200" ]; then
           exit 0
-        fi
-        if [ "$$status" != "404" ]; then
-          cat /tmp/bucket.json
-          exit 1
         fi
         curl -fsS \
           -X POST \

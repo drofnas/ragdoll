@@ -258,28 +258,32 @@ Goal: pull the third-party local runtime forward so developers can run the app a
 
 Depends on: Phase 6
 
-- [ ] Phase complete
-- [ ] Add the repo-owned local dependency stack
-  - [ ] Add the repo-owned Supabase wrapper assets and fetch the upstream self-hosted Docker tree into ignored local storage on demand
-  - [ ] Add the repo-owned Ollama compose assets and runtime overrides for `cpu`, `amd`, and `nvidia`
-  - [ ] Share a stable local Docker network between the app stack and the dependency stack
-  - [ ] Keep all checked-in compose and docs free of absolute local filesystem paths
-- [ ] Add local dependency lifecycle commands
-  - [ ] Add `./dev-setup.sh infra up`
-  - [ ] Add `./dev-setup.sh infra down`
-  - [ ] Add `./dev-setup.sh infra ps`
-  - [ ] Add `./dev-setup.sh infra logs`
-  - [ ] Add `./dev-setup.sh infra upgrade`
-  - [ ] Verify the infra workflow auto-creates a local env file from the repo-owned example when missing
-- [ ] Align local env and readiness behavior
-  - [ ] Update backend env examples to target the shared local Docker network cleanly
-  - [ ] Ensure local Postgres comes up with `pgvector` installed
-  - [ ] Ensure the local Supabase storage bucket used by the app is created automatically
-  - [ ] Verify local readiness can report `healthy` for `database`, `storage`, `vector`, `graph`, and `llm` when the dependency stack is running
-- [ ] Add local integration acceptance coverage
-  - [ ] Document how to boot the app stack and infra stack together
-  - [ ] Verify manual upload flows can be smoke-tested locally against the Dockerized dependencies
-  - [ ] Keep worker/runtime integration limited to what is required for local ingestion confidence in this phase
+- [x] Phase complete
+- [x] Reconcile the tracker to current repo truth
+  - [x] Keep Phase 7 focused on completion, validation, and operator guidance rather than re-describing already-landed infra assets as future work
+  - [x] Mark the repo-owned Supabase wrapper assets and on-demand upstream fetch workflow as landed
+  - [x] Mark the Ollama compose assets and `cpu`, `amd`, and `nvidia` runtime selection as landed
+  - [x] Mark the shared named Docker network between the app stack and dependency stack as landed
+- [x] Lock the local dependency stack behind repo-owned workflows
+  - [x] Treat `./dev-setup.sh infra up|down|ps|logs|upgrade` as the canonical public interface for local dependency management
+  - [x] Keep the app stack in `infra/docker/compose.dev.yml` and the dependency stack in `infra/docker/compose.infra.yml`
+  - [x] Keep fetched upstream Supabase Docker assets ignored and hydrated on demand
+  - [x] Keep checked-in compose and docs free of absolute local filesystem paths
+- [x] Align local env and readiness behavior
+  - [x] Keep backend env examples targeting the shared local Docker network cleanly
+  - [x] Ensure the infra workflow auto-creates `infra/docker/.env.infra` from the repo-owned example when missing
+  - [x] Ensure local Postgres comes up with `pgvector` installed
+  - [x] Ensure the local Supabase storage bucket used by the app is created automatically
+  - [x] Verify local readiness can report `healthy` for `database`, `storage`, `vector`, `graph`, and `llm` when the dependency stack is running
+- [x] Add explicit local acceptance coverage
+  - [x] Add repo-owned script-level coverage for env bootstrap, backup restore, Supabase upstream population, and Ollama runtime override selection
+  - [x] Add `./dev-setup.sh test-infra` as the opt-in Docker-backed Phase 7 smoke path
+  - [x] Verify manual upload flows can be smoke-tested locally against the Dockerized dependencies without widening this phase into retrieval or enrichment work
+  - [x] Keep worker/runtime integration limited to what is required for local ingestion confidence in this phase
+- [x] Align docs and operator guidance
+  - [x] Document how to boot the app stack and infra stack together
+  - [x] Document the new `test-infra` entrypoint and its opt-in scope
+  - [x] Keep readiness documented as infrastructure verification rather than proof of higher-level retrieval correctness
 
 ## Phase 8 - Retrieval Projection And Enrichment
 
