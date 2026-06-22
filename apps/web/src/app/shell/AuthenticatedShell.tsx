@@ -30,6 +30,21 @@ export function AuthenticatedShell() {
               <Anchor component={Link} to="/documents">
                 Documents
               </Anchor>
+              <Anchor component={Link} to="/search">
+                Search
+              </Anchor>
+              <Anchor component={Link} to="/chat">
+                Chat
+              </Anchor>
+              <Anchor component={Link} to="/entities">
+                Entities
+              </Anchor>
+              <Anchor component={Link} to="/tracked-state">
+                Tracked state
+              </Anchor>
+              <Anchor component={Link} to="/changes">
+                Changes
+              </Anchor>
               <Anchor component={Link} to="/account">
                 Account
               </Anchor>

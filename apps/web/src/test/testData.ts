@@ -1,10 +1,23 @@
 import type {
+  ChangeEventDetail,
+  ChangeListResponse,
+  ChatSessionDetail,
+  ChatSessionListResponse,
+  CorrectionListResponse,
+  CorrectionRecordResponse,
   DocumentDetail,
   DocumentListResponse,
   DocumentProcessingStatusResponse,
+  EntityDetailResponse,
+  EntityListResponse,
+  GraphResponse,
   ProcessingStatus,
+  SearchResponse,
   SpaceListResponse,
   SpaceResponse,
+  TrackedFieldDefinitionListResponse,
+  TrackedStateConflictResponse,
+  TrackedStateSummaryResponse,
   UsageSummaryResponse,
   UserProfileResponse
 } from "@contracts";
@@ -152,6 +165,336 @@ export const usageSummary: UsageSummaryResponse = {
     tokens_5h: 0,
     tokens_week: 0
   }
+};
+
+export const searchResponse: SearchResponse = {
+  items: [
+    {
+      citations: [
+        {
+          document_id: documentDetail.id,
+          locator: "page 1",
+          source_tier: "document",
+          title: documentDetail.title
+        }
+      ],
+      document: {
+        created_at: documentDetail.created_at,
+        file_type: documentDetail.file_type,
+        id: documentDetail.id,
+        space_id: documentDetail.space_id,
+        title: documentDetail.title
+      },
+      entity: {
+        display_name: "FastAPI",
+        entity_type: "framework",
+        id: "77777777-7777-7777-7777-777777777777",
+        mention_count: 3,
+        normalized_name: "fastapi"
+      },
+      matched_modes: ["combined", "vector"],
+      preview_text: "FastAPI powers the backend runtime for the rebuilt product.",
+      result_id: "search-result-1",
+      result_kind: "document_chunk",
+      score: 0.97
+    }
+  ],
+  page: 1,
+  page_size: 10,
+  total: 1
+};
+
+export const chatSessionListResponse: ChatSessionListResponse = {
+  items: [
+    {
+      created_at: "2026-06-22T17:10:00Z",
+      id: "88888888-8888-8888-8888-888888888888",
+      last_message_at: "2026-06-22T17:15:00Z",
+      message_count: 2,
+      space_id: spaces[0].id,
+      title: "Architecture questions",
+      updated_at: "2026-06-22T17:15:00Z"
+    }
+  ],
+  page: 1,
+  page_size: 25,
+  total: 1
+};
+
+export const chatSessionDetail: ChatSessionDetail = {
+  ...chatSessionListResponse.items[0],
+  messages: [
+    {
+      content: "What backend framework does this repo use?",
+      created_at: "2026-06-22T17:11:00Z",
+      degraded: false,
+      id: "99999999-9999-9999-9999-999999999999",
+      role: "user"
+    },
+    {
+      citations: [
+        {
+          document_id: documentDetail.id,
+          locator: "page 1",
+          source_tier: "document",
+          title: documentDetail.title
+        }
+      ],
+      content: "The backend uses FastAPI and exposes versioned routes under /api/v1.",
+      created_at: "2026-06-22T17:12:00Z",
+      degraded: true,
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      retrieval_mode: "combined",
+      role: "assistant",
+      suggestions: [
+        {
+          label: "Follow up",
+          prompt: "Show me where the FastAPI app boots."
+        }
+      ]
+    }
+  ]
+};
+
+export const entityListResponse: EntityListResponse = {
+  items: [
+    {
+      created_at: "2026-06-22T17:00:00Z",
+      display_name: "FastAPI",
+      document_count: 1,
+      entity_type: "framework",
+      graph_node_id: "graph-fastapi",
+      id: "77777777-7777-7777-7777-777777777777",
+      latest_mentioned_at: "2026-06-22T17:05:00Z",
+      mention_count: 3,
+      normalized_name: "fastapi",
+      space_id: spaces[0].id,
+      updated_at: "2026-06-22T17:05:00Z"
+    }
+  ],
+  page: 1,
+  page_size: 12,
+  total: 1
+};
+
+export const entityDetail: EntityDetailResponse = {
+  ...entityListResponse.items[0],
+  history: [
+    {
+      citation: {
+        document_id: documentDetail.id,
+        locator: "page 1",
+        source_tier: "document",
+        title: documentDetail.title
+      },
+      document_id: documentDetail.id,
+      mention_id: "mention-history-1",
+      observed_at: "2026-06-22T17:05:00Z",
+      surface_text: "FastAPI"
+    }
+  ],
+  provenance: [
+    {
+      citation: {
+        chunk_id: "chunk-1",
+        document_id: documentDetail.id,
+        locator: "page 1",
+        source_tier: "document",
+        title: documentDetail.title
+      },
+      chunk_id: "chunk-1",
+      confidence_score: 0.94,
+      created_at: "2026-06-22T17:05:00Z",
+      document_id: documentDetail.id,
+      extraction_metadata: null,
+      mention_id: "mention-1",
+      normalized_name: "fastapi",
+      surface_text: "FastAPI"
+    }
+  ],
+  related_documents: [
+    {
+      citation: {
+        document_id: documentDetail.id,
+        locator: "page 1",
+        source_tier: "document",
+        title: documentDetail.title
+      },
+      document_id: documentDetail.id,
+      file_type: documentDetail.file_type,
+      latest_mentioned_at: "2026-06-22T17:05:00Z",
+      mention_count: 3,
+      title: documentDetail.title
+    }
+  ]
+};
+
+export const entityGraph: GraphResponse = {
+  depth: 1,
+  links: [
+    {
+      citations: [
+        {
+          document_id: documentDetail.id,
+          locator: "page 1",
+          source_tier: "derived",
+          title: documentDetail.title
+        }
+      ],
+      relation_type: "depends_on",
+      source_id: "graph-fastapi",
+      target_id: "graph-openapi",
+      weight: 0.8
+    }
+  ],
+  nodes: [
+    {
+      id: "graph-fastapi",
+      label: "FastAPI",
+      node_type: "framework",
+      space_id: spaces[0].id
+    },
+    {
+      id: "graph-openapi",
+      label: "OpenAPI",
+      node_type: "contract",
+      space_id: spaces[0].id
+    }
+  ],
+  seed_entity_id: entityDetail.id
+};
+
+export const trackedFieldDefinitions: TrackedFieldDefinitionListResponse = {
+  items: [
+    {
+      created_at: "2026-06-22T17:00:00Z",
+      entity_type_hint: "framework",
+      id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      is_active: true,
+      key: "current_backend_framework",
+      label: "Current backend framework",
+      prompt: "What backend framework powers this repo today?",
+      space_id: spaces[0].id,
+      updated_at: "2026-06-22T17:05:00Z"
+    }
+  ],
+  page: 1,
+  page_size: 50,
+  total: 1
+};
+
+export const trackedStateSummary: TrackedStateSummaryResponse = {
+  items: [
+    {
+      ...trackedFieldDefinitions.items[0],
+      conflict_count: 1,
+      current_source_tier: "verified",
+      current_value: "FastAPI",
+      current_value_updated_at: "2026-06-22T17:06:00Z",
+      pending_correction_count: 1,
+      status: "resolved"
+    }
+  ]
+};
+
+export const trackedStateConflicts: TrackedStateConflictResponse = {
+  items: [
+    {
+      candidates: [
+        {
+          citations: [
+            {
+              document_id: documentDetail.id,
+              locator: "page 1",
+              source_tier: "document",
+              title: documentDetail.title
+            }
+          ],
+          created_at: "2026-06-22T17:06:00Z",
+          source_tier: "document",
+          status: "candidate",
+          value_text: "FastAPI"
+        },
+        {
+          citations: [
+            {
+              document_id: documentDetail.id,
+              locator: "page 2",
+              source_tier: "document",
+              title: documentDetail.title
+            }
+          ],
+          created_at: "2026-06-22T17:07:00Z",
+          source_tier: "document",
+          status: "candidate",
+          value_text: "Starlette"
+        }
+      ],
+      field: trackedFieldDefinitions.items[0],
+      status: "conflict"
+    }
+  ]
+};
+
+export const changeListResponse: ChangeListResponse = {
+  items: [
+    {
+      chat_session_id: chatSessionDetail.id,
+      correction_id: null,
+      created_at: "2026-06-22T17:16:00Z",
+      document_id: documentDetail.id,
+      event_type: "chat_answered",
+      id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      is_read: false,
+      space_id: spaces[0].id,
+      summary: "A retrieval-backed answer cited the implementation plan.",
+      title: "Chat answer generated",
+      tracked_field_id: null
+    }
+  ],
+  page: 1,
+  page_size: 10,
+  total: 1
+};
+
+export const changeDetail: ChangeEventDetail = {
+  ...changeListResponse.items[0],
+  payload: {
+    session_id: chatSessionDetail.id
+  }
+};
+
+export const correctionDetail: CorrectionRecordResponse = {
+  chat_message_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  chat_session_id: chatSessionDetail.id,
+  citation: {
+    document_id: documentDetail.id,
+    locator: "page 1",
+    source_tier: "document",
+    title: documentDetail.title
+  },
+  created_at: "2026-06-22T17:17:00Z",
+  document_id: documentDetail.id,
+  entity_id: entityDetail.id,
+  id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+  locator_text: "page 1",
+  proposed_value: "The repo uses FastAPI for the API service.",
+  rationale: "The answer should mention the API service explicitly.",
+  review_notes: null,
+  reviewed_at: null,
+  reviewed_by: null,
+  space_id: spaces[0].id,
+  status: "pending",
+  submitted_by: userProfile.id,
+  tracked_field_id: trackedFieldDefinitions.items[0].id,
+  updated_at: "2026-06-22T17:17:00Z"
+};
+
+export const correctionListResponse: CorrectionListResponse = {
+  items: [correctionDetail],
+  page: 1,
+  page_size: 10,
+  total: 1
 };
 
 export function jsonResponse(body: unknown, init?: ResponseInit) {

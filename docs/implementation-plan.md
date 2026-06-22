@@ -405,44 +405,44 @@ Goal: turn `apps/web` from scaffold mode into the first real typed product surfa
 
 Depends on: Phase 10
 
-- [ ] Phase complete
-- [ ] Replace scaffold-only contract consumption with real generated TypeScript artifacts
-  - [ ] Generate `packages/contracts/typescript/index.ts` from the exported OpenAPI document
-  - [ ] Keep request and response shapes imported from `packages/contracts/typescript`
-  - [ ] Keep feature clients as thin wrappers around shared transport instead of generating request helpers
-  - [ ] Add contract-generation coverage proving TypeScript output is real, not placeholder-only
-- [ ] Implement app-level shells and shared frontend runtime for the first live workspace slice
-  - [ ] Replace env-based fake auth with a stored-token session provider backed by `/api/v1/auth/login` and `/api/v1/auth/me`
-  - [ ] Replace local-only Space state with live owned-Space loading from `/api/v1/spaces`
-  - [ ] Expand the shared API client to own bearer auth, JSON, form, multipart, query-string, problem-response, and blob handling
-  - [ ] Keep route ownership in `app/router.tsx` with `/`, `/login`, `/register`, `/dashboard`, `/spaces`, `/documents`, `/documents/{document_id}`, `/account`, and `/admin`
-  - [ ] Show current user, current scope, and logout behavior in the authenticated shell
-  - [ ] Add shared runtime tests for session bootstrap, redirects, admin gating, and scope persistence
-- [ ] Implement the auth feature
-  - [ ] Add live login and register pages
-  - [ ] Redirect successful registration back to `/login` instead of auto-logging in
-  - [ ] Add loading and typed error states
-  - [ ] Add auth feature tests
-  - [ ] Verify auth contract alignment
-- [ ] Implement the spaces feature
-  - [ ] Add the Spaces page for list, create, rename, set-default, and archive flows
-  - [ ] Add active-Space and all-spaces UI behavior
-  - [ ] Keep archived Spaces visible but visually separate from active Spaces
-  - [ ] Add Spaces feature tests
-  - [ ] Verify Space contract alignment
-- [ ] Implement the documents feature
-  - [ ] Add the documents list page with pagination and file-type filtering
-  - [ ] Add manual upload behavior backed by `/api/v1/ingestion/uploads`
-  - [ ] Add document detail, status polling, move, delete, and download behavior
-  - [ ] Reject write workflows that would otherwise infer a target Space while `all_spaces=true`
-  - [ ] Keep retry and reprocess controls deferred
-  - [ ] Add documents feature tests
-  - [ ] Verify document and processing contract alignment
-- [ ] Implement the account and dashboard features
-  - [ ] Add the account page for profile, optional password change, plan tier, feature flags, and usage summary
-  - [ ] Add the dashboard as the authenticated landing surface using current scope, recent documents, and usage summary
-  - [ ] Add account and dashboard feature tests
-  - [ ] Verify account, usage, and dashboard reads align with current contracts
+- [x] Phase complete
+- [x] Replace scaffold-only contract consumption with real generated TypeScript artifacts
+  - [x] Generate `packages/contracts/typescript/index.ts` from the exported OpenAPI document
+  - [x] Keep request and response shapes imported from `packages/contracts/typescript`
+  - [x] Keep feature clients as thin wrappers around shared transport instead of generating request helpers
+  - [x] Add contract-generation coverage proving TypeScript output is real, not placeholder-only
+- [x] Implement app-level shells and shared frontend runtime for the first live workspace slice
+  - [x] Replace env-based fake auth with a stored-token session provider backed by `/api/v1/auth/login` and `/api/v1/auth/me`
+  - [x] Replace local-only Space state with live owned-Space loading from `/api/v1/spaces`
+  - [x] Expand the shared API client to own bearer auth, JSON, form, multipart, query-string, problem-response, and blob handling
+  - [x] Keep route ownership in `app/router.tsx` with `/`, `/login`, `/register`, `/dashboard`, `/spaces`, `/documents`, `/documents/{document_id}`, `/account`, and `/admin`
+  - [x] Show current user, current scope, and logout behavior in the authenticated shell
+  - [x] Add shared runtime tests for session bootstrap, redirects, admin gating, and scope persistence
+- [x] Implement the auth feature
+  - [x] Add live login and register pages
+  - [x] Redirect successful registration back to `/login` instead of auto-logging in
+  - [x] Add loading and typed error states
+  - [x] Add auth feature tests
+  - [x] Verify auth contract alignment
+- [x] Implement the spaces feature
+  - [x] Add the Spaces page for list, create, rename, set-default, and archive flows
+  - [x] Add active-Space and all-spaces UI behavior
+  - [x] Keep archived Spaces visible but visually separate from active Spaces
+  - [x] Add Spaces feature tests
+  - [x] Verify Space contract alignment
+- [x] Implement the documents feature
+  - [x] Add the documents list page with pagination and file-type filtering
+  - [x] Add manual upload behavior backed by `/api/v1/ingestion/uploads`
+  - [x] Add document detail, status polling, move, delete, and download behavior
+  - [x] Reject write workflows that would otherwise infer a target Space while `all_spaces=true`
+  - [x] Keep retry and reprocess controls deferred
+  - [x] Add documents feature tests
+  - [x] Verify document and processing contract alignment
+- [x] Implement the account and dashboard features
+  - [x] Add the account page for profile, optional password change, plan tier, feature flags, and usage summary
+  - [x] Add the dashboard as the authenticated landing surface using current scope, recent documents, and usage summary
+  - [x] Add account and dashboard feature tests
+  - [x] Verify account, usage, and dashboard reads align with current contracts
 
 ## Phase 12 - Retrieval And Interaction Web Surfaces
 
@@ -450,43 +450,43 @@ Goal: add the first retrieval-heavy frontend experiences on top of the completed
 
 Depends on: Phase 11
 
-- [ ] Phase complete
-- [ ] Implement the search feature
-  - [ ] Add search page scaffolds
-  - [ ] Add search API client integration
-  - [ ] Add result list and filter behavior
-  - [ ] Add loading, empty, and error states
-  - [ ] Add search feature tests
-  - [ ] Verify search contract alignment
-- [ ] Implement the chat feature
-  - [ ] Add chat page scaffolds
-  - [ ] Add chat session and message UI behavior
-  - [ ] Add chat API client integration
-  - [ ] Add citation rendering and error states
-  - [ ] Add chat feature tests
-  - [ ] Verify chat contract alignment
-- [ ] Implement the entities feature
-  - [ ] Add entities list and detail page scaffolds
-  - [ ] Add provenance, history, and graph UI behavior
-  - [ ] Add entities API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add entities feature tests
-  - [ ] Verify entity and graph contract alignment
-- [ ] Implement the tracked state feature
-  - [ ] Add tracked-state page scaffolds
-  - [ ] Add tracked summary and conflict UI behavior
-  - [ ] Add tracked-state API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add tracked-state feature tests
-  - [ ] Verify tracked-state contract alignment
-- [ ] Implement the changes and corrections features
-  - [ ] Add changes page scaffolds
-  - [ ] Add changes API client integration
-  - [ ] Add list, detail, and read-state UI behavior
-  - [ ] Add correction submission and review entrypoints where applicable
-  - [ ] Add loading, empty, and error states
-  - [ ] Add changes and corrections feature tests
-  - [ ] Verify changes and corrections contract alignment
+- [x] Phase complete
+- [x] Implement the search feature
+  - [x] Add search page scaffolds
+  - [x] Add search API client integration
+  - [x] Add result list and filter behavior
+  - [x] Add loading, empty, and error states
+  - [x] Add search feature tests
+  - [x] Verify search contract alignment
+- [x] Implement the chat feature
+  - [x] Add chat page scaffolds
+  - [x] Add chat session and message UI behavior
+  - [x] Add chat API client integration
+  - [x] Add citation rendering and error states
+  - [x] Add chat feature tests
+  - [x] Verify chat contract alignment
+- [x] Implement the entities feature
+  - [x] Add entities list and detail page scaffolds
+  - [x] Add provenance, history, and graph UI behavior
+  - [x] Add entities API client integration
+  - [x] Add loading, empty, and error states
+  - [x] Add entities feature tests
+  - [x] Verify entity and graph contract alignment
+- [x] Implement the tracked state feature
+  - [x] Add tracked-state page scaffolds
+  - [x] Add tracked summary and conflict UI behavior
+  - [x] Add tracked-state API client integration
+  - [x] Add loading, empty, and error states
+  - [x] Add tracked-state feature tests
+  - [x] Verify tracked-state contract alignment
+- [x] Implement the changes and corrections features
+  - [x] Add changes page scaffolds
+  - [x] Add changes API client integration
+  - [x] Add list, detail, and read-state UI behavior
+  - [x] Add correction submission and review entrypoints where applicable
+  - [x] Add loading, empty, and error states
+  - [x] Add changes and corrections feature tests
+  - [x] Verify changes and corrections contract alignment
 
 ## Phase 13 - Capability Completion
 
