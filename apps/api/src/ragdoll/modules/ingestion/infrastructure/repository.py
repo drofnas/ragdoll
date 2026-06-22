@@ -3,10 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.orm import Session
 
-from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, Space
+from ragdoll.platform.db.models import (
+    CanonicalEntity,
+    Document,
+    DocumentChunk,
+    DocumentProcessingJob,
+    Entity,
+    GraphNode,
+    Space,
+)
 
 
 @dataclass(frozen=True)
@@ -64,3 +72,54 @@ class IngestionRepository:
         self.session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document.id))
         for chunk in chunks:
             self.session.add(chunk)
+
+    def replace_entities(self, document: Document, entities: list[Entity]) -> None:
+        self.session.execute(delete(Entity).where(Entity.document_id == document.id))
+        for entity in entities:
+            self.session.add(entity)
+
+    def clear_entities_for_document(self, document_id: UUID) -> int:
+        result = self.session.execute(delete(Entity).where(Entity.document_id == document_id))
+        return int(result.rowcount or 0)
+
+    def prune_orphan_canonical_entities(self) -> int:
+        self.session.execute(
+            delete(GraphNode).where(
+                ~exists(select(Entity.id).where(Entity.canonical_entity_id == GraphNode.canonical_entity_id))
+            )
+        )
+        result = self.session.execute(
+            delete(CanonicalEntity).where(
+                ~exists(select(Entity.id).where(Entity.canonical_entity_id == CanonicalEntity.id))
+            )
+        )
+        return int(result.rowcount or 0)
+
+    def get_or_create_canonical_entity(
+        self,
+        *,
+        space_id: UUID,
+        entity_type: str,
+        normalized_name: str,
+        display_name: str,
+    ) -> CanonicalEntity:
+        existing = self.session.scalar(
+            select(CanonicalEntity).where(
+                CanonicalEntity.space_id == space_id,
+                CanonicalEntity.entity_type == entity_type,
+                CanonicalEntity.normalized_name == normalized_name,
+            )
+        )
+        if existing is not None:
+            existing.display_name = display_name
+            return existing
+
+        canonical = CanonicalEntity(
+            space_id=space_id,
+            entity_type=entity_type,
+            normalized_name=normalized_name,
+            display_name=display_name,
+        )
+        self.session.add(canonical)
+        self.session.flush()
+        return canonical

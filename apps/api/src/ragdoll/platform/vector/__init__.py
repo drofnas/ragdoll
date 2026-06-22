@@ -1,15 +1,15 @@
-"""Vector cleanup hooks for document deletion flows."""
+"""Vector projection services for worker and cleanup flows."""
 
 from ragdoll.platform.vector.service import (
     InMemoryVectorCleanupService,
-    NoopVectorCleanupService,
+    SqlVectorCleanupService,
     VectorCleanupService,
     get_vector_cleanup_service,
 )
 
 __all__ = [
     "InMemoryVectorCleanupService",
-    "NoopVectorCleanupService",
+    "SqlVectorCleanupService",
     "VectorCleanupService",
     "get_vector_cleanup_service",
 ]

@@ -19,13 +19,17 @@ from ragdoll.modules.ingestion.domain.policies import (
     enforce_storage_limit,
     enforce_upload_rate_limit,
     enforce_upload_size_limit,
+    reset_processing_status_for_stage,
+    validate_requested_stage,
 )
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
 from ragdoll.modules.spaces.infrastructure.repository import SpacesRepository
 from ragdoll.modules.usage.infrastructure.repository import UsageRepository
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob
+from ragdoll.platform.graph import GraphCleanupService
 from ragdoll.platform.queues import DocumentProcessingQueueService, ProcessingJobPayload
 from ragdoll.platform.storage import DocumentStorageService
+from ragdoll.platform.vector import VectorCleanupService
 
 
 def resolve_target_space(session: Session, owner_user_id: UUID, space_id: UUID | None):
@@ -37,12 +41,12 @@ def resolve_target_space(session: Session, owner_user_id: UUID, space_id: UUID |
     return space
 
 
-def _build_job(document: Document, *, attempt: int) -> DocumentProcessingJob:
+def _build_job(document: Document, *, attempt: int, requested_stage: str) -> DocumentProcessingJob:
     return DocumentProcessingJob(
         document_id=document.id,
         space_id=document.space_id,
         uploaded_by=document.uploaded_by,
-        requested_stage="parsing",
+        requested_stage=validate_requested_stage(requested_stage),
         status="queued",
         attempt=attempt,
     )
@@ -123,7 +127,7 @@ def upload_document(
     repo.add_document(document)
     session.flush()
 
-    job = _build_job(document, attempt=1)
+    job = _build_job(document, attempt=1, requested_stage="parsing")
     repo.add_processing_job(job)
     session.commit()
     session.refresh(document)
@@ -147,29 +151,44 @@ def upload_document(
     )
 
 
-def requeue_document_for_parsing(
+def requeue_document_processing(
     session: Session,
     *,
     subject: str,
     document_id: UUID,
     queue: DocumentProcessingQueueService,
+    requested_stage: str,
+    reset_document_content: bool,
     clear_existing_chunks: bool,
+    clear_existing_entities: bool,
+    vector_cleanup: VectorCleanupService | None = None,
+    graph_cleanup: GraphCleanupService | None = None,
 ) -> DocumentProcessingJob:
     owner_user_id = UUID(subject)
     document = DocumentsRepository(session).get_visible_or_404(owner_user_id, document_id)
-    latest_job = IngestionRepository(session).latest_job_for_document(document_id)
+    repo = IngestionRepository(session)
+    latest_job = repo.latest_job_for_document(document_id)
     attempt = _ensure_document_is_requeueable(latest_job)
+    stage = validate_requested_stage(requested_stage)
 
-    document.processing_status = build_processing_status_for_upload()
-    document.preview_text = None
-    document.original_text_content = None
-    document.chunk_count = 0
-    document.indexed_chunk_count = 0
+    document.processing_status = reset_processing_status_for_stage(document.processing_status, requested_stage=stage)
+    if reset_document_content:
+        document.preview_text = None
+        document.original_text_content = None
+        document.chunk_count = 0
+        document.indexed_chunk_count = 0
     if clear_existing_chunks:
         session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
+    if vector_cleanup is not None and stage == "vector":
+        vector_cleanup.cleanup_document(document.id)
+    if graph_cleanup is not None and stage in {"extraction", "graph"}:
+        graph_cleanup.cleanup_document(document.id)
+    if clear_existing_entities:
+        repo.clear_entities_for_document(document.id)
+        repo.prune_orphan_canonical_entities()
 
-    job = _build_job(document, attempt=attempt)
-    IngestionRepository(session).add_processing_job(job)
+    job = _build_job(document, attempt=attempt, requested_stage=stage)
+    repo.add_processing_job(job)
     session.commit()
     session.refresh(job)
 

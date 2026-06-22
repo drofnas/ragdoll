@@ -30,7 +30,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 - HTTP routes accept uploads, explicit process requests, reprocess requests, and status lookups.
 - Application commands create document records, enqueue jobs, and update stage state.
 - Worker code runs long-lived stage transitions and retries.
-- Platform adapters parse file content, call LLMs, and write to external stores.
+- Platform adapters parse file content, call Ollama-backed embedding and entity-extraction services, and write to external stores.
 - Documents remain readable in partially processed states, but APIs must surface exact stage health.
 
 ## Public Interfaces and Shared Types
@@ -56,8 +56,8 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 ### Manual reprocess
 
 1. User or admin requests a full reprocess or targeted retry.
-2. Command decides whether to clear derived artifacts fully or rerun one stage.
-3. Worker replays the required stages idempotently.
+2. Command clears the required downstream projections and requeues the document from `parsing`, `vector`, `extraction`, or `graph`.
+3. Worker replays the requested stage and every later stage idempotently.
 4. Status and change feed reflect retry outcome.
 
 ## Failure Modes and Edge Cases
@@ -74,6 +74,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 - Worker retries are idempotent for blobs, vectors, entities, and graph writes.
 - Manual and automated repair paths do not bypass provenance recording.
 - Space scope is assigned before processing fan-out begins.
+- Vector, extraction, and graph retries only reset the requested downstream stages instead of forcing a full reparse.
 
 ## Deferred Notes
 

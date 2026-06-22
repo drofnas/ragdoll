@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ragdoll.modules.documents.api.schemas import DocumentUpdateRequest
 from ragdoll.modules.documents.domain.policies import ensure_destination_space_accepts_documents
 from ragdoll.modules.documents.infrastructure.repository import DocumentsRepository
+from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
 from ragdoll.modules.spaces.infrastructure.repository import SpacesRepository
 from ragdoll.platform.db.models import Document
 from ragdoll.platform.graph import GraphCleanupService
@@ -35,5 +36,7 @@ def delete_document(
     storage.delete_derived_artifacts(document.id)
     vector_cleanup.cleanup_document(document.id)
     graph_cleanup.cleanup_document(document.id)
+    IngestionRepository(session).clear_entities_for_document(document.id)
+    IngestionRepository(session).prune_orphan_canonical_entities()
     DocumentsRepository(session).soft_delete(document)
     session.commit()

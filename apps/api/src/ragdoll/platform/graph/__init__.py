@@ -1,15 +1,15 @@
-"""Graph cleanup hooks for document deletion flows."""
+"""Graph projection services for worker and cleanup flows."""
 
 from ragdoll.platform.graph.service import (
     GraphCleanupService,
     InMemoryGraphCleanupService,
-    NoopGraphCleanupService,
+    SqlGraphCleanupService,
     get_graph_cleanup_service,
 )
 
 __all__ = [
     "GraphCleanupService",
     "InMemoryGraphCleanupService",
-    "NoopGraphCleanupService",
+    "SqlGraphCleanupService",
     "get_graph_cleanup_service",
 ]

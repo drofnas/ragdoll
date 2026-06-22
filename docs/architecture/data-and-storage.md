@@ -74,8 +74,9 @@ Must not own:
 
 Owns:
 
-- chunk embedding rows keyed by document and chunk identity
+- chunk embedding rows keyed by document and deterministic chunk identity
 - search payload fields required for fast semantic retrieval
+- the first durable implementation uses Postgres-backed projection rows with pgvector-compatible embedding payloads
 
 Must not own:
 
@@ -89,6 +90,7 @@ Owns:
 - graph-native traversal performance
 - entity and relationship exploration
 - document/entity connectivity projections
+- the first durable implementation uses Postgres-backed graph node and edge projection tables behind the graph adapter
 
 Must not own:
 
@@ -108,8 +110,8 @@ Must not own:
 1. Create `Document` metadata in SQL with Space, uploader, and processing state.
 2. Store original file in object storage and persist the reference.
 3. Produce chunk projections and write embeddings to vector storage.
-4. Persist extracted entities and provenance metadata in SQL.
-5. Project graph nodes and edges from extracted or verified records.
+4. Persist extracted entity mentions plus Space-scoped canonical entities in SQL.
+5. Project graph nodes and chunk-level co-occurrence edges from extracted or verified records.
 6. Resolve search, chat, tracked state, and history views by combining relational truth with vector or graph projections.
 
 ## Failure Modes and Edge Cases
@@ -126,6 +128,7 @@ Must not own:
 - Space scoping is relationally authoritative and available to derived stores.
 - Provenance survives search, chat, tracked state, and correction workflows.
 - Derived stores are documented as rebuildable projections with idempotent update behavior.
+- Reprocessing identical content preserves deterministic chunk identity and does not duplicate vector, entity, or graph projections.
 
 ## Deferred Notes
 

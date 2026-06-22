@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from hashlib import sha256
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, text
 from sqlalchemy import Uuid as SqlUuid
@@ -20,11 +20,15 @@ def default_processing_status_payload() -> dict[str, str | None]:
         "overall": "pending",
         "upload": "completed",
         "parsing": "pending",
-        "vector": "deferred",
-        "extraction": "deferred",
-        "graph": "deferred",
+        "vector": "pending",
+        "extraction": "pending",
+        "graph": "pending",
         "detail": None,
     }
+
+
+def stable_document_chunk_id(*, document_id: UUID, chunk_index: int, checksum: str) -> UUID:
+    return uuid5(document_id, f"{chunk_index}:{checksum}")
 
 
 class Document(Base):
@@ -102,6 +106,9 @@ class Document(Base):
         cascade="all, delete-orphan",
         order_by="DocumentProcessingJob.queued_at.desc()",
     )
+    vectors: Mapped[list["DocumentChunkVector"]] = relationship(cascade="all, delete-orphan")
+    entities: Mapped[list["Entity"]] = relationship(cascade="all, delete-orphan")
+    graph_edges: Mapped[list["GraphEdge"]] = relationship(cascade="all, delete-orphan")
 
 
 class DocumentChunk(Base):
@@ -144,16 +151,21 @@ class DocumentChunk(Base):
     )
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
+    vectors: Mapped[list["DocumentChunkVector"]] = relationship(cascade="all, delete-orphan")
+    entities: Mapped[list["Entity"]] = relationship(cascade="all, delete-orphan")
+    graph_edges: Mapped[list["GraphEdge"]] = relationship(cascade="all, delete-orphan")
 
     @classmethod
     def from_text(cls, *, document_id: UUID, space_id: UUID, chunk_index: int, text_content: str) -> "DocumentChunk":
+        checksum = sha256(text_content.encode("utf-8")).hexdigest()
         return cls(
+            id=stable_document_chunk_id(document_id=document_id, chunk_index=chunk_index, checksum=checksum),
             document_id=document_id,
             space_id=space_id,
             chunk_index=chunk_index,
             text_content=text_content,
             text_preview=text_content[:280],
-            checksum=sha256(text_content.encode("utf-8")).hexdigest(),
+            checksum=checksum,
         )
 
 

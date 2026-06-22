@@ -205,9 +205,27 @@ def test_db_engine_module_does_not_create_engine_until_requested():
 
 
 @pytest.mark.asyncio
-async def test_readiness_payload_marks_queue_not_configured_by_default():
-    payload = await build_readiness_payload(Settings(_env_file=None))
+async def test_readiness_payload_marks_queue_not_configured_without_database_config():
+    payload = await build_readiness_payload(
+        Settings(
+            database_url=None,
+            supabase_db_url=None,
+            supabase_test_db_url=None,
+            _env_file=None,
+        )
+    )
     assert payload.services["queue"].status == "not_configured"
+
+
+@pytest.mark.asyncio
+async def test_readiness_payload_marks_queue_healthy_with_database_runtime(monkeypatch):
+    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres", _env_file=None)
+
+    monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
+    payload = await build_readiness_payload(settings)
+
+    assert payload.services["queue"].status == "healthy"
+    assert payload.services["queue"].backend == "sql"
 
 
 @pytest.mark.asyncio
@@ -329,6 +347,29 @@ async def test_runtime_status_payload_marks_missing_ollama_models(monkeypatch):
     models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
     assert models["qwen3.5:0.8b"].status == "present"
     assert models["nomic-embed-text"].status == "missing"
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_accepts_latest_tag_for_configured_ollama_model(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(
+            payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text:latest"}]}
+        ),
+    )
+
+    payload = await build_runtime_status_payload(settings)
+
+    models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
+    assert models["nomic-embed-text"].status == "present"
 
 
 @pytest.mark.asyncio

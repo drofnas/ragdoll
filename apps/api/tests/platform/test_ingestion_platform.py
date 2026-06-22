@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from ragdoll.modules.ingestion.domain.policies import build_processing_status_for_upload
-from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, Space, User
+from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, DocumentChunkVector, Entity, GraphEdge, Space, User
+from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService
 from ragdoll.platform.queues import InMemoryDocumentProcessingQueue, ProcessingJobPayload, SqlDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.workers.document_pipeline import drain_document_jobs
@@ -81,7 +84,15 @@ def test_worker_marks_document_failed_when_blob_is_missing(db_session):
             attempt=1,
         )
     )
-    assert drain_document_jobs(queue=queue, storage=InMemoryDocumentStorage()) == 1
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=InMemoryDocumentStorage(),
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=DeterministicEntityExtractionService(),
+        )
+        == 1
+    )
     db_session.expire_all()
     refreshed_document = db_session.get(Document, document.id)
     refreshed_job = db_session.get(DocumentProcessingJob, job.id)
@@ -124,8 +135,131 @@ def test_worker_replaces_existing_chunks_idempotently(db_session):
             attempt=1,
         )
     )
-    assert drain_document_jobs(queue=queue, storage=storage) == 1
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=DeterministicEntityExtractionService(),
+        )
+        == 1
+    )
     db_session.expire_all()
     chunks = db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).all()
     assert len(chunks) == 1
     assert chunks[0].text_content == "fresh content for parsing"
+
+
+class FailingEmbeddingService:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
+        del texts
+        raise RuntimeError("embedding outage")
+
+
+class FailingEntityExtractionService:
+    def extract_entities(self, text: str):
+        del text
+        raise RuntimeError("entity extraction outage")
+
+
+@pytest.mark.parametrize(
+    ("embedding_service", "entity_extraction_service", "failed_stage", "expected_completed_stage"),
+    [
+        (FailingEmbeddingService(), DeterministicEntityExtractionService(), "vector", "parsing"),
+        (DeterministicEmbeddingService(), FailingEntityExtractionService(), "extraction", "vector"),
+    ],
+)
+def test_worker_marks_stage_specific_failures(
+    db_session,
+    embedding_service,
+    entity_extraction_service,
+    failed_stage,
+    expected_completed_stage,
+):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    storage = InMemoryDocumentStorage()
+    storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=embedding_service,
+            entity_extraction_service=entity_extraction_service,
+        )
+        == 1
+    )
+
+    db_session.expire_all()
+    refreshed_document = db_session.get(Document, document.id)
+    refreshed_job = db_session.get(DocumentProcessingJob, job.id)
+    assert refreshed_document is not None
+    assert refreshed_job is not None
+    assert refreshed_document.processing_status["overall"] == "failed"
+    assert refreshed_document.processing_status[failed_stage] == "failed"
+    assert refreshed_document.processing_status[expected_completed_stage] == "completed"
+    assert refreshed_job.status == "failed"
+
+
+def test_worker_graph_stage_persists_entities_vectors_and_edges(db_session):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    storage = InMemoryDocumentStorage()
+    storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=DeterministicEntityExtractionService(),
+        )
+        == 1
+    )
+
+    assert db_session.query(DocumentChunkVector).filter(DocumentChunkVector.document_id == document.id).count() >= 1
+    assert db_session.query(Entity).filter(Entity.document_id == document.id).count() >= 1
+    assert db_session.query(GraphEdge).filter(GraphEdge.document_id == document.id).count() >= 1

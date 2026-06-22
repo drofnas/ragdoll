@@ -20,7 +20,7 @@ from ragdoll.modules.ingestion.api.schemas import (
     DocumentProcessingStatusResponse,
     UploadDocumentResponse,
 )
-from ragdoll.modules.ingestion.application.commands import requeue_document_for_parsing, upload_document
+from ragdoll.modules.ingestion.application.commands import requeue_document_processing, upload_document
 from ragdoll.modules.ingestion.application.queries import get_batch_document_statuses, get_document_status
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
@@ -104,12 +104,17 @@ def reprocess_document(
     storage.delete_derived_artifacts(document_id)
     vector_cleanup.cleanup_document(document_id)
     graph_cleanup.cleanup_document(document_id)
-    requeue_document_for_parsing(
+    requeue_document_processing(
         db,
         subject=current_user.subject,
         document_id=document_id,
         queue=queue,
+        requested_stage="parsing",
+        reset_document_content=True,
         clear_existing_chunks=True,
+        clear_existing_entities=True,
+        vector_cleanup=vector_cleanup,
+        graph_cleanup=graph_cleanup,
     )
     return get_document_status(db, current_user.subject, document_id)
 
@@ -125,11 +130,94 @@ def retry_parsing(
     db: DatabaseSessionDep,
     queue: DocumentProcessingQueueDep,
 ) -> DocumentProcessingStatusResponse:
-    requeue_document_for_parsing(
+    requeue_document_processing(
         db,
         subject=current_user.subject,
         document_id=document_id,
         queue=queue,
+        requested_stage="parsing",
+        reset_document_content=True,
         clear_existing_chunks=False,
+        clear_existing_entities=True,
+    )
+    return get_document_status(db, current_user.subject, document_id)
+
+
+@router.post(
+    "/documents/{document_id}/retry/vector",
+    response_model=DocumentProcessingStatusResponse,
+    responses=COMMON_RESPONSES,
+)
+def retry_vector(
+    document_id: UUID,
+    current_user: CurrentUserDep,
+    db: DatabaseSessionDep,
+    queue: DocumentProcessingQueueDep,
+    vector_cleanup: VectorCleanupDep,
+    graph_cleanup: GraphCleanupDep,
+) -> DocumentProcessingStatusResponse:
+    requeue_document_processing(
+        db,
+        subject=current_user.subject,
+        document_id=document_id,
+        queue=queue,
+        requested_stage="vector",
+        reset_document_content=False,
+        clear_existing_chunks=False,
+        clear_existing_entities=True,
+        vector_cleanup=vector_cleanup,
+        graph_cleanup=graph_cleanup,
+    )
+    return get_document_status(db, current_user.subject, document_id)
+
+
+@router.post(
+    "/documents/{document_id}/retry/extraction",
+    response_model=DocumentProcessingStatusResponse,
+    responses=COMMON_RESPONSES,
+)
+def retry_extraction(
+    document_id: UUID,
+    current_user: CurrentUserDep,
+    db: DatabaseSessionDep,
+    queue: DocumentProcessingQueueDep,
+    graph_cleanup: GraphCleanupDep,
+) -> DocumentProcessingStatusResponse:
+    requeue_document_processing(
+        db,
+        subject=current_user.subject,
+        document_id=document_id,
+        queue=queue,
+        requested_stage="extraction",
+        reset_document_content=False,
+        clear_existing_chunks=False,
+        clear_existing_entities=True,
+        graph_cleanup=graph_cleanup,
+    )
+    return get_document_status(db, current_user.subject, document_id)
+
+
+@router.post(
+    "/documents/{document_id}/retry/graph",
+    response_model=DocumentProcessingStatusResponse,
+    responses=COMMON_RESPONSES,
+)
+def retry_graph(
+    document_id: UUID,
+    current_user: CurrentUserDep,
+    db: DatabaseSessionDep,
+    queue: DocumentProcessingQueueDep,
+    graph_cleanup: GraphCleanupDep,
+) -> DocumentProcessingStatusResponse:
+    requeue_document_processing(
+        db,
+        subject=current_user.subject,
+        document_id=document_id,
+        queue=queue,
+        requested_stage="graph",
+        reset_document_content=False,
+        clear_existing_chunks=False,
+        clear_existing_entities=False,
+        graph_cleanup=graph_cleanup,
     )
     return get_document_status(db, current_user.subject, document_id)

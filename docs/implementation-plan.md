@@ -292,24 +292,24 @@ Goal: extend the ingestion backbone with derived retrieval projections and enric
 Depends on: Phase 7
 
 - [ ] Phase complete
-- [ ] Complete the retrieval-facing data and adapter foundations
-  - [ ] Define entity and canonical entity relational fields
-  - [ ] Define vector chunk identity and payload requirements
-  - [ ] Define graph node and edge write interfaces
-  - [ ] Define graph rebuild and idempotency expectations
-  - [ ] Verify graph state is treated as a controlled projection
-- [ ] Implement embeddings and vector upsert flow
-  - [ ] Add embedding provider integration
-  - [ ] Add vector upsert behavior
-  - [ ] Add vector retry and cleanup behavior
-  - [ ] Add embeddings and vector tests
-  - [ ] Verify reprocessing does not duplicate vector projections
-- [ ] Implement entity extraction and graph projection flow
-  - [ ] Add entity extraction integration
-  - [ ] Add relational entity persistence behavior
-  - [ ] Add graph projection behavior
-  - [ ] Add entity and graph stage tests
-  - [ ] Verify provenance survives extraction and graph projection
+- [x] Complete the retrieval-facing data and adapter foundations
+  - [x] Define entity and canonical entity relational fields
+  - [x] Define vector chunk identity and payload requirements
+  - [x] Define graph node and edge write interfaces
+  - [x] Define graph rebuild and idempotency expectations
+  - [x] Verify graph state is treated as a controlled projection
+- [x] Implement embeddings and vector upsert flow
+  - [x] Add embedding provider integration
+  - [x] Add vector upsert behavior
+  - [x] Add vector retry and cleanup behavior
+  - [x] Add embeddings and vector tests
+  - [x] Verify reprocessing does not duplicate vector projections
+- [x] Implement entity extraction and graph projection flow
+  - [x] Add entity extraction integration
+  - [x] Add relational entity persistence behavior
+  - [x] Add graph projection behavior
+  - [x] Add entity and graph stage tests
+  - [x] Verify provenance survives extraction and graph projection
 
 ## Phase 9 - Retrieval, Graph, And Chat
 

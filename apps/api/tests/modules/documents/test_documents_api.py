@@ -7,7 +7,17 @@ from uuid import UUID, uuid4
 import pytest
 
 from ragdoll.api import dependencies as dependency_module
-from ragdoll.platform.db.models import Document, Space, User
+from ragdoll.platform.db.models import (
+    CanonicalEntity,
+    Document,
+    DocumentChunk,
+    DocumentChunkVector,
+    Entity,
+    GraphEdge,
+    GraphNode,
+    Space,
+    User,
+)
 from ragdoll.platform.db.models.documents import default_processing_status_payload
 from ragdoll.platform.graph import InMemoryGraphCleanupService
 from ragdoll.platform.storage import InMemoryDocumentStorage
@@ -43,6 +53,16 @@ def document_runtime(api_client):
     api_client.app.dependency_overrides[dependency_module.get_graph_cleanup] = lambda: graph_cleanup
     try:
         yield storage, vector_cleanup, graph_cleanup
+    finally:
+        api_client.app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def storage_only_runtime(api_client):
+    storage = InMemoryDocumentStorage()
+    api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: storage
+    try:
+        yield storage
     finally:
         api_client.app.dependency_overrides.clear()
 
@@ -314,3 +334,97 @@ def test_download_returns_conflict_when_blob_is_missing(api_client, db_session, 
     response = api_client.get(f"/api/v1/documents/{document.id}/download", headers=auth_headers(token))
     assert response.status_code == 409
     assert response.json()["code"] == "document_blob_missing"
+
+
+def test_delete_document_removes_retrieval_projections_with_sql_cleanup(api_client, db_session, storage_only_runtime):
+    storage = storage_only_runtime
+    token = register_and_login(api_client, email="projection-owner@example.com")
+    owner = db_session.query(User).filter(User.email == "projection-owner@example.com").one()
+    document = _seed_document(
+        db_session,
+        space=_default_space(db_session, owner),
+        uploader=owner,
+        title="projection.txt",
+        storage_key="documents/projection.txt",
+    )
+    storage.seed_original_file(document.storage_key, b"projection")
+
+    chunk = DocumentChunk.from_text(
+        document_id=document.id,
+        space_id=document.space_id,
+        chunk_index=0,
+        text_content="Project Atlas Ragdoll",
+    )
+    canonical_a = CanonicalEntity(
+        space_id=document.space_id,
+        entity_type="proper_noun",
+        normalized_name="project atlas",
+        display_name="Project Atlas",
+    )
+    canonical_b = CanonicalEntity(
+        space_id=document.space_id,
+        entity_type="proper_noun",
+        normalized_name="ragdoll",
+        display_name="Ragdoll",
+    )
+    db_session.add_all([chunk, canonical_a, canonical_b])
+    db_session.flush()
+    node_a = GraphNode(space_id=document.space_id, canonical_entity_id=canonical_a.id, node_type="proper_noun", label="Project Atlas")
+    node_b = GraphNode(space_id=document.space_id, canonical_entity_id=canonical_b.id, node_type="proper_noun", label="Ragdoll")
+    db_session.add_all([node_a, node_b])
+    db_session.flush()
+    db_session.add(
+        DocumentChunkVector(
+            chunk_id=chunk.id,
+            document_id=document.id,
+            space_id=document.space_id,
+            chunk_index=0,
+            checksum=chunk.checksum,
+            embedding_model="deterministic",
+            embedding_dimensions=2,
+            embedding=[0.1, 0.2],
+        )
+    )
+    db_session.add_all(
+        [
+            Entity(
+                space_id=document.space_id,
+                document_id=document.id,
+                chunk_id=chunk.id,
+                canonical_entity_id=canonical_a.id,
+                entity_type="proper_noun",
+                surface_text="Project Atlas",
+                normalized_name="project atlas",
+            ),
+            Entity(
+                space_id=document.space_id,
+                document_id=document.id,
+                chunk_id=chunk.id,
+                canonical_entity_id=canonical_b.id,
+                entity_type="proper_noun",
+                surface_text="Ragdoll",
+                normalized_name="ragdoll",
+            ),
+            GraphEdge(
+                space_id=document.space_id,
+                document_id=document.id,
+                chunk_id=chunk.id,
+                source_node_id=node_a.id,
+                target_node_id=node_b.id,
+                relation_type="co_occurs",
+                provenance_locator=f"chunk:{chunk.id}",
+                weight=1.0,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    deleted = api_client.delete(f"/api/v1/documents/{document.id}", headers=auth_headers(token))
+    assert deleted.status_code == 200, deleted.text
+
+    db_session.expire_all()
+    assert db_session.query(DocumentChunkVector).filter(DocumentChunkVector.document_id == document.id).count() == 0
+    assert db_session.query(Entity).filter(Entity.document_id == document.id).count() == 0
+    assert db_session.query(GraphEdge).filter(GraphEdge.document_id == document.id).count() == 0
+    assert db_session.query(GraphNode).count() == 0
+    assert db_session.query(CanonicalEntity).count() == 0

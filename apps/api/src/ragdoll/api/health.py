@@ -170,8 +170,14 @@ def _check_graph(settings: Settings, database_status: DependencyStatus) -> Depen
     )
 
 
-def _check_queue() -> DependencyStatus:
-    return _service("not_configured", "Queue runtime is deferred until a later phase.")
+def _check_queue(settings: Settings, database_status: DependencyStatus) -> DependencyStatus:
+    if settings.e2e_memory_backends:
+        return _service("healthy", "In-memory queue backend is enabled.", backend="memory")
+    if not settings.has_database_config:
+        return _service("not_configured", "Database URL is required before queue readiness can be checked.", backend="sql")
+    if database_status.status != "healthy":
+        return _service("unhealthy", "Queue backing prerequisites depend on a healthy database connection.", backend="sql")
+    return _service("healthy", "Database-backed queue runtime is available.", backend="sql")
 
 
 async def _check_llm(settings: Settings) -> DependencyStatus:
@@ -255,6 +261,19 @@ def _configured_ollama_models(settings: Settings) -> list[tuple[str, str]]:
     ]
 
 
+def _model_is_available(model_name: str, available_models: set[str]) -> bool:
+    normalized = model_name.strip()
+    if not normalized:
+        return False
+    if normalized in available_models:
+        return True
+    if normalized.endswith(":latest") and normalized[: -len(":latest")] in available_models:
+        return True
+    if f"{normalized}:latest" in available_models:
+        return True
+    return False
+
+
 def _build_ollama_model_inventory(
     settings: Settings,
     llm_status: DependencyStatus,
@@ -300,7 +319,7 @@ def _build_ollama_model_inventory(
         elif llm_status.status != "healthy":
             status = "unknown"
             detail = "Ollama model catalog could not be queried."
-        elif model_name in available_models:
+        elif _model_is_available(model_name, available_models):
             status = "present"
             detail = "Configured model is available in the Ollama catalog."
         else:
@@ -354,7 +373,7 @@ async def build_runtime_status_payload(
         "storage": _check_storage_redacted(runtime_settings),
         "vector": _check_vector_redacted(runtime_settings),
         "graph": _check_graph(runtime_settings, database_status),
-        "queue": _check_queue(),
+        "queue": _check_queue(runtime_settings, database_status),
     }
     llm_status, available_models = await _fetch_ollama_catalog(runtime_settings)
     services["llm"] = llm_status
@@ -560,7 +579,7 @@ async def build_readiness_payload(settings: Settings | None = None) -> HealthSta
         "vector": _check_vector(runtime_settings),
         "graph": _check_graph(runtime_settings, database_status),
         "llm": await _check_llm(runtime_settings),
-        "queue": _check_queue(),
+        "queue": _check_queue(runtime_settings, database_status),
     }
     overall_status = "ok" if all(service.status == "healthy" for service in services.values()) else "degraded"
     return HealthStatusResponse(status=overall_status, services=services)

@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     ollama_orchestrator_model: str | None = None
     ollama_worker_model: str | None = None
     ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
 
     feature_flag_unified_search: bool = True
 

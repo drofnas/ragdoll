@@ -36,6 +36,9 @@ def test_openapi_export_includes_ingestion_contracts(configured_database, tmp_pa
     assert "/api/v1/ingestion/documents/status/batch" in payload["paths"]
     assert "/api/v1/ingestion/documents/{document_id}/reprocess" in payload["paths"]
     assert "/api/v1/ingestion/documents/{document_id}/retry/parsing" in payload["paths"]
+    assert "/api/v1/ingestion/documents/{document_id}/retry/vector" in payload["paths"]
+    assert "/api/v1/ingestion/documents/{document_id}/retry/extraction" in payload["paths"]
+    assert "/api/v1/ingestion/documents/{document_id}/retry/graph" in payload["paths"]
 
     processing_stage_status = payload["components"]["schemas"]["ProcessingStageStatus"]
     assert "deferred" in processing_stage_status["enum"]

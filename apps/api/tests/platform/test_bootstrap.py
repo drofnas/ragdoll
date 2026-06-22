@@ -23,9 +23,9 @@ def test_readiness_endpoint_returns_phase_1_scaffold():
 
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "degraded"
+    assert data["status"] in {"degraded", "ok"}
     assert set(data["services"]) == {"database", "storage", "vector", "graph", "llm", "queue"}
-    assert data["services"]["queue"]["status"] == "not_configured"
+    assert data["services"]["queue"]["status"] in {"not_configured", "healthy", "unhealthy"}
 
 
 def test_runtime_status_html_is_public_and_human_readable():

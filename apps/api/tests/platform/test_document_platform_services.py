@@ -68,9 +68,14 @@ def test_alembic_upgrade_head_creates_document_usage_and_ingestion_tables(monkey
 
     inspector = inspect(create_engine(f"sqlite+pysqlite:///{db_path}"))
     assert {
+        "canonical_entities",
         "documents",
         "document_chunks",
+        "document_chunk_vectors",
         "document_processing_jobs",
+        "entities",
+        "graph_edges",
+        "graph_nodes",
         "usage_events",
         "user_usage_snapshots",
     }.issubset(set(inspector.get_table_names()))

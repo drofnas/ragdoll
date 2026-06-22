@@ -22,6 +22,7 @@ DEFAULT_CHUNK_WORDS = 500
 DEFAULT_CHUNK_OVERLAP_WORDS = 50
 DEFAULT_CHUNK_MAX_CHARS = 2048
 STATUS_BATCH_MAX_IDS = 100
+PROCESSING_STAGES = ("parsing", "vector", "extraction", "graph")
 
 _upload_rate_limit_store: dict[str, deque[float]] = {}
 
@@ -197,45 +198,78 @@ def build_processing_status_for_upload() -> dict[str, str | None]:
         "overall": "pending",
         "upload": "completed",
         "parsing": "pending",
-        "vector": "deferred",
-        "extraction": "deferred",
-        "graph": "deferred",
+        "vector": "pending",
+        "extraction": "pending",
+        "graph": "pending",
         "detail": None,
     }
 
 
-def mark_processing_started(payload: dict[str, str | None]) -> dict[str, str | None]:
+def validate_requested_stage(requested_stage: str) -> str:
+    normalized = requested_stage.strip().lower()
+    if normalized not in PROCESSING_STAGES:
+        raise ApplicationError(
+            f"Unsupported processing stage: {requested_stage}",
+            status_code=400,
+            title="Bad request",
+            type_uri="https://ragdoll.dev/problems/bad-request",
+            code="unsupported_processing_stage",
+        )
+    return normalized
+
+
+def reset_processing_status_for_stage(payload: dict[str, str | None] | None, *, requested_stage: str) -> dict[str, str | None]:
+    stage = validate_requested_stage(requested_stage)
+    updated = dict(payload or build_processing_status_for_upload())
+    updated["overall"] = "pending"
+    updated["upload"] = "completed"
+    started_reset = False
+    for current_stage in PROCESSING_STAGES:
+        if current_stage == stage:
+            started_reset = True
+        updated[current_stage] = "pending" if started_reset else "completed"
+    updated["detail"] = None
+    return updated
+
+
+def mark_processing_stage_started(payload: dict[str, str | None] | None, *, requested_stage: str) -> dict[str, str | None]:
+    stage = validate_requested_stage(requested_stage)
     updated = dict(payload or build_processing_status_for_upload())
     updated["overall"] = "processing"
     updated["upload"] = "completed"
-    updated["parsing"] = "processing"
-    updated["vector"] = "deferred"
-    updated["extraction"] = "deferred"
-    updated["graph"] = "deferred"
+    for current_stage in PROCESSING_STAGES:
+        if current_stage == stage:
+            updated[current_stage] = "processing"
+            break
     updated["detail"] = None
     return updated
 
 
-def mark_processing_completed(payload: dict[str, str | None]) -> dict[str, str | None]:
+def mark_processing_stage_completed(
+    payload: dict[str, str | None] | None,
+    *,
+    completed_stage: str,
+) -> dict[str, str | None]:
+    stage = validate_requested_stage(completed_stage)
     updated = dict(payload or build_processing_status_for_upload())
-    updated["overall"] = "completed"
     updated["upload"] = "completed"
-    updated["parsing"] = "completed"
-    updated["vector"] = "deferred"
-    updated["extraction"] = "deferred"
-    updated["graph"] = "deferred"
+    updated[stage] = "completed"
     updated["detail"] = None
+    updated["overall"] = "completed" if all(updated[name] == "completed" for name in PROCESSING_STAGES) else "processing"
     return updated
 
 
-def mark_processing_failed(payload: dict[str, str | None], detail: str) -> dict[str, str | None]:
+def mark_processing_stage_failed(
+    payload: dict[str, str | None] | None,
+    *,
+    failed_stage: str,
+    detail: str,
+) -> dict[str, str | None]:
+    stage = validate_requested_stage(failed_stage)
     updated = dict(payload or build_processing_status_for_upload())
     updated["overall"] = "failed"
     updated["upload"] = "completed"
-    updated["parsing"] = "failed"
-    updated["vector"] = "deferred"
-    updated["extraction"] = "deferred"
-    updated["graph"] = "deferred"
+    updated[stage] = "failed"
     updated["detail"] = detail[:500]
     return updated
 
