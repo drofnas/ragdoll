@@ -22,6 +22,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - Chat is an orchestrated consumer of retrieval systems, not a separate source of truth.
 - Citations are required for user-facing answer trust.
 - Graph exploration and semantic retrieval can differ in ranking behavior while sharing identifiers and provenance.
+- Verified corrections outrank document- and derived-tier evidence for current-state and chat answer composition in the first interaction slice.
 
 ## Responsibilities and Boundaries
 
@@ -59,15 +60,15 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 
 1. User sends a question inside a chat session.
 2. `modules/chat` resolves Space scope, session context, and feature flags.
-3. Chat service requests evidence from search and graph layers.
-4. LLM orchestration composes an answer with explicit citations and optional suggested follow-ups.
+3. Chat service requests evidence from the shared search retrieval service plus verified corrections in the same Space.
+4. If no answer model is available, the service returns a deterministic retrieval-backed fallback answer with explicit citations and optional suggested follow-ups instead of failing the session.
 5. Messages and metadata are persisted to session history.
 
 ### Tracked state
 
 1. User defines tracked fields for a Space.
 2. Tracked-state queries gather candidate evidence from entities, documents, search, graph, and corrections.
-3. Policies resolve current values, conflicts, and provenance.
+3. Policies resolve current values, conflicts, and provenance with verified corrections ranked ahead of document or derived candidates.
 4. Summary cards and conflict panels expose the result to the user.
 
 ## Failure Modes and Edge Cases
@@ -85,6 +86,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - Graph exploration is documented as a first-class capability, not an incidental UI add-on.
 - Tracked state and changes reuse retrieval evidence instead of inventing separate hidden pipelines.
 - Corrections feed back into discovery through explicit application services.
+- Single-Space write workflows reject `all_spaces=true` instead of inferring multi-Space truth.
 
 ## Deferred Notes
 

@@ -358,46 +358,46 @@ Goal: build the interaction and current-state layers that consume the new retrie
 
 Depends on: Phase 9
 
-- [ ] Phase complete
-- [ ] Lock in the remaining cross-store and provenance conventions
-  - [ ] Define source-tier behavior beyond document and derived provenance
-  - [ ] Define current-state versus history conventions
-  - [ ] Define Space scoping rules across relational and derived stores for chat and stateful workflows
-  - [ ] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
-- [ ] Add the remaining relational schema foundations
-  - [ ] Define chat session and message fields
-  - [ ] Define tracked field and tracked value fields
-  - [ ] Define changes feed fields
-  - [ ] Define correction and verification fields
-  - [ ] Verify stable IDs and audit timestamps are present where required
-- [ ] Implement tracked state
-  - [ ] Complete the tracked-state backend module
-  - [ ] Add tracked field definition behavior
-  - [ ] Add tracked summary and conflict behavior
-  - [ ] Add tracked-state endpoint tests
-  - [ ] Update tracked-state contracts
-  - [ ] Verify conflict resolution and provenance behavior
-- [ ] Implement changes feed
-  - [ ] Complete the changes backend module
-  - [ ] Add change list and detail behavior
-  - [ ] Add read-state behavior
-  - [ ] Add changes endpoint tests
-  - [ ] Update changes contracts
-  - [ ] Verify changes can reflect ingestion and current-state updates
-- [ ] Implement corrections and verification
-  - [ ] Complete the corrections backend module
-  - [ ] Add correction submission behavior
-  - [ ] Add correction review and verification behavior
-  - [ ] Add corrections endpoint tests
-  - [ ] Update corrections contracts
-  - [ ] Verify corrections feed back into provenance-aware flows
-- [ ] Implement chat orchestration
-  - [ ] Complete the chat backend module
-  - [ ] Add session lifecycle behavior
-  - [ ] Add answer composition and citation packaging behavior
-  - [ ] Add chat endpoint tests
-  - [ ] Update chat contracts
-  - [ ] Verify chat depends on stable search and retrieval contracts
+- [x] Phase complete
+- [x] Lock in the remaining cross-store and provenance conventions
+  - [x] Define source-tier behavior beyond document and derived provenance
+  - [x] Define current-state versus history conventions
+  - [x] Define Space scoping rules across relational and derived stores for chat and stateful workflows
+  - [x] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
+- [x] Add the remaining relational schema foundations
+  - [x] Define chat session and message fields
+  - [x] Define tracked field and tracked value fields
+  - [x] Define changes feed fields
+  - [x] Define correction and verification fields
+  - [x] Verify stable IDs and audit timestamps are present where required
+- [x] Implement tracked state
+  - [x] Complete the tracked-state backend module
+  - [x] Add tracked field definition behavior
+  - [x] Add tracked summary and conflict behavior
+  - [x] Add tracked-state endpoint tests
+  - [x] Update tracked-state contracts
+  - [x] Verify conflict resolution and provenance behavior
+- [x] Implement changes feed
+  - [x] Complete the changes backend module
+  - [x] Add change list and detail behavior
+  - [x] Add read-state behavior
+  - [x] Add changes endpoint tests
+  - [x] Update changes contracts
+  - [x] Verify changes can reflect ingestion and current-state updates
+- [x] Implement corrections and verification
+  - [x] Complete the corrections backend module
+  - [x] Add correction submission behavior
+  - [x] Add correction review and verification behavior
+  - [x] Add corrections endpoint tests
+  - [x] Update corrections contracts
+  - [x] Verify corrections feed back into provenance-aware flows
+- [x] Implement chat orchestration
+  - [x] Complete the chat backend module
+  - [x] Add session lifecycle behavior
+  - [x] Add answer composition and citation packaging behavior
+  - [x] Add chat endpoint tests
+  - [x] Update chat contracts
+  - [x] Verify chat depends on stable search and retrieval contracts
 
 ## Phase 11 - Core Web Application
 

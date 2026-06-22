@@ -1,6 +1,15 @@
 """ORM models for the implemented migration slices."""
 
 from ragdoll.platform.db.models.documents import Document, DocumentChunk, DocumentProcessingJob
+from ragdoll.platform.db.models.interaction import (
+    ChangeEvent,
+    ChangeEventRead,
+    ChatMessage,
+    ChatSession,
+    CorrectionRecord,
+    TrackedField,
+    TrackedFieldValue,
+)
 from ragdoll.platform.db.models.retrieval import (
     CanonicalEntity,
     DocumentChunkVector,
@@ -14,6 +23,11 @@ from ragdoll.platform.db.models.users import User
 
 __all__ = [
     "CanonicalEntity",
+    "ChangeEvent",
+    "ChangeEventRead",
+    "ChatMessage",
+    "ChatSession",
+    "CorrectionRecord",
     "Document",
     "DocumentChunk",
     "DocumentChunkVector",
@@ -22,6 +36,8 @@ __all__ = [
     "GraphEdge",
     "GraphNode",
     "Space",
+    "TrackedField",
+    "TrackedFieldValue",
     "UsageEvent",
     "User",
     "UserUsageSnapshot",

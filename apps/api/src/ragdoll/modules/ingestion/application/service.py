@@ -15,6 +15,7 @@ from ragdoll.modules.ingestion.domain.policies import (
     validate_requested_stage,
 )
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
+from ragdoll.modules.changes.application.service import record_change_event
 from ragdoll.modules.users.application.queries import get_user_by_subject
 from ragdoll.platform.db.models import Document, DocumentChunk, Entity
 from ragdoll.platform.db.session import get_session_factory
@@ -149,6 +150,18 @@ def process_job_payload(
             session.commit()
 
         queue.mark_job_completed(payload.job_id)
+        event_type = "document_processed" if payload.attempt == 1 and payload.requested_stage == "parsing" else "document_reprocessed"
+        record_change_event(
+            session,
+            space_id=document.space_id,
+            event_type=event_type,
+            title="Document processed" if event_type == "document_processed" else "Document reprocessed",
+            summary=f"{document.title} completed {payload.requested_stage} processing.",
+            actor_user_id=document.uploaded_by,
+            document_id=document.id,
+            payload={"requested_stage": payload.requested_stage, "attempt": payload.attempt},
+        )
+        session.commit()
     except Exception as exc:
         document = session.get(Document, payload.document_id)
         if document is not None:
