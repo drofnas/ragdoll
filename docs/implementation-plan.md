@@ -291,7 +291,7 @@ Goal: extend the ingestion backbone with derived retrieval projections and enric
 
 Depends on: Phase 7
 
-- [ ] Phase complete
+- [X] Phase complete
 - [x] Complete the retrieval-facing data and adapter foundations
   - [x] Define entity and canonical entity relational fields
   - [x] Define vector chunk identity and payload requirements
