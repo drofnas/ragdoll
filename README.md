@@ -2,6 +2,10 @@
 
 Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. The repository now includes completed implementation work through the first end-to-end ingestion slice plus the Phase 7 local dependency runtime foundations across `apps/api`, `apps/web`, and `infra/`.
 
+License: [Business Source License 1.1](LICENSE.txt)
+Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)
+Apache License 2.0 on 2030-01-01
+
 ## Current Status
 
 This repository currently implements:
