@@ -311,17 +311,58 @@ Depends on: Phase 7
   - [x] Add entity and graph stage tests
   - [x] Verify provenance survives extraction and graph projection
 
-## Phase 9 - Retrieval, Graph, And Chat
+## Phase 9 - Search, Entities, And Graph Read Surfaces
 
-Goal: implement the knowledge and interaction layers that turn processed data into search, graph, tracked-state, correction, and chat experiences.
+Goal: expose the first public retrieval read surfaces on top of Phase 8 projections so processed documents become searchable, entity-aware, and graph-explorable before chat and current-state workflows are added.
 
 Depends on: Phase 8
 
+- [x] Phase complete
+- [x] Lock retrieval read contracts and scope rules
+  - [x] Reuse `SpaceScope` across search, entity, and graph reads with owned-Space enforcement and active/default Space fallback when `space_id` is omitted
+  - [x] Finalize concrete `search`, `entities`, and `knowledge_graph` transport schemas in their module `api/schemas.py` files
+  - [x] Reuse shared `Citation` and `SourceTier`; keep this phase limited to document- and derived-tier provenance
+  - [x] Treat `CanonicalEntity.id` as the public entity identifier; keep raw mention IDs nested inside provenance payloads only
+  - [x] Verify OpenAPI and generated TypeScript artifacts include the new retrieval read contracts
+- [x] Implement read-side vector and graph query seams
+  - [x] Add vector retrieval helpers over `DocumentChunkVector` scoped by owned Spaces and non-deleted documents
+  - [x] Add graph read helpers over `GraphNode` and `GraphEdge` for seeded subgraph and neighbor expansion
+  - [x] Add shared ranking and dedup logic that can merge boolean, vector, and graph candidates into one ordered result set
+  - [x] Keep Phase 8 projection writers authoritative; do not add new retrieval-owned tables in this phase
+- [x] Implement the search module
+  - [x] Add `GET /api/v1/search`
+  - [x] Support `mode=boolean|vector|graph|combined`, query text, pagination, `space_id|all_spaces`, and first-pass filters for `document_id`, `file_type`, and `entity_type`
+  - [x] Return normalized results with score, result kind, document metadata, preview text, optional entity summary, and at least one citation
+  - [x] Ensure combined mode deduplicates repeated hits by chunk/entity identity and degrades cleanly when one retrieval branch has no candidates
+  - [x] Verify soft-deleted documents and out-of-scope Spaces never appear in search results
+- [x] Implement the entities module
+  - [x] Add `GET /api/v1/entities` list and `GET /api/v1/entities/{entity_id}` detail
+  - [x] Add provenance and history reads rooted in canonical entities plus extracted mentions, related documents, and chunk citations
+  - [x] Define history in this phase as chronological mention history from ingested documents, not user-edited fact/version history
+  - [x] Verify entity detail responses line up with graph node identity and search result entity references
+- [x] Implement the knowledge graph module
+  - [x] Add a read-only subgraph endpoint seeded by public canonical `entity_id`
+  - [x] Add document-scoped graph read behavior for exploring relationships present in one document
+  - [x] Support depth and limit guards plus typed empty-graph responses
+  - [x] Verify graph responses reuse the same canonical entity IDs and provenance conventions as entities and search
+- [x] Add retrieval read tests and acceptance coverage
+  - [x] Add module tests for auth, Space ownership, all-spaces behavior, empty states, and typed problem responses
+  - [x] Add search tests for boolean, vector, graph, and combined modes, ranking merge, deduplication, and citation presence
+  - [x] Add entity tests for list, detail, provenance, history behavior, and deleted-document exclusion
+  - [x] Add knowledge-graph tests for seeded subgraph reads, document-scoped reads, and depth/limit enforcement
+  - [x] Add an integration path proving a processed upload becomes searchable and graph/entity-readable after worker completion
+
+## Phase 10 - Retrieval Answering And State Workflows
+
+Goal: build the interaction and current-state layers that consume the new retrieval reads for tracked-state, changes, corrections, and chat experiences.
+
+Depends on: Phase 9
+
 - [ ] Phase complete
 - [ ] Lock in the remaining cross-store and provenance conventions
-  - [ ] Define source-tier behavior
+  - [ ] Define source-tier behavior beyond document and derived provenance
   - [ ] Define current-state versus history conventions
-  - [ ] Define Space scoping rules across relational and derived stores
+  - [ ] Define Space scoping rules across relational and derived stores for chat and stateful workflows
   - [ ] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
 - [ ] Add the remaining relational schema foundations
   - [ ] Define chat session and message fields
@@ -329,27 +370,6 @@ Depends on: Phase 8
   - [ ] Define changes feed fields
   - [ ] Define correction and verification fields
   - [ ] Verify stable IDs and audit timestamps are present where required
-- [ ] Implement search
-  - [ ] Complete the search backend module
-  - [ ] Add vector, graph, boolean, and combined query behavior
-  - [ ] Add search endpoint tests
-  - [ ] Add search result scoring, filtering, and fallback behavior
-  - [ ] Update search contracts
-  - [ ] Verify search outputs support citations and later chat use
-- [ ] Implement knowledge graph query surfaces
-  - [ ] Complete the knowledge graph backend module
-  - [ ] Add graph exploration and subgraph query behavior
-  - [ ] Add graph endpoint tests
-  - [ ] Add graph error and timeout behavior
-  - [ ] Update graph-related contracts
-  - [ ] Verify graph outputs align with entities and search surfaces
-- [ ] Implement entities detail, provenance, and history
-  - [ ] Complete the entities backend module
-  - [ ] Add entity detail behavior
-  - [ ] Add entity provenance and history behavior
-  - [ ] Add entity endpoint tests
-  - [ ] Update entity contracts
-  - [ ] Verify current-state versus history behavior is explicit in responses
 - [ ] Implement tracked state
   - [ ] Complete the tracked-state backend module
   - [ ] Add tracked field definition behavior
@@ -379,11 +399,11 @@ Depends on: Phase 8
   - [ ] Update chat contracts
   - [ ] Verify chat depends on stable search and retrieval contracts
 
-## Phase 10 - Core Web Application
+## Phase 11 - Core Web Application
 
 Goal: implement the core web shells, shared client behavior, and primary authenticated product features after the API, contracts, and backend capabilities are stable.
 
-Depends on: Phase 9
+Depends on: Phase 10
 
 - [ ] Phase complete
 - [ ] Implement app-level shells and shared frontend runtime
@@ -458,11 +478,11 @@ Depends on: Phase 9
   - [ ] Add account feature tests
   - [ ] Verify account and usage contract alignment
 
-## Phase 11 - Capability Completion
+## Phase 12 - Capability Completion
 
 Goal: complete the remaining planned product surfaces that depend on the core runtime, processing, retrieval, and web foundations but are not required to establish the primary product path.
 
-Depends on: Phase 10
+Depends on: Phase 11
 
 - [ ] Phase complete
 - [ ] Implement admin tooling
@@ -485,11 +505,11 @@ Depends on: Phase 10
   - [ ] Add marketing feature tests
   - [ ] Verify public pages remain cleanly separated from authenticated product surfaces
 
-## Phase 12 - Hardening, QA, And OSS Readiness
+## Phase 13 - Hardening, QA, And OSS Readiness
 
 Goal: close testing gaps, verify end-to-end quality, align docs with implementation, and polish the repository for public open source use.
 
-Depends on: Phase 11
+Depends on: Phase 12
 
 - [ ] Phase complete
 - [ ] Review API and backend test coverage

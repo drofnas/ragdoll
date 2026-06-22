@@ -12,11 +12,11 @@ The current goal is ownership and composition, not feature parity. Empty module 
 | `users` | `/api/v1/users` | scaffolded | Owns user lifecycle, plan tier, and feature-flag concerns even when early profile reads stay under auth. |
 | `spaces` | `/api/v1/spaces` | scaffolded | First concrete migration slice after Phase 2. |
 | `documents` | `/api/v1/documents` | implemented in Phase 5 | Owns list, detail, move, delete, and download flows with shared `SpaceScope` filtering and nested `ProcessingStatus`. |
-| `ingestion` | `/api/v1/ingestion` | implemented through Phase 8 | Owns manual upload, stage-aware processing-job queueing, status reads, full reprocess, and targeted parsing/vector/extraction/graph retries; public retrieval read APIs remain deferred. |
-| `search` | `/api/v1/search` | scaffolded | Deferred until shared retrieval contracts are stable. |
+| `ingestion` | `/api/v1/ingestion` | implemented through Phase 8 | Owns manual upload, stage-aware processing-job queueing, status reads, full reprocess, and targeted parsing/vector/extraction/graph retries; public retrieval read APIs live in the retrieval modules. |
+| `search` | `/api/v1/search` | implemented in Phase 9 | Owns search query, boolean/vector/graph/combined retrieval, ranking merge, and citation-bearing search contracts. |
 | `chat` | `/api/v1/chat` | scaffolded | Deferred until search and citation contracts are stable. |
-| `entities` | `/api/v1/entities` | scaffolded | Deferred until relational and provenance foundations land. |
-| `knowledge_graph` | `/api/v1/knowledge-graph` | scaffolded | Public path uses kebab-case; backend module keeps snake_case. |
+| `entities` | `/api/v1/entities` | implemented in Phase 9 | Owns canonical entity list/detail, provenance, history, and related-document reads rooted in extracted mentions. |
+| `knowledge_graph` | `/api/v1/knowledge-graph` | implemented in Phase 9 | Public path uses kebab-case; backend module keeps snake_case and exposes read-only subgraph and document-graph surfaces. |
 | `tracked_state` | `/api/v1/tracked-state` | scaffolded | Deferred until current-state conventions are locked. |
 | `changes` | `/api/v1/changes` | scaffolded | Deferred until provenance and tracked-state surfaces are stable. |
 | `corrections` | `/api/v1/corrections` | scaffolded | Deferred until chat and provenance flows are in place. |
@@ -33,10 +33,13 @@ The current goal is ownership and composition, not feature parity. Empty module 
 
 ## Follow-On Slice
 
-The first real migration slice after this foundation pass is:
+The first concrete slices after this foundation pass landed in sequence:
 
 1. `auth`
 2. `users`
 3. `spaces`
+4. `documents`
+5. `ingestion`
+6. retrieval reads through `search`, `entities`, and `knowledge_graph`
 
-Document, search, and chat surfaces stay deferred until identity and Space scope contracts are stable enough to reuse.
+Chat, tracked-state, changes, and corrections remain deferred until the retrieval-read contracts are stable enough to reuse.

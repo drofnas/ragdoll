@@ -63,6 +63,13 @@ class SpacesRepository:
             )
         return space
 
+    def list_active_owned_space_ids(self, owner_user_id: UUID) -> list[UUID]:
+        stmt = select(Space.id).where(
+            Space.owner_user_id == owner_user_id,
+            Space.archived_at.is_(None),
+        )
+        return list(self.session.scalars(stmt))
+
     def clear_default_for_owner(self, owner_user_id: UUID, *, exclude_space_id: UUID) -> None:
         stmt = select(Space).where(
             Space.owner_user_id == owner_user_id,
