@@ -37,6 +37,9 @@ services:
     volumes:
       - ../../apps/web/src:/app/src
       - ../../apps/web/public:/app/public
+      - ../../apps/web/tsconfig.json:/app/tsconfig.json
+      - ../../apps/web/vite.config.ts:/app/vite.config.ts
+      - ../../packages/contracts:/packages/contracts
       - frontend_dev_node_modules:/app/node_modules
     depends_on:
       backend:

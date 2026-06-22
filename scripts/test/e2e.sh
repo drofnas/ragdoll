@@ -45,4 +45,4 @@ ensure_runtime_env_files
 cd "$ROOT_DIR"
 
 docker compose -f "$DEV_COMPOSE_FILE" up --build -d backend frontend
-exec docker compose -f "$DEV_COMPOSE_FILE" -f "$E2E_COMPOSE_FILE" run --rm e2e npm test -- "$@"
+exec docker compose -f "$DEV_COMPOSE_FILE" -f "$E2E_COMPOSE_FILE" run --build --rm e2e npm test -- "$@"

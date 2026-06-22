@@ -6,10 +6,14 @@ import { AdminShell } from "./shell/AdminShell";
 import { AuthenticatedShell } from "./shell/AuthenticatedShell";
 import { PublicShell } from "./shell/PublicShell";
 import { AdminHomePage } from "../features/admin/pages/AdminHomePage";
+import { AccountPage } from "../features/account/pages/AccountPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { DashboardPage } from "../features/dashboard/pages/DashboardPage";
+import { DocumentDetailPage } from "../features/documents/pages/DocumentDetailPage";
+import { DocumentsPage } from "../features/documents/pages/DocumentsPage";
 import { HomePage } from "../features/marketing/pages/HomePage";
+import { SpacesPage } from "../features/spaces/pages/SpacesPage";
 
 export const appRoutes: RouteObject[] = [
   {
@@ -26,7 +30,13 @@ export const appRoutes: RouteObject[] = [
         <AuthenticatedShell />
       </ProtectedRoute>
     ),
-    children: [{ path: "/dashboard", element: <DashboardPage /> }]
+    children: [
+      { path: "/dashboard", element: <DashboardPage /> },
+      { path: "/spaces", element: <SpacesPage /> },
+      { path: "/documents", element: <DocumentsPage /> },
+      { path: "/documents/:documentId", element: <DocumentDetailPage /> },
+      { path: "/account", element: <AccountPage /> }
+    ]
   },
   {
     element: (

@@ -2,9 +2,11 @@ import { AppShell, Anchor, Container, Group, Text } from "@mantine/core";
 import { Outlet, Link } from "react-router-dom";
 
 import { resolveApiBaseUrl } from "../../shared/api/client";
+import { useAuthSession } from "../../shared/state/authSession";
 
 export function PublicShell() {
   const statusUrl = `${resolveApiBaseUrl()}/status`;
+  const { isAuthenticated } = useAuthSession();
 
   return (
     <AppShell header={{ height: 68 }} padding="md">
@@ -16,12 +18,20 @@ export function PublicShell() {
               <Anchor component={Link} to="/">
                 Home
               </Anchor>
-              <Anchor component={Link} to="/login">
-                Login
-              </Anchor>
-              <Anchor component={Link} to="/register">
-                Register
-              </Anchor>
+              {isAuthenticated ? (
+                <Anchor component={Link} to="/dashboard">
+                  Dashboard
+                </Anchor>
+              ) : (
+                <>
+                  <Anchor component={Link} to="/login">
+                    Login
+                  </Anchor>
+                  <Anchor component={Link} to="/register">
+                    Register
+                  </Anchor>
+                </>
+              )}
               <Anchor href={statusUrl}>
                 Status
               </Anchor>

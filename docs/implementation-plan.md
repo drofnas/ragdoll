@@ -399,42 +399,58 @@ Depends on: Phase 9
   - [x] Update chat contracts
   - [x] Verify chat depends on stable search and retrieval contracts
 
-## Phase 11 - Core Web Application
+## Phase 11 - Web Workspace Foundations
 
-Goal: implement the core web shells, shared client behavior, and primary authenticated product features after the API, contracts, and backend capabilities are stable.
+Goal: turn `apps/web` from scaffold mode into the first real typed product surface for auth, Space selection, document library/upload/status, dashboard, and account usage/profile while keeping later retrieval-heavy UI work explicitly deferred.
 
 Depends on: Phase 10
 
 - [ ] Phase complete
-- [ ] Implement app-level shells and shared frontend runtime
-  - [ ] Add app router and provider wiring
-  - [ ] Add public shell
-  - [ ] Add authenticated shell
-  - [ ] Add admin shell placeholder
-  - [ ] Add guarded route behavior
-  - [ ] Add shared API client and request handling
-  - [ ] Add shared session and Space-scope state
-  - [ ] Add app-shell tests where practical
-  - [ ] Verify shell and provider behavior match the architecture docs
+- [ ] Replace scaffold-only contract consumption with real generated TypeScript artifacts
+  - [ ] Generate `packages/contracts/typescript/index.ts` from the exported OpenAPI document
+  - [ ] Keep request and response shapes imported from `packages/contracts/typescript`
+  - [ ] Keep feature clients as thin wrappers around shared transport instead of generating request helpers
+  - [ ] Add contract-generation coverage proving TypeScript output is real, not placeholder-only
+- [ ] Implement app-level shells and shared frontend runtime for the first live workspace slice
+  - [ ] Replace env-based fake auth with a stored-token session provider backed by `/api/v1/auth/login` and `/api/v1/auth/me`
+  - [ ] Replace local-only Space state with live owned-Space loading from `/api/v1/spaces`
+  - [ ] Expand the shared API client to own bearer auth, JSON, form, multipart, query-string, problem-response, and blob handling
+  - [ ] Keep route ownership in `app/router.tsx` with `/`, `/login`, `/register`, `/dashboard`, `/spaces`, `/documents`, `/documents/{document_id}`, `/account`, and `/admin`
+  - [ ] Show current user, current scope, and logout behavior in the authenticated shell
+  - [ ] Add shared runtime tests for session bootstrap, redirects, admin gating, and scope persistence
 - [ ] Implement the auth feature
-  - [ ] Add auth page scaffolds
-  - [ ] Add auth API client integration
-  - [ ] Add loading, empty, and error states
+  - [ ] Add live login and register pages
+  - [ ] Redirect successful registration back to `/login` instead of auto-logging in
+  - [ ] Add loading and typed error states
   - [ ] Add auth feature tests
   - [ ] Verify auth contract alignment
 - [ ] Implement the spaces feature
-  - [ ] Add spaces page scaffolds
-  - [ ] Add spaces API client integration
-  - [ ] Add active-space and all-spaces UI behavior
-  - [ ] Add spaces feature tests
+  - [ ] Add the Spaces page for list, create, rename, set-default, and archive flows
+  - [ ] Add active-Space and all-spaces UI behavior
+  - [ ] Keep archived Spaces visible but visually separate from active Spaces
+  - [ ] Add Spaces feature tests
   - [ ] Verify Space contract alignment
 - [ ] Implement the documents feature
-  - [ ] Add documents page scaffolds
-  - [ ] Add document list, detail, and upload UI behavior
-  - [ ] Add documents API client integration
-  - [ ] Add loading, empty, and error states
+  - [ ] Add the documents list page with pagination and file-type filtering
+  - [ ] Add manual upload behavior backed by `/api/v1/ingestion/uploads`
+  - [ ] Add document detail, status polling, move, delete, and download behavior
+  - [ ] Reject write workflows that would otherwise infer a target Space while `all_spaces=true`
+  - [ ] Keep retry and reprocess controls deferred
   - [ ] Add documents feature tests
   - [ ] Verify document and processing contract alignment
+- [ ] Implement the account and dashboard features
+  - [ ] Add the account page for profile, optional password change, plan tier, feature flags, and usage summary
+  - [ ] Add the dashboard as the authenticated landing surface using current scope, recent documents, and usage summary
+  - [ ] Add account and dashboard feature tests
+  - [ ] Verify account, usage, and dashboard reads align with current contracts
+
+## Phase 12 - Retrieval And Interaction Web Surfaces
+
+Goal: add the first retrieval-heavy frontend experiences on top of the completed workspace foundations so search, chat, entities, tracked state, changes, and corrections become usable in the web app without widening the earlier auth, scope, and document slice.
+
+Depends on: Phase 11
+
+- [ ] Phase complete
 - [ ] Implement the search feature
   - [ ] Add search page scaffolds
   - [ ] Add search API client integration
@@ -463,26 +479,20 @@ Depends on: Phase 10
   - [ ] Add loading, empty, and error states
   - [ ] Add tracked-state feature tests
   - [ ] Verify tracked-state contract alignment
-- [ ] Implement the changes feature
+- [ ] Implement the changes and corrections features
   - [ ] Add changes page scaffolds
   - [ ] Add changes API client integration
   - [ ] Add list, detail, and read-state UI behavior
+  - [ ] Add correction submission and review entrypoints where applicable
   - [ ] Add loading, empty, and error states
-  - [ ] Add changes feature tests
-  - [ ] Verify changes contract alignment
-- [ ] Implement the account feature
-  - [ ] Add account page scaffolds
-  - [ ] Add profile and usage UI behavior
-  - [ ] Add account API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add account feature tests
-  - [ ] Verify account and usage contract alignment
+  - [ ] Add changes and corrections feature tests
+  - [ ] Verify changes and corrections contract alignment
 
-## Phase 12 - Capability Completion
+## Phase 13 - Capability Completion
 
 Goal: complete the remaining planned product surfaces that depend on the core runtime, processing, retrieval, and web foundations but are not required to establish the primary product path.
 
-Depends on: Phase 11
+Depends on: Phase 12
 
 - [ ] Phase complete
 - [ ] Implement admin tooling
@@ -505,11 +515,11 @@ Depends on: Phase 11
   - [ ] Add marketing feature tests
   - [ ] Verify public pages remain cleanly separated from authenticated product surfaces
 
-## Phase 13 - Hardening, QA, And OSS Readiness
+## Phase 14 - Hardening, QA, And OSS Readiness
 
 Goal: close testing gaps, verify end-to-end quality, align docs with implementation, and polish the repository for public open source use.
 
-Depends on: Phase 12
+Depends on: Phase 13
 
 - [ ] Phase complete
 - [ ] Review API and backend test coverage

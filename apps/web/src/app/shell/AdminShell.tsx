@@ -1,7 +1,11 @@
-import { AppShell, Anchor, Badge, Container, Group, Stack, Text } from "@mantine/core";
+import { AppShell, Anchor, Badge, Button, Container, Group, Stack, Text } from "@mantine/core";
 import { Link, Outlet } from "react-router-dom";
 
+import { useAuthSession } from "../../shared/state/authSession";
+
 export function AdminShell() {
+  const { logout } = useAuthSession();
+
   return (
     <AppShell header={{ height: 72 }} padding="md">
       <AppShell.Header>
@@ -10,7 +14,7 @@ export function AdminShell() {
             <Stack gap={0}>
               <Text fw={700}>Ragdoll</Text>
               <Text size="xs" c="dimmed">
-                Admin scaffold
+                Deferred admin surface
               </Text>
             </Stack>
             <Group gap="lg">
@@ -23,6 +27,9 @@ export function AdminShell() {
               <Badge color="red" variant="light">
                 admin
               </Badge>
+              <Button variant="light" onClick={logout}>
+                Log out
+              </Button>
             </Group>
           </Group>
         </Container>

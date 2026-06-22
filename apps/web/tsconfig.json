@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "useDefineForClassFields": true,
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
@@ -11,12 +12,16 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@contracts": ["../../packages/contracts/typescript"],
+      "@contracts/*": ["../../packages/contracts/typescript/*"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
     "types": ["vitest/globals"]
   },
-  "include": ["src"],
+  "include": ["src", "../../packages/contracts/typescript/index.ts"],
   "references": []
 }

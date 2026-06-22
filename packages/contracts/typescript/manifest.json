@@ -1,9 +1,13 @@
 {
+  "entrypoint": "packages/contracts/typescript/index.ts",
+  "generated_at": "2026-06-22T17:08:53.755801Z",
   "notes": [
-    "Phase 2 fixes the generation path and ownership only.",
-    "Replace this manifest with real generated TypeScript output when the chosen generator is introduced."
+    "TypeScript contracts are generated from the exported OpenAPI document.",
+    "Feature clients should remain thin wrappers around shared transport rather than generated request helpers."
   ],
+  "operation_count": 49,
   "output_directory": "packages/contracts/typescript",
+  "schema_count": 74,
   "source": "packages/contracts/openapi/ragdoll.openapi.json",
-  "status": "scaffold_only"
+  "status": "generated"
 }

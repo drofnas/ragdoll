@@ -1,13 +1,14 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AppProviders } from "../providers";
 import { AdminRoute } from "../guards/AdminRoute";
 import { ProtectedRoute } from "../guards/ProtectedRoute";
+import { AppProviders } from "../providers";
+import { AUTH_ACCESS_TOKEN_STORAGE_KEY } from "../../shared/state/authSession";
+import { adminProfile, jsonResponse, spaceListResponse, userProfile } from "../../test/testData";
 
-function renderProtected(path: string, mode?: "anonymous" | "user" | "admin") {
-  globalThis.__RAGDOLL_SCAFFOLD_AUTH_MODE__ = mode;
+function renderProtected(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AppProviders>
@@ -37,22 +38,54 @@ function renderProtected(path: string, mode?: "anonymous" | "user" | "admin") {
 }
 
 describe("route guards", () => {
-  beforeEach(() => {
-    globalThis.__RAGDOLL_SCAFFOLD_AUTH_MODE__ = undefined;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
   });
 
   it("redirects anonymous users away from protected routes", () => {
-    renderProtected("/protected", "anonymous");
+    renderProtected("/protected");
     expect(screen.getByText("login-page")).toBeInTheDocument();
   });
 
-  it("redirects non-admin users away from admin routes", () => {
-    renderProtected("/admin", "user");
-    expect(screen.getByText("dashboard-page")).toBeInTheDocument();
+  it("redirects non-admin users away from admin routes", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "user-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderProtected("/admin");
+    await waitFor(() => expect(screen.getByText("dashboard-page")).toBeInTheDocument());
   });
 
-  it("allows admin scaffold mode through admin route", () => {
-    renderProtected("/admin", "admin");
-    expect(screen.getByText("admin-page")).toBeInTheDocument();
+  it("allows admin users through the admin route", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "admin-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(adminProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderProtected("/admin");
+    await waitFor(() => expect(screen.getByText("admin-page")).toBeInTheDocument());
   });
 });

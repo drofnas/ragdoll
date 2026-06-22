@@ -5,17 +5,17 @@ export function HomePage() {
   return (
     <Card shadow="sm" padding="xl">
       <Stack gap="md">
-        <Title order={1}>Ragdoll Clean-Room Rebuild</Title>
+        <Title order={1}>Ragdoll Workspace</Title>
         <Text c="dimmed">
-          This Phase 1 scaffold is a shell-only frontend runtime designed to prove routing,
-          providers, and role-aware layouts before feature pages are migrated.
+          The clean-room rebuild now has a live web workspace for auth, Spaces, document upload,
+          processing, and account usage on top of the typed API contracts.
         </Text>
         <Group>
           <Button component={Link} to="/login">
-            Login Placeholder
+            Sign in
           </Button>
           <Button variant="light" component={Link} to="/register">
-            Register Placeholder
+            Create account
           </Button>
         </Group>
       </Stack>

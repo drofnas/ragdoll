@@ -2,13 +2,13 @@
 
 Canonical home for the Vite + React web application.
 
-Phase 1 now includes the initial scaffold-only frontend runtime:
+The web app now includes the first live workspace slice:
 
 - TypeScript + Vite app bootstrap under `src/`
 - app-level router, providers, shells, and guards
-- scaffold auth/session and Space scope state
-- placeholder public, authenticated, and admin pages
-- shared API transport for future contract-driven clients
+- real auth/session bootstrap and owned-Space scope loading
+- live auth, Spaces, documents, dashboard, and account pages
+- shared API transport plus generated contract consumption from `packages/contracts/typescript`
 
 Planned nearby ownership:
 
@@ -19,10 +19,9 @@ Planned nearby ownership:
 
 Still deferred:
 
-- feature-specific pages and API clients
-- generated contract consumption from `packages/contracts`
-- real auth/session bootstrap requests
-- E2E runtime wiring
+- retrieval-heavy web features such as search, chat, entities, tracked state, changes, and corrections
+- deeper admin tooling and public marketing pages
+- fuller E2E critical-path coverage beyond the current repo-owned test suite
 
 ## Local Commands
 
