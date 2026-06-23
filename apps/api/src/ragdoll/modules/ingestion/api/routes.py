@@ -31,6 +31,7 @@ COMMON_RESPONSES = {
     404: {"model": ProblemResponse, "description": "Requested document was not found."},
     409: {"model": ProblemResponse, "description": "Request conflicts with current document state."},
     413: {"model": ProblemResponse, "description": "Upload rejected by plan limits."},
+    503: {"model": ProblemResponse, "description": "Document storage is temporarily unavailable."},
     422: {"model": ProblemResponse, "description": "Request validation failed."},
     429: {"model": ProblemResponse, "description": "Upload rate limit exceeded."},
 }

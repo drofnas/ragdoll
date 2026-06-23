@@ -4,6 +4,7 @@ set -eu
 
 ROOT_DIR="${RAGDOLL_ROOT_DIR:-$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)}"
 INFRA_COMPOSE_FILE="${RAGDOLL_INFRA_COMPOSE_FILE:-$ROOT_DIR/infra/docker/compose.infra.yml}"
+SUPABASE_OVERRIDE_COMPOSE_FILE="${RAGDOLL_SUPABASE_OVERRIDE_COMPOSE_FILE:-$ROOT_DIR/infra/supabase/docker-compose.override.yml}"
 INFRA_ENV_FILE="${RAGDOLL_INFRA_ENV_FILE:-$ROOT_DIR/infra/docker/.env.infra}"
 INFRA_ENV_EXAMPLE="${RAGDOLL_INFRA_ENV_EXAMPLE:-$ROOT_DIR/infra/docker/.env.infra.example}"
 SUPABASE_UPSTREAM_COMPOSE_FILE="${RAGDOLL_SUPABASE_UPSTREAM_COMPOSE_FILE:-$ROOT_DIR/infra/supabase/self-hosted/docker-compose.yml}"
@@ -55,6 +56,7 @@ run_compose() {
   docker compose \
     --env-file "$ACTIVE_INFRA_ENV_FILE" \
     -f "$INFRA_COMPOSE_FILE" \
+    -f "$SUPABASE_OVERRIDE_COMPOSE_FILE" \
     -f "$OLLAMA_RUNTIME_COMPOSE_FILE" \
     "$@"
 }

@@ -68,3 +68,16 @@ class AuthorizationError(ApplicationError):
             type_uri="https://ragdoll.dev/problems/forbidden",
             code="forbidden",
         )
+
+
+class StorageUnavailableError(ApplicationError):
+    """Raised when the document storage backend cannot complete a request."""
+
+    def __init__(self, detail: str = "Document storage is temporarily unavailable.") -> None:
+        super().__init__(
+            detail,
+            status_code=503,
+            title="Storage unavailable",
+            type_uri="https://ragdoll.dev/problems/storage-unavailable",
+            code="storage_unavailable",
+        )

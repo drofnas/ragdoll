@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import lru_cache
+import logging
 from typing import Protocol
 from urllib.parse import quote
 from uuid import UUID
@@ -9,7 +10,9 @@ from uuid import UUID
 import httpx
 
 from ragdoll.core.config import Settings, get_settings
-from ragdoll.core.exceptions import ConfigurationError
+from ragdoll.core.exceptions import ConfigurationError, StorageUnavailableError
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentStorageService(Protocol):
@@ -91,26 +94,66 @@ class SupabaseDocumentStorage:
         encoded_key = quote(storage_key.lstrip("/"), safe="/")
         return f"{self._base_url}/storage/v1/object/{self._bucket}/{encoded_key}"
 
+    @staticmethod
+    def _response_body_preview(response: httpx.Response) -> str:
+        body = response.text.strip()
+        if not body:
+            return "<empty>"
+        return body[:200]
+
+    def _raise_storage_unavailable(self, operation: str, exc: httpx.HTTPError) -> None:
+        if isinstance(exc, httpx.HTTPStatusError):
+            response = exc.response
+            logger.warning(
+                "Supabase storage %s failed: status=%s url=%s body=%s",
+                operation,
+                response.status_code,
+                exc.request.url,
+                self._response_body_preview(response),
+            )
+        else:
+            request_url = getattr(getattr(exc, "request", None), "url", "<unknown>")
+            logger.warning(
+                "Supabase storage %s failed: url=%s error=%s",
+                operation,
+                request_url,
+                exc,
+            )
+        raise StorageUnavailableError(
+            f"Document storage is temporarily unavailable while attempting to {operation}."
+        ) from exc
+
     def store_original_file(self, storage_key: str, content: bytes, *, content_type: str | None = None) -> None:
         headers = dict(self._headers)
         if content_type:
             headers["content-type"] = content_type
-        response = httpx.post(self._object_url(storage_key), headers=headers, content=content, timeout=10.0)
-        response.raise_for_status()
+        try:
+            response = httpx.post(self._object_url(storage_key), headers=headers, content=content, timeout=10.0)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            self._raise_storage_unavailable("store the uploaded document file", exc)
 
     def download_original_file(self, storage_key: str) -> bytes:
-        response = httpx.get(self._object_url(storage_key), headers=self._headers, timeout=10.0)
-        if response.status_code == 404:
-            raise FileNotFoundError(storage_key)
-        response.raise_for_status()
-        return response.content
+        try:
+            response = httpx.get(self._object_url(storage_key), headers=self._headers, timeout=10.0)
+            if response.status_code == 404:
+                raise FileNotFoundError(storage_key)
+            response.raise_for_status()
+            return response.content
+        except FileNotFoundError:
+            raise
+        except httpx.HTTPError as exc:
+            self._raise_storage_unavailable("download the original document file", exc)
 
     def delete_original_file(self, storage_key: str) -> bool:
-        response = httpx.delete(self._object_url(storage_key), headers=self._headers, timeout=10.0)
-        if response.status_code == 404:
-            return False
-        response.raise_for_status()
-        return True
+        try:
+            response = httpx.delete(self._object_url(storage_key), headers=self._headers, timeout=10.0)
+            if response.status_code == 404:
+                return False
+            response.raise_for_status()
+            return True
+        except httpx.HTTPError as exc:
+            self._raise_storage_unavailable("delete the original document file", exc)
 
     def delete_derived_artifacts(self, document_id: UUID, *, storage_prefix: str | None = None) -> bool:
         del document_id, storage_prefix

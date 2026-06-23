@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from ragdoll.api import dependencies as dependency_module
+from ragdoll.core.exceptions import StorageUnavailableError
 from ragdoll.core.instance_policy import InstanceLimits
 from ragdoll.modules.ingestion.domain import policies as ingestion_policies
 from ragdoll.platform.db.models import (
@@ -26,6 +27,24 @@ from ragdoll.platform.queues import InMemoryDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.platform.vector import InMemoryVectorCleanupService
 from ragdoll.workers.document_pipeline import drain_document_jobs
+
+
+class FailingUploadStorage:
+    def store_original_file(self, storage_key: str, content: bytes, *, content_type: str | None = None) -> None:
+        del storage_key, content, content_type
+        raise StorageUnavailableError("Document storage is temporarily unavailable while attempting to store the uploaded document file.")
+
+    def download_original_file(self, storage_key: str) -> bytes:
+        del storage_key
+        raise NotImplementedError
+
+    def delete_original_file(self, storage_key: str) -> bool:
+        del storage_key
+        raise NotImplementedError
+
+    def delete_derived_artifacts(self, document_id, *, storage_prefix: str | None = None) -> bool:
+        del document_id, storage_prefix
+        raise NotImplementedError
 
 
 def register_and_login(api_client, *, email: str = "user@example.com", password: str = "testpass123") -> str:
@@ -178,6 +197,29 @@ def test_upload_rejects_oversized_file(api_client, ingestion_runtime):
         assert response.json()["code"] == "upload_file_too_large"
     finally:
         ingestion_policies.resolve_instance_limits = original_resolver
+
+
+def test_upload_returns_service_unavailable_when_storage_write_fails(api_client, db_session):
+    queue = InMemoryDocumentProcessingQueue()
+    vector_cleanup = InMemoryVectorCleanupService()
+    graph_cleanup = InMemoryGraphCleanupService()
+    api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: FailingUploadStorage()
+    api_client.app.dependency_overrides[dependency_module.get_document_processing_queue_service] = lambda: queue
+    api_client.app.dependency_overrides[dependency_module.get_vector_cleanup] = lambda: vector_cleanup
+    api_client.app.dependency_overrides[dependency_module.get_graph_cleanup] = lambda: graph_cleanup
+    try:
+        token = register_and_login(api_client, email="storage-failure@example.com")
+        response = api_client.post(
+            "/api/v1/ingestion/uploads",
+            headers=auth_headers(token),
+            files={"file": ("broken.txt", BytesIO(b"cannot store"), "text/plain")},
+        )
+
+        assert response.status_code == 503, response.text
+        assert response.json()["code"] == "storage_unavailable"
+        assert db_session.query(Document).count() == 0
+    finally:
+        api_client.app.dependency_overrides.clear()
 
 
 def test_batch_status_dedupes_and_filters_visibility(api_client, db_session, ingestion_runtime):

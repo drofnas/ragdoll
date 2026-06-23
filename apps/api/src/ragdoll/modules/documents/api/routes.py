@@ -32,6 +32,7 @@ COMMON_RESPONSES = {
     401: {"model": ProblemResponse, "description": "Authentication required."},
     404: {"model": ProblemResponse, "description": "Requested document was not found."},
     409: {"model": ProblemResponse, "description": "Document metadata exists but backing storage is unavailable."},
+    503: {"model": ProblemResponse, "description": "Document storage is temporarily unavailable."},
     422: {"model": ProblemResponse, "description": "Request validation failed."},
 }
 
