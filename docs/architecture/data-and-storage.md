@@ -48,7 +48,7 @@ Owns:
 - processing status
 - versioning and current-state indicators
 - audit timestamps
-- feature flags and plan tiers
+- operator-managed user state and usage projections
 - user-submitted corrections and verification state
 
 Must not own:

@@ -86,15 +86,14 @@ def upload_document(
         max_requests=settings.upload_rate_limit_requests,
         window_seconds=settings.upload_rate_limit_window_seconds,
     )
-    enforce_upload_size_limit(file_size=file_size, plan_tier=current_user.plan_tier)
+    enforce_upload_size_limit(file_size=file_size)
 
     usage_repo = UsageRepository(session)
     document_count, _, storage_bytes, _ = usage_repo.owned_document_metrics(owner_user_id)
-    enforce_document_limit(existing_document_count=document_count, plan_tier=current_user.plan_tier)
+    enforce_document_limit(existing_document_count=document_count)
     enforce_storage_limit(
         existing_storage_bytes=storage_bytes,
         incoming_file_size=file_size,
-        plan_tier=current_user.plan_tier,
     )
 
     target_space = resolve_target_space(session, owner_user_id, space_id)

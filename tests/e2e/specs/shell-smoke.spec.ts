@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("shell smoke", () => {
-  test("public home renders the workspace title", async ({ page }) => {
+  test("default public route renders the login screen", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Ragdoll Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Status" })).toBeVisible();
   });
 
   test("anonymous dashboard navigation redirects to login", async ({ page }) => {

@@ -49,8 +49,11 @@ export function DashboardPage() {
         </Card>
         <Card withBorder radius="lg" p="lg">
           <Stack gap={4}>
-            <Text fw={600}>Usage plan</Text>
-            <Text size="xl">{usageQuery.data?.plan_tier ?? "loading"}</Text>
+            <Text fw={600}>Configured retrieval budget</Text>
+            <Text size="xl">{usageQuery.data?.limits.retrieval_chunks ?? "loading"}</Text>
+            <Text c="dimmed" size="sm">
+              Chunks available to retrieval-backed features
+            </Text>
           </Stack>
         </Card>
         <Card withBorder radius="lg" p="lg">

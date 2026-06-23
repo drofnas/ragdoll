@@ -488,36 +488,36 @@ Depends on: Phase 11
   - [x] Add changes and corrections feature tests
   - [x] Verify changes and corrections contract alignment
 
-## Phase 13 - Capability Completion
+## Phase 13 - Self-Hosted Operator Completion
 
-Goal: complete the remaining planned product surfaces that depend on the core runtime, processing, retrieval, and web foundations but are not required to establish the primary product path.
+Goal: finish the remaining product work for a local or self-hosted installation by removing public-marketing assumptions, tightening the logged-out surface, and completing the operator-facing admin and usage workflows.
 
 Depends on: Phase 12
 
-- [ ] Phase complete
-- [ ] Implement admin tooling
-  - [ ] Complete admin backend routes and policies
-  - [ ] Add admin user management UI
-  - [ ] Add admin readiness and tester UI
-  - [ ] Add admin feature tests and guarded endpoint tests
-  - [ ] Update admin contracts
-  - [ ] Verify admin depends on auth, users, and usage foundations
-- [ ] Complete usage dashboards and plan controls
-  - [ ] Add account usage dashboard behavior
-  - [ ] Add admin plan-control behavior where applicable
-  - [ ] Add usage UI tests
-  - [ ] Verify usage surfaces align with feature-flag and plan-tier behavior
-- [ ] Implement public marketing pages
-  - [ ] Add home page content and layout
-  - [ ] Add product page content and layout
-  - [ ] Add pricing page content and layout
-  - [ ] Add contact page content and layout
-  - [ ] Add marketing feature tests
-  - [ ] Verify public pages remain cleanly separated from authenticated product surfaces
+- [x] Phase complete
+- [x] Convert the logged-out web surface to the self-hosted shape
+  - [x] Make the default public route render the login page instead of a marketing home page
+  - [x] Keep the public route surface limited to login, registration, and the system status page
+  - [x] Remove or de-route marketing pages from the active application flow
+  - [x] Simplify the public shell navigation to match the reduced public route surface
+  - [x] Add or update frontend tests covering the new public default route and redirects
+- [x] Implement admin tooling
+  - [x] Complete admin backend routes and policies
+  - [x] Add admin user management UI
+  - [x] Add admin readiness and tester UI
+  - [x] Add admin feature tests and guarded endpoint tests
+  - [x] Update admin contracts
+  - [x] Verify admin depends on auth, users, usage, and readiness foundations
+- [x] Complete self-hosted usage and account controls
+  - [x] Add the remaining account usage dashboard behavior needed for local operators
+  - [x] Add admin-side instance policy or plan-control behavior where applicable
+  - [x] Add usage UI tests
+  - [x] Verify usage surfaces align with feature-flag, plan-tier, and self-hosted policy behavior
+  - [x] Remove or rewrite SaaS-oriented copy that implies pricing, public upgrade, or online subscription flows
 
-## Phase 14 - Hardening, QA, And OSS Readiness
+## Phase 14 - Hardening And Self-Hosted Readiness
 
-Goal: close testing gaps, verify end-to-end quality, align docs with implementation, and polish the repository for public open source use.
+Goal: close testing gaps, verify end-to-end quality, align docs with the self-hosted product shape, and polish the repository for reliable local installation and operation.
 
 Depends on: Phase 13
 
@@ -533,24 +533,24 @@ Depends on: Phase 13
   - [ ] Review contract alignment checks between backend and frontend
   - [ ] Verify no major feature relies on manual-only validation
 - [ ] Complete E2E critical-path coverage
-  - [ ] Add authentication flow E2E coverage
-  - [ ] Add Space-scoped upload and document flow E2E coverage
+  - [x] Add authentication flow E2E coverage
+  - [x] Add Space-scoped upload and document flow E2E coverage
   - [ ] Add search and chat E2E coverage
   - [ ] Add tracked-state or changes critical-path E2E coverage
   - [ ] Add guarded admin E2E coverage where practical
   - [ ] Verify E2E tests cover stitched behavior rather than unit-level logic
-- [ ] Align docs and developer workflow for OSS use
-  - [ ] Update architecture docs for any contract or structure changes made during implementation
-  - [ ] Update the implementation tracker as phases progress
-  - [ ] Review README and bootstrap docs for clarity
-  - [ ] Review env examples and secret handling for public safety
+- [ ] Align docs and developer workflow for self-hosted use
+  - [x] Update architecture docs for any contract or structure changes made during implementation
+  - [x] Update the implementation tracker as phases progress
+  - [x] Review README and bootstrap docs for clarity
+  - [ ] Review env examples, installer defaults, and secret handling for local deployment safety
   - [ ] Verify no private notes or local references leak into tracked docs
-- [ ] Polish the repo for public presentation
+- [ ] Polish the repo for maintainable long-term operation
   - [ ] Review naming consistency across code, docs, and scripts
   - [ ] Review commit-ready developer workflow from clone to local startup
   - [ ] Review error messages and empty states for clarity
-  - [ ] Review OSS-facing docs for maintainability and professionalism
-  - [ ] Verify the repo is strong enough to serve as a public portfolio artifact
+  - [ ] Review operator-facing docs for maintainability and professionalism
+  - [ ] Verify the repo is strong enough to serve as a dependable self-hosted application
 
 ## Dependency Notes
 
@@ -562,7 +562,8 @@ Depends on: Phase 13
 | Changes feed | Ingestion events, tracked state updates, and history/provenance modeling |
 | Admin tooling | Auth, users, usage, shared guards, and readiness surfaces |
 | E2E coverage | Working app shells, stable API flows, and seedable local infrastructure |
-| Marketing pages | Web app shell, shared UI primitives, and public route wiring |
+| Logged-out surface conversion | Auth pages, status surface, public shell wiring, and route guards |
+| Self-hosted operator workflows | Admin tooling, usage surfaces, readiness visibility, and local infra docs |
 
 ## Done Criteria
 
@@ -571,6 +572,7 @@ Depends on: Phase 13
 - [ ] Platform adapters for storage, vector, graph, queue, and LLM services are wired
 - [ ] All planned API modules have implemented routes
 - [ ] All feasible endpoints have automated tests
+- [ ] The public web surface is intentionally limited to login, registration, and system status
 - [ ] Core web flows exist end-to-end
 - [ ] Later-phase capabilities are either implemented or explicitly left unchecked
 - [ ] Architecture docs and the implementation tracker are aligned

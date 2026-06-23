@@ -24,7 +24,7 @@ apps/api/
       logging.py
       security.py
       auth.py
-      feature_flags.py
+      instance_policy.py
       pagination.py
       exceptions.py
       result.py
@@ -74,9 +74,9 @@ apps/api/
 - `api/router.py`: compose router tree and version mounting
 - `api/dependencies.py`: session, user, admin, pagination, and Space scope dependencies
 - `api/errors.py`: map domain/application errors to stable HTTP problem shapes
-- `core/config.py`: environment settings grouped by auth, storage, DB, vector, graph, LLM, rate-limit, and feature-flag concern
+- `core/config.py`: environment settings grouped by auth, storage, DB, vector, graph, LLM, rate-limit, and instance-policy concern
 - `core/security.py`: token signing, password hashing, encryption helpers, auth guard utilities
-- `core/feature_flags.py`: tier defaults, per-user overrides, and global kill switches
+- `core/instance_policy.py`: config-driven effective limits and self-hosted quota policy resolution
 - `platform/db/*`: engine, session, model base, migrations, and repository primitives
 - `platform/storage/*`: original file and derived artifact storage
 - `platform/vector/*`: embedding provider and vector-store access
@@ -107,7 +107,7 @@ modules/<module>/
 ### Module ownership
 
 - `auth`: register, login, current-user profile, password changes, token issuance
-- `users`: user lifecycle, plan tier, feature-flag overrides, purge, usage summary joins
+- `users`: user lifecycle, profile updates, admin ownership metadata, purge, usage summary joins
 - `spaces`: create, rename, archive, default-space rules, scope resolution
 - `documents`: list, detail, pagination, preview, move, download, delete
 - `ingestion`: upload, process, retry, clean derived artifacts, status transitions
@@ -118,7 +118,7 @@ modules/<module>/
 - `tracked_state`: field definitions, recompute, summaries, conflicts, resolution
 - `changes`: timeline, detail, read-state mutation
 - `corrections`: submit, verify, reject, edit, delete, promote-to-fact behavior
-- `admin`: user operations, runtime testers, readiness, guarded operational mutations
+- `admin`: user operations, effective limit reads, readiness views, guarded operational mutations
 - `usage`: per-user usage and quota reporting
 
 ## Public Interfaces and Shared Types
@@ -133,18 +133,17 @@ modules/<module>/
   - `SpaceScope`
   - `ProcessingStatus`
   - `Citation`
-  - `PlanTier`
-  - `FeatureFlags`
   - `SourceTier`
 
 ## Primary Workflows
 
-1. `auth` resolves user identity and feature flags.
+1. `auth` resolves user identity and admin status.
 2. `spaces` resolves request scope once and passes it through services.
 3. `documents` and `ingestion` accept file uploads or sync requests, persist metadata, and enqueue background jobs.
 4. `workers/document_pipeline.py` performs extraction, chunking, embedding, vector writes, graph writes, and processing status updates.
-5. `search`, `chat`, and `tracked_state` retrieve evidence through repositories and gateways, then compose user-facing outputs.
-6. `changes` and `corrections` expose historical and human-in-the-loop surfaces without bypassing provenance rules.
+5. `usage`, `ingestion`, and admin reads resolve effective self-hosted limits through shared instance-policy code instead of tier logic.
+6. `search`, `chat`, and `tracked_state` retrieve evidence through repositories and gateways, then compose user-facing outputs.
+7. `changes` and `corrections` expose historical and human-in-the-loop surfaces without bypassing provenance rules.
 
 ## Failure Modes and Edge Cases
 
@@ -159,7 +158,7 @@ modules/<module>/
 - Every capability area has exactly one owning backend module.
 - No product logic is placed in `api/` or `platform/`.
 - Worker entrypoints exist for long-running document and tracked-state jobs.
-- Shared config, auth, flags, and error handling have explicit `core/` homes.
+- Shared config, auth, instance policy, and error handling have explicit `core/` homes.
 - `/api/v1` is the documented source of truth.
 
 ## Deferred Notes

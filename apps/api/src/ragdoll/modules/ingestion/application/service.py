@@ -8,7 +8,7 @@ from ragdoll.modules.ingestion.domain.policies import (
     build_preview_text,
     chunk_text,
     extract_text_content,
-    limit_chunks_for_plan,
+    limit_chunks_for_instance,
     mark_processing_stage_completed,
     mark_processing_stage_failed,
     mark_processing_stage_started,
@@ -31,9 +31,9 @@ from ragdoll.platform.storage import DocumentStorageService, get_document_storag
 from ragdoll.platform.vector import VectorCleanupService, get_vector_cleanup_service
 
 
-def _build_document_chunks(document: Document, *, text: str, plan_tier: str) -> tuple[int, list[DocumentChunk]]:
+def _build_document_chunks(document: Document, *, text: str) -> tuple[int, list[DocumentChunk]]:
     raw_chunks = chunk_text(text)
-    limited_chunks = limit_chunks_for_plan(raw_chunks, plan_tier=plan_tier)
+    limited_chunks = limit_chunks_for_instance(raw_chunks)
     rows = [
         DocumentChunk.from_text(
             document_id=document.id,
@@ -118,8 +118,8 @@ def process_job_payload(
             if stage == "parsing":
                 blob = active_storage.download_original_file(document.storage_key)
                 extracted_text = extract_text_content(file_type=document.file_type, content=blob)
-                user = get_user_by_subject(session, str(document.uploaded_by))
-                total_chunks, chunk_rows = _build_document_chunks(document, text=extracted_text, plan_tier=user.plan_tier)
+                get_user_by_subject(session, str(document.uploaded_by))
+                total_chunks, chunk_rows = _build_document_chunks(document, text=extracted_text)
                 repo.replace_chunks(document, chunk_rows)
                 session.flush()
                 document.preview_text = build_preview_text(extracted_text)

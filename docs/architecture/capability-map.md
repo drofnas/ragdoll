@@ -33,9 +33,8 @@ tests/
 | Tracked state | `modules/tracked_state` | `features/tracked-state` | tracked field, summary, and conflict contracts | backend module tests + frontend feature tests |
 | Changes feed | `modules/changes` | `features/changes` | change list, detail, and read-state contracts | backend module tests + frontend feature tests |
 | Corrections and verification | `modules/corrections` | `features/corrections` and `features/chat` | correction submission and review contracts | backend module tests + E2E |
-| Admin tooling | `modules/admin` | `features/admin` | admin user, readiness, tester, and control contracts | backend module tests + guarded E2E |
-| Usage and plan limits | `modules/usage` and `modules/users` | `features/account` and `features/admin` | usage summary and plan-state contracts | backend module tests |
-| Public marketing pages | not owned by a backend module beyond content delivery | `features/marketing` | minimal public content contracts only if needed | frontend feature tests |
+| Admin tooling | `modules/admin` | `features/admin` | admin user, effective-limits, readiness, and runtime-status contracts | backend module tests + guarded E2E |
+| Usage and instance policy | `modules/usage` and `modules/admin` | `features/account` and `features/admin` | usage summary and effective-limit contracts | backend module tests |
 
 ## Public Interfaces and Shared Types
 
@@ -58,7 +57,7 @@ The capability map assumes these shared seams:
 
 - A capability can become hard to maintain if ownership is split across multiple unrelated modules.
 - Shared helpers can become hidden owners if feature code pushes too much logic into generic folders.
-- Cross-cutting capabilities such as usage or feature flags must still have a single place where decisions are resolved.
+- Cross-cutting capabilities such as usage or instance policy must still have a single place where decisions are resolved.
 - E2E coverage should confirm stitched behavior, not replace module or feature tests.
 
 ## Acceptance Checks

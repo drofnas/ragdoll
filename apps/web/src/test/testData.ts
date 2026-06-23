@@ -24,16 +24,12 @@ import type {
 
 export const userProfile: UserProfileResponse = {
   email: "user@example.com",
-  feature_flags: {
-    unified_search: true
-  },
   full_name: "Test User",
   id: "11111111-1111-1111-1111-111111111111",
   is_active: true,
   is_admin: false,
   last_login: "2026-06-22T17:00:00Z",
-  must_change_password: false,
-  plan_tier: "free"
+  must_change_password: false
 };
 
 export const adminProfile: UserProfileResponse = {
@@ -41,8 +37,7 @@ export const adminProfile: UserProfileResponse = {
   email: "admin@example.com",
   full_name: "Admin User",
   id: "22222222-2222-2222-2222-222222222222",
-  is_admin: true,
-  plan_tier: "internal"
+  is_admin: true
 };
 
 export const spaces: SpaceResponse[] = [
@@ -148,7 +143,6 @@ export const usageSummary: UsageSummaryResponse = {
     tokens_5h: null,
     tokens_week: null
   },
-  plan_tier: "free",
   resets_at: {
     tokens_5h_resets_at: null,
     tokens_week_resets_at: null

@@ -6,9 +6,7 @@ from enum import Enum
 from typing import Generic, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
-
-from ragdoll.core.feature_flags import PlanTier
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 T = TypeVar("T")
@@ -56,12 +54,6 @@ class PaginatedResponse(BaseModel, Generic[T]):
     total: int = Field(..., ge=0)
     page: int = Field(..., ge=1)
     page_size: int = Field(..., ge=1)
-
-
-class FeatureFlags(RootModel[dict[str, bool]]):
-    """Resolved feature-flag map exposed to clients."""
-
-    root: dict[str, bool] = Field(default_factory=dict)
 
 
 class SourceTier(str, Enum):
@@ -190,12 +182,10 @@ class RuntimeStatusResponse(BaseModel):
 __all__ = [
     "Citation",
     "DependencyStatus",
-    "FeatureFlags",
     "HealthStatusResponse",
     "MutationResult",
     "OllamaConfiguredModelStatus",
     "PaginatedResponse",
-    "PlanTier",
     "ProblemResponse",
     "ProcessingStageStatus",
     "ProcessingStatus",

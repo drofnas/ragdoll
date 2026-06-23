@@ -5,8 +5,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from ragdoll.core.instance_policy import resolve_instance_limits
 from ragdoll.modules.users.application.queries import get_user_by_subject
-from ragdoll.modules.users.domain.policies import normalize_plan_tier
 from ragdoll.modules.usage.api.schemas import (
     UsageAmounts,
     UsageLimitSet,
@@ -15,7 +15,7 @@ from ragdoll.modules.usage.api.schemas import (
     UsageStatusFlags,
     UsageSummaryResponse,
 )
-from ragdoll.modules.usage.domain.policies import percentage_used, resolve_plan_limits
+from ragdoll.modules.usage.domain.policies import percentage_used
 from ragdoll.modules.usage.infrastructure.repository import UsageRepository
 
 EVENT_CHAT_TOKENS = "chat_tokens"
@@ -54,8 +54,7 @@ def get_usage_summary(session: Session, subject: str) -> UsageSummaryResponse:
     since_week = now - timedelta(days=7)
     reset_5h = repo.earliest_usage_since(user.id, EVENT_CHAT_TOKENS, since_5h)
     reset_week = repo.earliest_usage_since(user.id, EVENT_CHAT_TOKENS, since_week)
-    plan_tier = normalize_plan_tier(user.plan_tier)
-    limits = resolve_plan_limits(plan_tier)
+    limits = resolve_instance_limits()
 
     usage = UsageAmounts(
         documents=document_count,
@@ -65,7 +64,6 @@ def get_usage_summary(session: Session, subject: str) -> UsageSummaryResponse:
         tokens_week=int(snapshot.tokens_week or 0),
     )
     return UsageSummaryResponse(
-        plan_tier=plan_tier.value,
         usage=usage,
         limits=UsageLimitSet(
             documents=limits.documents,

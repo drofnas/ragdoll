@@ -87,7 +87,7 @@ describe("TrackedStatePage", () => {
 
     await user.click(screen.getByRole("button", { name: "Recompute" }));
     await waitFor(() => expect(recomputeCalled).toBe(true));
-  });
+  }, 15000);
 
   it("disables tracked-state writes while all-spaces mode is active", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");

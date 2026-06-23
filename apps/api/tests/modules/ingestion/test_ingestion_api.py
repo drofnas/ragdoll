@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from ragdoll.api import dependencies as dependency_module
+from ragdoll.core.instance_policy import InstanceLimits
+from ragdoll.modules.ingestion.domain import policies as ingestion_policies
 from ragdoll.platform.db.models import (
     CanonicalEntity,
     Document,
@@ -153,14 +155,29 @@ def test_upload_rejects_other_users_space(api_client, db_session, ingestion_runt
 def test_upload_rejects_oversized_file(api_client, ingestion_runtime):
     ingestion_runtime
     token = register_and_login(api_client)
-    oversized = b"x" * (10 * 1024 * 1024 + 1)
+    oversized = b"x" * 5
+    original_resolver = ingestion_policies.resolve_instance_limits
+    ingestion_policies.resolve_instance_limits = lambda: InstanceLimits(
+        documents=None,
+        max_file_size_bytes=4,
+        chunks=None,
+        storage_bytes=None,
+        tokens_5h=None,
+        tokens_week=None,
+        retrieval_chunks=20,
+        output_tokens=2400,
+        per_document_chunks=2000,
+    )
     response = api_client.post(
         "/api/v1/ingestion/uploads",
         headers=auth_headers(token),
         files={"file": ("big.txt", BytesIO(oversized), "text/plain")},
     )
-    assert response.status_code == 413, response.text
-    assert response.json()["code"] == "upload_file_too_large"
+    try:
+        assert response.status_code == 413, response.text
+        assert response.json()["code"] == "upload_file_too_large"
+    finally:
+        ingestion_policies.resolve_instance_limits = original_resolver
 
 
 def test_batch_status_dedupes_and_filters_visibility(api_client, db_session, ingestion_runtime):

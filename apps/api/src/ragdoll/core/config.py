@@ -87,7 +87,15 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
 
-    feature_flag_unified_search: bool = True
+    instance_limit_documents: int | None = None
+    instance_limit_max_file_size_bytes: int | None = Field(default=100 * 1024 * 1024, ge=1)
+    instance_limit_chunks: int | None = None
+    instance_limit_storage_bytes: int | None = None
+    instance_limit_tokens_5h: int | None = None
+    instance_limit_tokens_week: int | None = None
+    instance_limit_retrieval_chunks: int = Field(default=20, ge=1, le=100)
+    instance_limit_output_tokens: int = Field(default=2400, ge=1, le=32768)
+    instance_limit_per_document_chunks: int = Field(default=2000, ge=1, le=100000)
 
     upload_rate_limit_enabled: bool = True
     upload_rate_limit_requests: int = 10

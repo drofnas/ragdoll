@@ -89,7 +89,7 @@ class ChatMessage(Base):
     citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     suggestions: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     retrieval_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("0"))
+    degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -133,7 +133,7 @@ class TrackedField(Base):
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     entity_type_hint: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("1"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -191,7 +191,7 @@ class TrackedFieldValue(Base):
     source_tier: Mapped[str] = mapped_column(String(32), nullable=False)
     value_text: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("0"))
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

@@ -16,7 +16,6 @@ import { DocumentDetailPage } from "../features/documents/pages/DocumentDetailPa
 import { DocumentsPage } from "../features/documents/pages/DocumentsPage";
 import { EntitiesPage } from "../features/entities/pages/EntitiesPage";
 import { EntityDetailPage } from "../features/entities/pages/EntityDetailPage";
-import { HomePage } from "../features/marketing/pages/HomePage";
 import { SearchPage } from "../features/search/pages/SearchPage";
 import { SpacesPage } from "../features/spaces/pages/SpacesPage";
 import { TrackedStatePage } from "../features/tracked-state/pages/TrackedStatePage";
@@ -25,7 +24,7 @@ export const appRoutes: RouteObject[] = [
   {
     element: <PublicShell />,
     children: [
-      { path: "/", element: <HomePage /> },
+      { path: "/", element: <LoginPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> }
     ]

@@ -7,7 +7,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ragdoll.core.feature_flags import FeatureFlags, PlanTier
 from ragdoll.modules.users.domain.policies import normalize_email_address
 
 
@@ -18,11 +17,9 @@ class UserProfileResponse(BaseModel):
     is_active: bool
     is_admin: bool = False
     must_change_password: bool = False
-    plan_tier: PlanTier = Field(default=PlanTier.FREE)
-    feature_flags: FeatureFlags = Field(default_factory=dict)
     last_login: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateCurrentUserRequest(BaseModel):

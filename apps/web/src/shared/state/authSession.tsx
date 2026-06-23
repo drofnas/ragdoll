@@ -1,4 +1,4 @@
-import type { FeatureFlags, LoginTokenResponse, UserProfileResponse } from "@contracts";
+import type { LoginTokenResponse, UserProfileResponse } from "@contracts";
 import {
   createContext,
   useContext,
@@ -22,7 +22,6 @@ interface LoginCredentials {
 
 interface AuthSessionContextValue {
   currentUser: UserProfileResponse | null;
-  featureFlags: FeatureFlags;
   isAdmin: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<UserProfileResponse>;
@@ -135,7 +134,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
 
   const value: AuthSessionContextValue = {
     currentUser,
-    featureFlags: currentUser?.feature_flags ?? {},
     isAdmin: currentUser?.is_admin === true,
     isAuthenticated: currentUser !== null,
     login,

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, JSON, String, func
+from sqlalchemy import DateTime, String, func
 from sqlalchemy import Uuid as SqlUuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,7 +15,7 @@ def utc_now() -> datetime:
 
 
 class User(Base):
-    """Canonical user record for authentication and plan ownership."""
+    """Canonical user record for authentication and operator ownership."""
 
     __tablename__ = "users"
 
@@ -27,8 +26,6 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(default=False, nullable=False)
-    plan_tier: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
-    feature_flag_overrides: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

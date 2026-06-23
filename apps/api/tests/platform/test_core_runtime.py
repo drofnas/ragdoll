@@ -8,13 +8,7 @@ from ragdoll.api.health import build_readiness_payload, build_runtime_status_pay
 from ragdoll.core import config as config_module
 from ragdoll.core.config import Settings
 from ragdoll.core.exceptions import AuthenticationRequiredError, ConfigurationError
-from ragdoll.core.feature_flags import (
-    FLAG_DOCUMENT_VERSION_HISTORY,
-    FLAG_SEARCH_GRAPH_MODE,
-    FLAG_UNIFIED_SEARCH,
-    PlanTier,
-    resolve_feature_flags,
-)
+from ragdoll.core.instance_policy import resolve_instance_limits
 from ragdoll.core.pagination import PaginationParams
 from ragdoll.core.security import create_access_token, decode_access_token, get_password_hash, verify_password
 from ragdoll.main import create_app
@@ -175,24 +169,27 @@ def test_invalid_access_token_raises_authentication_error():
         decode_access_token("invalid-token", settings=settings)
 
 
-def test_feature_flags_support_overrides_and_global_disable():
-    flags = resolve_feature_flags(
-        PlanTier.FREE,
-        overrides={FLAG_UNIFIED_SEARCH: False},
-        global_unified_search_enabled=False,
+def test_instance_limits_default_to_self_hosted_policy():
+    limits = resolve_instance_limits(Settings(_env_file=None))
+    assert limits.documents is None
+    assert limits.storage_bytes is None
+    assert limits.tokens_5h is None
+    assert limits.max_file_size_bytes == 100 * 1024 * 1024
+    assert limits.per_document_chunks == 2000
+
+
+def test_instance_limits_accept_runtime_overrides():
+    limits = resolve_instance_limits(
+        Settings(
+            instance_limit_documents=25,
+            instance_limit_storage_bytes=1024,
+            instance_limit_retrieval_chunks=8,
+            _env_file=None,
+        )
     )
-    assert flags[FLAG_UNIFIED_SEARCH] is False
-
-
-def test_feature_flags_vary_by_plan_tier():
-    free_flags = resolve_feature_flags(PlanTier.FREE, global_unified_search_enabled=True)
-    pro_flags = resolve_feature_flags(PlanTier.PRO, global_unified_search_enabled=True)
-    internal_flags = resolve_feature_flags(PlanTier.INTERNAL, global_unified_search_enabled=True)
-
-    assert free_flags[FLAG_SEARCH_GRAPH_MODE] is False
-    assert pro_flags[FLAG_SEARCH_GRAPH_MODE] is True
-    assert pro_flags[FLAG_DOCUMENT_VERSION_HISTORY] is False
-    assert internal_flags[FLAG_DOCUMENT_VERSION_HISTORY] is True
+    assert limits.documents == 25
+    assert limits.storage_bytes == 1024
+    assert limits.retrieval_chunks == 8
 
 
 def test_pagination_params_offset_calculation():

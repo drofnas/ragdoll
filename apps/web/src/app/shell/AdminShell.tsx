@@ -14,7 +14,7 @@ export function AdminShell() {
             <Stack gap={0}>
               <Text fw={700}>Ragdoll</Text>
               <Text size="xs" c="dimmed">
-                Deferred admin surface
+                Operator admin surface
               </Text>
             </Stack>
             <Group gap="lg">

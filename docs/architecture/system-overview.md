@@ -44,8 +44,8 @@ Ragdoll includes these capability areas:
 - Chat sessions with citations and corrections
 - Tracked state and conflict resolution
 - Change feed and read state
-- Admin tooling, usage, plan tiers, and feature flags
-- Marketing pages and authenticated product shell
+- Admin tooling, usage, effective instance policy, and runtime status
+- Self-hosted public login, registration, and system status
 - Automated testing across backend, frontend, and E2E flows
 
 ### Deployment Model
@@ -90,16 +90,16 @@ Ragdoll locks in these public seams:
 - Canonical backend namespace: `/api/v1`
 - Optional compatibility alias: `/api` during migration only
 - Shared contracts for auth, spaces, documents, search, chat, entities, tracked state, changes, admin, usage, and future extensions
-- Cross-cutting shared types: `SpaceScope`, `Citation`, `ProcessingStatus`, `PlanTier`, `FeatureFlags`, `PaginatedResponse`, `ProblemResponse`, `MutationResult`
+- Cross-cutting shared types: `SpaceScope`, `Citation`, `ProcessingStatus`, `PaginatedResponse`, `ProblemResponse`, `MutationResult`
 
 ## Primary Workflows
 
-1. User signs in through `apps/web`, receives session state, selected Space, and resolved feature flags from `apps/api`.
+1. User signs in through `apps/web`, receives session state and selected Space from `apps/api`.
 2. User uploads documents into a Space.
 3. Background workers parse content, store originals, chunk text, create embeddings, extract entities, and populate graph structures.
 4. Search and chat query vector, graph, and relational projections through application services.
 5. Users review current state, history, citations, tracked fields, and corrections from scoped product surfaces.
-6. Admins manage users, plans, flags, and runtime readiness without bypassing shared policy layers.
+6. Admins manage users, inspect effective instance policy, and review runtime readiness without bypassing shared policy layers.
 
 ## Failure Modes and Edge Cases
 
@@ -119,4 +119,4 @@ Ragdoll locks in these public seams:
 ## Deferred Notes
 
 - Service extraction is out of scope unless scale or isolation needs become concrete.
-- Multi-tenant SaaS architecture is intentionally deferred; current design remains user-owned workspaces within one product.
+- Multi-tenant SaaS architecture and public marketing funnels are intentionally out of scope; current design is a self-hosted workspace product.

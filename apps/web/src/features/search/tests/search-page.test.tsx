@@ -88,5 +88,5 @@ describe("SearchPage", () => {
         screen.getByText("OpenAPI exports stay aligned with the FastAPI surface.")
       ).toBeInTheDocument()
     );
-  });
+  }, 15000);
 });

@@ -1,6 +1,6 @@
 # Ragdoll
 
-Ragdoll is being rebuilt in this repository as the canonical clean-room source of truth. The repository now includes completed implementation work through the first end-to-end ingestion slice plus the Phase 7 local dependency runtime foundations across `apps/api`, `apps/web`, and `infra/`.
+Ragdoll is rebuilt in this repository as the canonical clean-room source of truth for a self-hosted local installation. The repository now includes the end-to-end workspace product surface through self-hosted operator completion across `apps/api`, `apps/web`, and `infra/`.
 
 License: [Business Source License 1.1](LICENSE.txt)
 Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)
@@ -18,6 +18,12 @@ This repository currently implements:
 - **Phase 5 - Document Library And Usage Summary**
 - **Phase 6 - Manual Upload And Processing Backbone**
 - **Phase 7 - Local Dependency Runtime And Integration Foundations**
+- **Phase 8 - Retrieval And Knowledge Foundations**
+- **Phase 9 - Search, Entities, And Graph Exploration**
+- **Phase 10 - Stateful Workflows And Chat Foundations**
+- **Phase 11 - Web Workspace Foundations**
+- **Phase 12 - Retrieval And Interaction Web Surfaces**
+- **Phase 13 - Self-Hosted Operator Completion**
 
 - The canonical application roots are `apps/api` and `apps/web`.
 - Shared contracts live in `packages/contracts`.
@@ -28,12 +34,12 @@ This repository currently implements:
 
 The clean repo now provides:
 
-- a bootable FastAPI runtime with auth, spaces, documents, usage, and ingestion slices
-- a bootable Vite + React scaffold with role-aware shells and providers
+- a bootable FastAPI runtime with auth, spaces, documents, ingestion, search, chat, entities, tracked state, changes, admin, and usage slices
+- a bootable Vite + React workspace with public login/register/status routes plus authenticated and admin shells
 - shared contracts and OpenAPI export tooling
-- Alembic-backed relational foundations for identity, spaces, documents, usage, and ingestion jobs
+- Alembic-backed relational foundations for identity, spaces, documents, usage, chat, tracked state, changes, and corrections
 - runnable local dev Docker wiring for the app stack plus Dockerized Supabase and Ollama dependencies
-- an opt-in Phase 7 infra smoke path for live readiness and manual-upload verification
+- operator-facing readiness, health, and effective-instance-policy surfaces for self-hosted installs
 
 ## Preserved Phase 0 Conventions
 
@@ -45,7 +51,7 @@ The rebuild currently preserves the original stack direction while the structure
 - Frontend package manager: `npm`
 - Database migrations: Alembic
 - Local development orchestration: Docker Compose
-- Shared contracts: scaffolded now in `packages/contracts`, with a Phase 2 OpenAPI export and TypeScript-generation workflow stub
+- Shared contracts: exported from the backend and generated into `packages/contracts`
 - Script ownership: thin developer entrypoints under `scripts/dev`, `scripts/test`, and `scripts/ops`
 
 ## Repository Structure
@@ -103,7 +109,7 @@ The repo now has a runnable two-app development skeleton with `./dev-setup.sh` a
 
 ## Local Full-Stack Flow
 
-Use these commands for the Phase 7 local runtime:
+Use these commands for the local runtime:
 
 - `./dev-setup.sh infra up` to bootstrap and start Dockerized Supabase plus Ollama
 - `./dev-setup.sh daemon` to start the app stack in the background
@@ -112,16 +118,19 @@ Use these commands for the Phase 7 local runtime:
 - `./dev-setup.sh logs` and `./dev-setup.sh infra logs` for app or dependency log inspection
 - `./dev-setup.sh down` and `./dev-setup.sh infra down` to tear the stacks down
 
-Phase 7 readiness and `test-infra` prove local infrastructure reachability plus ingestion confidence. They do not yet prove retrieval, embeddings, entities, or graph projection behavior, which remain Phase 8 work.
+The logged-out surface intentionally stays small for self-hosted installs:
+
+- `/` and `/login` render the login page
+- `/register` supports open self-registration
+- `/status` remains the backend-served system status page
 
 ## What Is Deferred
 
 The following work is still deferred:
 
-- retrieval projection, embeddings, entity extraction, and graph projection
-- search, chat, tracked-state, changes, corrections, and admin product surfaces
-- full frontend feature implementation beyond the current shell/runtime scaffolds
-- deeper critical-path E2E coverage beyond shell and opt-in infra smoke validation
+- broader critical-path E2E coverage across search, chat, tracked state, and guarded admin workflows
+- final hardening and timeout cleanup for the slowest frontend and integration paths
+- additional operator documentation polish from clone to local production-style operation
 
 ## Placeholder Directories
 

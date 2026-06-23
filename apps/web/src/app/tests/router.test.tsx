@@ -30,13 +30,14 @@ describe("AppRouter", () => {
     window.localStorage.clear();
   });
 
-  it("renders public home route", () => {
+  it("renders login on the default public route", () => {
     renderRoute("/");
-    expect(screen.getByText("Ragdoll Workspace")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Status" })).toHaveAttribute(
       "href",
       "http://localhost:8031/status"
     );
+    expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
   });
 
   it("renders the authenticated dashboard when a session token is present", async () => {

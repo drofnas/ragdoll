@@ -73,7 +73,7 @@ export function AccountPage() {
     <Stack gap="xl">
       <Stack gap={4}>
         <Title order={2}>Account</Title>
-        <Text c="dimmed">Manage your profile, password, feature flags, and current usage envelope.</Text>
+        <Text c="dimmed">Manage your profile, password, and current usage envelope.</Text>
       </Stack>
 
       {errorMessage ? (
@@ -135,19 +135,16 @@ export function AccountPage() {
           <Stack gap="md">
             <Group justify="space-between">
               <Title order={4}>Profile state</Title>
-              <Badge variant="light">{currentUser?.plan_tier ?? "unknown"}</Badge>
+              <Badge variant="light">{currentUser?.is_active ? "Active" : "Disabled"}</Badge>
             </Group>
             <Text>Last login: {formatDateTime(currentUser?.last_login)}</Text>
             <Text>Admin access: {currentUser?.is_admin ? "Yes" : "No"}</Text>
             <Text>Password rotation required: {currentUser?.must_change_password ? "Yes" : "No"}</Text>
             <Divider />
-            <Title order={5}>Feature flags</Title>
+            <Title order={5}>Instance policy</Title>
             <List size="sm">
-              {Object.entries(currentUser?.feature_flags ?? {}).map(([key, enabled]) => (
-                <List.Item key={key}>
-                  {key}: {String(enabled)}
-                </List.Item>
-              ))}
+              <List.Item>Usage limits are controlled by self-hosted instance configuration.</List.Item>
+              <List.Item>Administrators can manage access, password rotation, and operator workflows.</List.Item>
             </List>
           </Stack>
         </Card>
@@ -157,7 +154,7 @@ export function AccountPage() {
         <Stack gap="md">
           <Group justify="space-between">
             <Title order={4}>Usage summary</Title>
-            <Badge variant="light">{usageQuery.data?.plan_tier ?? "loading"}</Badge>
+            <Badge variant="light">Config-driven</Badge>
           </Group>
 
           {usageQuery.isLoading ? (

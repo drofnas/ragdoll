@@ -4,6 +4,44 @@
 
 // Do not edit by hand.
 
+export interface AdminEffectiveLimitsResponse {
+  documents?: number | null;
+  max_file_size_bytes?: number | null;
+  chunks?: number | null;
+  storage_bytes?: number | null;
+  tokens_5h?: number | null;
+  tokens_week?: number | null;
+  retrieval_chunks: number;
+  output_tokens: number;
+  per_document_chunks: number;
+  upload_rate_limit: UploadRateLimitPolicy;
+}
+
+export interface AdminManagedUserListResponse {
+  items: Array<AdminManagedUserResponse>;
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AdminManagedUserResponse {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  must_change_password: boolean;
+  last_login?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUpdateUserRequest {
+  is_active?: boolean | null;
+  is_admin?: boolean | null;
+  must_change_password?: boolean | null;
+}
+
 export interface BatchDocumentStatusRequest {
   document_ids?: Array<string>;
 }
@@ -354,8 +392,6 @@ export interface MutationResult {
   message?: string | null;
 }
 
-export type PlanTier = "free" | "pro" | "internal";
-
 export interface ProblemResponse {
   type?: string;
   title?: string;
@@ -537,6 +573,12 @@ export interface UploadDocumentResponse {
   processing_status: ProcessingStatus;
 }
 
+export interface UploadRateLimitPolicy {
+  enabled: boolean;
+  requests: number;
+  window_seconds: number;
+}
+
 export interface UsageAmounts {
   documents?: number;
   chunks?: number;
@@ -577,7 +619,6 @@ export interface UsageStatusFlags {
 }
 
 export interface UsageSummaryResponse {
-  plan_tier: string;
   usage: UsageAmounts;
   limits: UsageLimitSet;
   percent_used: UsagePercentages;
@@ -592,8 +633,6 @@ export interface UserProfileResponse {
   is_active: boolean;
   is_admin?: boolean;
   must_change_password?: boolean;
-  plan_tier?: PlanTier;
-  feature_flags?: Record<string, boolean>;
   last_login?: string | null;
 }
 
@@ -604,6 +643,10 @@ export interface ValidationError {
 }
 
 export interface ApiOperations {
+  "read_effective_limits_api_v1_admin_effective_limits_get": ReadEffectiveLimitsApiV1AdminEffectiveLimitsGetOperation;
+  "read_managed_users_api_v1_admin_users_get": ReadManagedUsersApiV1AdminUsersGetOperation;
+  "read_managed_user_api_v1_admin_users__user_id__get": ReadManagedUserApiV1AdminUsersUserIdGetOperation;
+  "patch_managed_user_api_v1_admin_users__user_id__patch": PatchManagedUserApiV1AdminUsersUserIdPatchOperation;
   "login_api_v1_auth_login_post": LoginApiV1AuthLoginPostOperation;
   "read_current_user_api_v1_auth_me_get": ReadCurrentUserApiV1AuthMeGetOperation;
   "patch_current_user_api_v1_auth_me_patch": PatchCurrentUserApiV1AuthMePatchOperation;
@@ -653,6 +696,81 @@ export interface ApiOperations {
   "read_my_usage_api_v1_usage_me_get": ReadMyUsageApiV1UsageMeGetOperation;
   "health_liveness_health_get": HealthLivenessHealthGetOperation;
   "runtime_status_status_get": RuntimeStatusStatusGetOperation;
+}
+
+export interface ReadEffectiveLimitsApiV1AdminEffectiveLimitsGetOperation {
+  method: "get";
+  path: "/api/v1/admin/effective-limits";
+  pathParams: never;
+  queryParams: never;
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: AdminEffectiveLimitsResponse;
+  401: ProblemResponse;
+  403: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: AdminEffectiveLimitsResponse;
+}
+
+export interface ReadManagedUsersApiV1AdminUsersGetOperation {
+  method: "get";
+  path: "/api/v1/admin/users";
+  pathParams: never;
+  queryParams: {
+  page?: number;
+  page_size?: number;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: AdminManagedUserListResponse;
+  401: ProblemResponse;
+  403: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: AdminManagedUserListResponse;
+}
+
+export interface ReadManagedUserApiV1AdminUsersUserIdGetOperation {
+  method: "get";
+  path: "/api/v1/admin/users/{user_id}";
+  pathParams: {
+  user_id: string;
+};
+  queryParams: never;
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: AdminManagedUserResponse;
+  401: ProblemResponse;
+  403: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: AdminManagedUserResponse;
+}
+
+export interface PatchManagedUserApiV1AdminUsersUserIdPatchOperation {
+  method: "patch";
+  path: "/api/v1/admin/users/{user_id}";
+  pathParams: {
+  user_id: string;
+};
+  queryParams: never;
+  requestBody: AdminUpdateUserRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: AdminManagedUserResponse;
+  401: ProblemResponse;
+  403: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: AdminManagedUserResponse;
 }
 
 export interface LoginApiV1AuthLoginPostOperation {
