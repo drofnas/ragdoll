@@ -20,6 +20,7 @@ class ChatSession(Base):
 
     __tablename__ = "chat_sessions"
     __table_args__ = (
+        Index("ix_chat_sessions_document_id", "document_id"),
         Index("ix_chat_sessions_space_id", "space_id"),
         Index("ix_chat_sessions_owner_user_id", "owner_user_id"),
         Index("ix_chat_sessions_updated_at", "updated_at"),
@@ -35,6 +36,11 @@ class ChatSession(Base):
         SqlUuid,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    document_id: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="New chat")
     created_at: Mapped[datetime] = mapped_column(

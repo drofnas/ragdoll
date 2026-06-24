@@ -20,6 +20,7 @@ import { ApiProblemError } from "../../../shared/api/client";
 import { triggerBrowserDownload } from "../../../shared/lib/downloads";
 import { formatDateTime, formatElapsedDuration, formatFileSize, humanizeStageStatus } from "../../../shared/lib/formatting";
 import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { createChatSession } from "../../chat/api/chatApi";
 import {
   deleteDocument,
   downloadDocument,
@@ -41,6 +42,7 @@ export function DocumentDetailPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
+  const [isStartingChat, setIsStartingChat] = useState(false);
 
   const detailQuery = useQuery({
     enabled: Boolean(documentId),
@@ -153,6 +155,30 @@ export function DocumentDetailPage() {
     }
   }
 
+  async function handleStartDocumentChat() {
+    if (!detailQuery.data) {
+      return;
+    }
+
+    setIsStartingChat(true);
+    setErrorMessage(null);
+    try {
+      const session = await createChatSession({
+        space_id: detailQuery.data.space_id,
+        document_id: detailQuery.data.id,
+      });
+      navigate(`/chat/${session.id}`);
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        setErrorMessage(error.problem.detail);
+      } else {
+        setErrorMessage("Unable to start a chat for this document right now.");
+      }
+    } finally {
+      setIsStartingChat(false);
+    }
+  }
+
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="end">
@@ -228,6 +254,9 @@ export function DocumentDetailPage() {
                 <Title order={4}>Actions</Title>
                 <Button loading={isDownloading} onClick={() => void handleDownloadDocument()}>
                   Download original
+                </Button>
+                <Button loading={isStartingChat} variant="light" onClick={() => void handleStartDocumentChat()}>
+                  Chat about this document
                 </Button>
                 <Select
                   data={spaces

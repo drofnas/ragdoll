@@ -27,6 +27,7 @@ class ChatMessageRecord(BaseModel):
 class ChatSessionSummary(BaseModel):
     id: UUID
     space_id: UUID
+    document_id: UUID | None = None
     title: str
     message_count: int = Field(ge=0)
     last_message_at: datetime | None = None

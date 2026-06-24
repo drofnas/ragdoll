@@ -119,6 +119,7 @@ export interface ChatSendMessageResponse {
 export interface ChatSessionDetail {
   id: string;
   space_id: string;
+  document_id?: string | null;
   title: string;
   message_count: number;
   last_message_at?: string | null;
@@ -137,6 +138,7 @@ export interface ChatSessionListResponse {
 export interface ChatSessionSummary {
   id: string;
   space_id: string;
+  document_id?: string | null;
   title: string;
   message_count: number;
   last_message_at?: string | null;
@@ -921,6 +923,7 @@ export interface PostChatSessionApiV1ChatSessionsPostOperation {
   path: "/api/v1/chat/sessions";
   pathParams: never;
   queryParams: {
+  document_id?: string | null;
   space_id?: string | null;
   all_spaces?: boolean;
 };
@@ -1088,6 +1091,7 @@ export interface ReadDocumentsApiV1DocumentsGetOperation {
   404: ProblemResponse;
   409: ProblemResponse;
   422: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentListResponse;
 }
@@ -1107,6 +1111,7 @@ export interface DeleteDocumentRouteApiV1DocumentsDocumentIdDeleteOperation {
   404: ProblemResponse;
   409: ProblemResponse;
   422: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: MutationResult;
 }
@@ -1126,6 +1131,7 @@ export interface ReadDocumentApiV1DocumentsDocumentIdGetOperation {
   404: ProblemResponse;
   409: ProblemResponse;
   422: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentDetail;
 }
@@ -1145,6 +1151,7 @@ export interface PatchDocumentApiV1DocumentsDocumentIdPatchOperation {
   404: ProblemResponse;
   409: ProblemResponse;
   422: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentDetail;
 }
@@ -1164,6 +1171,7 @@ export interface DownloadDocumentApiV1DocumentsDocumentIdDownloadGetOperation {
   404: ProblemResponse;
   409: ProblemResponse;
   422: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: unknown;
 }
@@ -1241,6 +1249,7 @@ export interface ReadBatchDocumentStatusApiV1IngestionDocumentsStatusBatchPostOp
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: BatchDocumentStatusResponse;
 }
@@ -1263,6 +1272,7 @@ export interface ReprocessDocumentApiV1IngestionDocumentsDocumentIdReprocessPost
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1285,6 +1295,7 @@ export interface RetryExtractionApiV1IngestionDocumentsDocumentIdRetryExtraction
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1307,6 +1318,7 @@ export interface RetryGraphApiV1IngestionDocumentsDocumentIdRetryGraphPostOperat
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1329,6 +1341,7 @@ export interface RetryParsingApiV1IngestionDocumentsDocumentIdRetryParsingPostOp
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1351,6 +1364,7 @@ export interface RetryVectorApiV1IngestionDocumentsDocumentIdRetryVectorPostOper
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1373,6 +1387,7 @@ export interface ReadDocumentStatusApiV1IngestionDocumentsDocumentIdStatusGetOpe
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: DocumentProcessingStatusResponse;
 }
@@ -1395,6 +1410,7 @@ export interface CreateUploadApiV1IngestionUploadsPostOperation {
   413: ProblemResponse;
   422: ProblemResponse;
   429: ProblemResponse;
+  503: ProblemResponse;
 };
   successResponse: UploadDocumentResponse;
 }

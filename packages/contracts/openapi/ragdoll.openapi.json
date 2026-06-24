@@ -635,6 +635,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -730,6 +742,18 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
           },
           "id": {
             "format": "uuid",
@@ -4558,6 +4582,23 @@
         "parameters": [
           {
             "in": "query",
+            "name": "document_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "space_id",
             "required": false,
             "schema": {
@@ -5395,6 +5436,16 @@
               }
             },
             "description": "Request validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -5473,6 +5524,16 @@
               }
             },
             "description": "Request validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -5549,6 +5610,16 @@
               }
             },
             "description": "Request validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -5635,6 +5706,16 @@
               }
             },
             "description": "Request validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -5711,6 +5792,16 @@
               }
             },
             "description": "Request validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6073,6 +6164,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6181,6 +6282,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6289,6 +6400,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6397,6 +6518,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6505,6 +6636,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6613,6 +6754,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6721,6 +6872,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [
@@ -6846,6 +7007,16 @@
               }
             },
             "description": "Upload rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Document storage is temporarily unavailable."
           }
         },
         "security": [

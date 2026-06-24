@@ -8,6 +8,7 @@ import { AUTH_ACCESS_TOKEN_STORAGE_KEY } from "../../../shared/state/authSession
 import { DocumentDetailPage } from "../pages/DocumentDetailPage";
 import { DocumentsPage } from "../pages/DocumentsPage";
 import {
+  chatSessionDetail,
   documentDetail,
   documentListResponse,
   documentStatusResponse,
@@ -161,6 +162,59 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => expect(screen.getByText("Overall: pending")).toBeInTheDocument());
     expect(screen.getByText("Latest job: queued")).toBeInTheDocument();
+  });
+
+  it("starts a document-first chat session from the document detail page", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/documents/${documentDetail.id}`) && (!init?.method || init.method === "GET")) {
+          return jsonResponse(documentDetail);
+        }
+        if (url.includes(`/api/v1/ingestion/documents/${documentDetail.id}/status`)) {
+          return jsonResponse(documentStatusResponse);
+        }
+        if (url.includes("/api/v1/chat/sessions") && init?.method === "POST") {
+          expect(url).toContain(`space_id=${documentDetail.space_id}`);
+          expect(url).toContain(`document_id=${documentDetail.id}`);
+          return jsonResponse({
+            ...chatSessionDetail,
+            id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            message_count: 0,
+            messages: [],
+            title: "New chat",
+          });
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/documents/${documentDetail.id}`]}>
+        <AppProviders>
+          <Routes>
+            <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
+            <Route path="/chat/:sessionId" element={<div>Chat opened</div>} />
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText(documentDetail.title)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Chat about this document" }));
+
+    await waitFor(() => expect(screen.getByText("Chat opened")).toBeInTheDocument());
   });
 
   it("shows extraction progress details for long-running document jobs", async () => {

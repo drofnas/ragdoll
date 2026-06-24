@@ -28,6 +28,34 @@ from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids
 from ragdoll.platform.db.models import CanonicalEntity, Document, DocumentChunk, Entity
 from ragdoll.platform.llm import DeterministicEmbeddingService, get_embedding_generation_service
 
+LOW_SIGNAL_QUERY_TERMS = {
+    "a",
+    "about",
+    "an",
+    "app",
+    "application",
+    "can",
+    "describe",
+    "do",
+    "does",
+    "explain",
+    "give",
+    "i",
+    "is",
+    "me",
+    "of",
+    "overview",
+    "please",
+    "show",
+    "summarize",
+    "tell",
+    "the",
+    "this",
+    "what",
+    "who",
+    "you",
+}
+
 
 @dataclass
 class SearchCandidate:
@@ -42,7 +70,9 @@ def _owner_user_id(subject: str) -> UUID:
 
 
 def _query_terms(query_text: str) -> list[str]:
-    return [term for term in re.findall(r"[a-z0-9]+", query_text.lower()) if term]
+    terms = [term for term in re.findall(r"[a-z0-9]+", query_text.lower()) if term]
+    meaningful_terms = [term for term in terms if term not in LOW_SIGNAL_QUERY_TERMS]
+    return meaningful_terms or terms
 
 
 def _chunk_locator(chunk: DocumentChunk) -> str:
@@ -106,29 +136,30 @@ def _query_embedding(query_text: str, *, prefer_deterministic: bool = False) -> 
 
 
 def _boolean_score(record: ChunkSearchRecord, query_text: str, terms: list[str]) -> float:
-    haystack = " ".join(
-        [
-            record.document.title,
-            record.document.original_filename,
-            record.chunk.text_content,
-        ]
-    ).lower()
+    title_haystack = " ".join([record.document.title, record.document.original_filename]).lower()
+    chunk_haystack = record.chunk.text_content.lower()
+    haystack = " ".join([title_haystack, chunk_haystack]).strip()
     if not haystack:
         return 0.0
-    exact_phrase_bonus = 3.0 if query_text.lower() in haystack else 0.0
-    token_hits = sum(haystack.count(term) for term in terms)
-    return exact_phrase_bonus + float(token_hits)
+    exact_phrase_bonus = 4.0 if query_text.lower() in haystack else 0.0
+    if not terms and exact_phrase_bonus == 0.0:
+        return 0.0
+    title_hits = sum(1 for term in terms if term in title_haystack)
+    content_hits = sum(chunk_haystack.count(term) for term in terms)
+    return exact_phrase_bonus + (title_hits * 3.0) + float(content_hits)
 
 
 def _graph_score(record: EntitySearchRecord, query_text: str, terms: list[str]) -> float:
     normalized_name = record.entity.normalized_name.lower()
     display_name = record.entity.display_name.lower()
-    exact_phrase_bonus = 3.0 if query_text.lower() in normalized_name or query_text.lower() in display_name else 0.0
+    exact_phrase_bonus = 4.0 if query_text.lower() in normalized_name or query_text.lower() in display_name else 0.0
     token_hits = sum(
         1.0
         for term in terms
         if term in normalized_name or term in display_name or term in record.entity.entity_type.lower()
     )
+    if exact_phrase_bonus == 0.0 and token_hits == 0:
+        return 0.0
     return exact_phrase_bonus + token_hits + min(record.mention_count, 10) / 10.0
 
 

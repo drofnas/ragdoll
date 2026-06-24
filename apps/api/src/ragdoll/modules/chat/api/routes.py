@@ -43,8 +43,14 @@ def post_chat_session(
     current_user: CurrentUserDep,
     db: DatabaseSessionDep,
     space_scope: SpaceScopeDep,
+    document_id: UUID | None = None,
 ) -> ChatSessionSummary:
-    chat_session = create_chat_session(db, current_user.subject, space_scope=space_scope)
+    chat_session = create_chat_session(
+        db,
+        current_user.subject,
+        space_scope=space_scope,
+        document_id=document_id,
+    )
     return build_chat_session_summary(chat_session)
 
 

@@ -226,6 +226,11 @@ export function ChatPage() {
                         >
                           {session.title}
                         </Button>
+                        {session.document_id ? (
+                          <Badge color="teal" variant="light" w="fit-content">
+                            document-first
+                          </Badge>
+                        ) : null}
                         <Text c="dimmed" size="sm">
                           {session.message_count} messages · updated {formatDateTime(session.updated_at)}
                         </Text>
@@ -252,9 +257,16 @@ export function ChatPage() {
                 </Text>
               </Stack>
               {detailQuery.data ? (
-                <Badge variant="light">
-                  {detailQuery.data.message_count} messages
-                </Badge>
+                <Group gap="xs">
+                  {detailQuery.data.document_id ? (
+                    <Badge color="teal" variant="light">
+                      document-first
+                    </Badge>
+                  ) : null}
+                  <Badge variant="light">
+                    {detailQuery.data.message_count} messages
+                  </Badge>
+                </Group>
               ) : null}
             </Group>
 

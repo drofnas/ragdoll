@@ -42,3 +42,7 @@ def test_openapi_export_includes_phase10_contracts(configured_database, tmp_path
     assert "TrackedFieldSummary" in schemas
     assert "ChangeEventDetail" in schemas
     assert "CorrectionRecordResponse" in schemas
+    assert "document_id" in schemas["ChatSessionSummary"]["properties"]
+    assert "document_id" in schemas["ChatSessionDetail"]["properties"]
+    post_parameters = payload["paths"]["/api/v1/chat/sessions"]["post"]["parameters"]
+    assert any(parameter["name"] == "document_id" for parameter in post_parameters)

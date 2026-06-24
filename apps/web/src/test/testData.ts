@@ -202,6 +202,7 @@ export const chatSessionListResponse: ChatSessionListResponse = {
   items: [
     {
       created_at: "2026-06-22T17:10:00Z",
+      document_id: documentDetail.id,
       id: "88888888-8888-8888-8888-888888888888",
       last_message_at: "2026-06-22T17:15:00Z",
       message_count: 2,

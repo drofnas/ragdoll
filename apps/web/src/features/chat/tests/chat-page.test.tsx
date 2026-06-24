@@ -68,6 +68,7 @@ describe("ChatPage", () => {
         ).toBeInTheDocument()
       );
       expect(screen.getByText("degraded")).toBeInTheDocument();
+      expect(screen.getAllByText("document-first").length).toBeGreaterThan(0);
 
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Submit correction" }));
