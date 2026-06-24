@@ -20,7 +20,6 @@ import { ApiProblemError } from "../../../shared/api/client";
 import {
   formatCitationLabel,
   formatDateTime,
-  formatSearchMode,
   formatSourceTier
 } from "../../../shared/lib/formatting";
 import { useSpaceScope } from "../../../shared/state/spaceScope";
@@ -288,16 +287,6 @@ export function ChatPage() {
                               <Badge color={messageRecord.role === "assistant" ? "teal" : "gray"}>
                                 {messageRecord.role}
                               </Badge>
-                              {messageRecord.retrieval_mode ? (
-                                <Badge variant="light">
-                                  {formatSearchMode(messageRecord.retrieval_mode as never)}
-                                </Badge>
-                              ) : null}
-                              {messageRecord.degraded ? (
-                                <Badge color="yellow" variant="light">
-                                  degraded
-                                </Badge>
-                              ) : null}
                             </Group>
                             <Text c="dimmed" size="sm">
                               {formatDateTime(messageRecord.created_at)}
@@ -314,19 +303,6 @@ export function ChatPage() {
                               {messageRecord.citations.map((citation, index) => (
                                 <Text key={`${messageRecord.id}-${index}`} size="sm">
                                   {formatCitationLabel(citation)} · {formatSourceTier(citation.source_tier)}
-                                </Text>
-                              ))}
-                            </Stack>
-                          ) : null}
-
-                          {messageRecord.suggestions && messageRecord.suggestions.length > 0 ? (
-                            <Stack gap={4}>
-                              <Text fw={600} size="sm">
-                                Suggestions
-                              </Text>
-                              {messageRecord.suggestions.map((suggestion) => (
-                                <Text key={suggestion.prompt} size="sm">
-                                  {suggestion.label}: {suggestion.prompt}
                                 </Text>
                               ))}
                             </Stack>

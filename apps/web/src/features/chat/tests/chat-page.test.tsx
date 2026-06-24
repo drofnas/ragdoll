@@ -23,7 +23,7 @@ describe("ChatPage", () => {
   });
 
   it(
-    "renders a degraded assistant answer and submits a correction from the transcript",
+    "renders an assistant answer and submits a correction from the transcript",
     async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
 
@@ -67,7 +67,10 @@ describe("ChatPage", () => {
           screen.getByText(chatSessionDetail.messages?.[1].content ?? "")
         ).toBeInTheDocument()
       );
-      expect(screen.getByText("degraded")).toBeInTheDocument();
+      expect(screen.getByText("assistant")).toBeInTheDocument();
+      expect(screen.queryByText("degraded")).not.toBeInTheDocument();
+      expect(screen.queryByText("combined")).not.toBeInTheDocument();
+      expect(screen.queryByText("Suggestions")).not.toBeInTheDocument();
       expect(screen.getAllByText("document-first").length).toBeGreaterThan(0);
 
       const user = userEvent.setup();
