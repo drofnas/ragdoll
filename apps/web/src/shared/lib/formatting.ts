@@ -12,6 +12,45 @@ export function formatDateTime(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
+export function formatRelativeAgeShort(value: string | null | undefined, now = Date.now()) {
+  if (!value) {
+    return "?";
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) {
+    return "?";
+  }
+
+  const elapsedMs = Math.max(0, now - timestamp);
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const weekMs = 7 * dayMs;
+  const monthMs = 30 * dayMs;
+  const yearMs = 365 * dayMs;
+
+  if (elapsedMs < minuteMs) {
+    return "now";
+  }
+  if (elapsedMs < hourMs) {
+    return `${Math.floor(elapsedMs / minuteMs)}m`;
+  }
+  if (elapsedMs < dayMs) {
+    return `${Math.floor(elapsedMs / hourMs)}h`;
+  }
+  if (elapsedMs < weekMs) {
+    return `${Math.floor(elapsedMs / dayMs)}d`;
+  }
+  if (elapsedMs < monthMs) {
+    return `${Math.floor(elapsedMs / weekMs)}w`;
+  }
+  if (elapsedMs < yearMs) {
+    return `${Math.floor(elapsedMs / monthMs)}mo`;
+  }
+  return `${Math.floor(elapsedMs / yearMs)}y`;
+}
+
 export function formatElapsedDuration(value: string | null | undefined, now = Date.now()) {
   if (!value) {
     return "Not available";

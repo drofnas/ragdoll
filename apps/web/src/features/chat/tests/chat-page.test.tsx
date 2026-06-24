@@ -25,42 +25,43 @@ describe("ChatPage", () => {
   it(
     "renders an assistant answer and submits a correction from the transcript",
     async () => {
-    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+      window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+      vi.spyOn(Date, "now").mockReturnValue(new Date("2026-06-22T17:25:00Z").getTime());
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (url.includes("/api/v1/auth/me")) {
-          return jsonResponse(userProfile);
-        }
-        if (url.includes("/api/v1/spaces")) {
-          return jsonResponse(spaceListResponse);
-        }
-        if (url.includes("/api/v1/chat/sessions/") && !url.includes("/messages")) {
-          return jsonResponse(chatSessionDetail);
-        }
-        if (url.includes("/api/v1/chat/sessions")) {
-          return jsonResponse(chatSessionListResponse);
-        }
-        if (url.includes("/api/v1/corrections") && init?.method === "POST") {
-          expect(String(init?.body)).toContain(chatSessionDetail.id);
-          expect(String(init?.body)).toContain("chat_message_id");
-          return jsonResponse(correctionDetail);
-        }
-        return jsonResponse({}, { status: 404 });
-      })
-    );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.includes("/api/v1/auth/me")) {
+            return jsonResponse(userProfile);
+          }
+          if (url.includes("/api/v1/spaces")) {
+            return jsonResponse(spaceListResponse);
+          }
+          if (url.includes("/api/v1/chat/sessions/") && !url.includes("/messages")) {
+            return jsonResponse(chatSessionDetail);
+          }
+          if (url.includes("/api/v1/chat/sessions")) {
+            return jsonResponse(chatSessionListResponse);
+          }
+          if (url.includes("/api/v1/corrections") && init?.method === "POST") {
+            expect(String(init?.body)).toContain(chatSessionDetail.id);
+            expect(String(init?.body)).toContain("chat_message_id");
+            return jsonResponse(correctionDetail);
+          }
+          return jsonResponse({}, { status: 404 });
+        })
+      );
 
-    render(
-      <MemoryRouter initialEntries={[`/chat/${chatSessionDetail.id}`]}>
-        <AppProviders>
-          <Routes>
-            <Route path="/chat/:sessionId" element={<ChatPage />} />
-          </Routes>
-        </AppProviders>
-      </MemoryRouter>
-    );
+      render(
+        <MemoryRouter initialEntries={[`/chat/${chatSessionDetail.id}`]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/chat/:sessionId" element={<ChatPage />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>
+      );
 
       await waitFor(() =>
         expect(
@@ -71,6 +72,15 @@ describe("ChatPage", () => {
       expect(screen.queryByText("degraded")).not.toBeInTheDocument();
       expect(screen.queryByText("combined")).not.toBeInTheDocument();
       expect(screen.queryByText("Suggestions")).not.toBeInTheDocument();
+      const sessionLink = await screen.findByRole("link", {
+        name: /Architecture questions, updated/
+      });
+      expect(sessionLink).toHaveClass("grid");
+      expect(sessionLink).toHaveClass("grid-cols-[minmax(0,1fr)_auto]");
+      expect(sessionLink.querySelector("span:first-child")).toHaveClass("truncate");
+      expect(sessionLink.querySelector("span:last-child")).toHaveClass("justify-self-end");
+      expect(screen.getByText("10m")).toBeInTheDocument();
+      expect(screen.queryByText(/2 messages · updated/)).not.toBeInTheDocument();
       expect(screen.getAllByText("document-first").length).toBeGreaterThan(0);
 
       const user = userEvent.setup();

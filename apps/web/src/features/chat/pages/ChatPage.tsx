@@ -7,14 +7,16 @@ import { Page, PageHeader } from "@/components/app/page";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
   formatDateTime,
+  formatRelativeAgeShort,
   formatSourceTier
 } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
@@ -177,15 +179,21 @@ export function ChatPage() {
         </Alert>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <section className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-            <CardTitle>Sessions</CardTitle>
-            <Button disabled={allSpaces} variant="outline" onClick={() => void handleCreateSession()}>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4">
+            <CardTitle className="text-lg">Sessions</CardTitle>
+            <Button
+              className="h-8 px-2.5"
+              disabled={allSpaces}
+              size="sm"
+              variant="outline"
+              onClick={() => void handleCreateSession()}
+            >
               {isCreatingSession ? "Creating…" : "New session"}
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 pb-4 pt-0">
             {sessionsQuery.error instanceof ApiProblemError ? (
               <Alert variant="destructive">
                 <AlertTitle>Unable to load sessions</AlertTitle>
@@ -194,28 +202,38 @@ export function ChatPage() {
             ) : sessionsQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading sessions…</p>
             ) : sessionsQuery.data && sessionsQuery.data.items.length > 0 ? (
-              <ScrollArea className="h-[35rem] pr-3">
-                <div className="space-y-3">
-                  {sessionsQuery.data.items.map((session) => (
-                    <Card
-                      key={session.id}
-                      className={session.id === sessionId ? "border-primary/40 bg-muted/20" : "shadow-none"}
-                    >
-                      <CardContent className="space-y-3 p-4">
-                        <Button
-                          asChild
-                          className="w-full justify-between"
-                          variant={session.id === sessionId ? "default" : "ghost"}
+              <ScrollArea className="h-[35rem] min-w-0 pr-2">
+                <div className="min-w-0 space-y-1">
+                  {sessionsQuery.data.items.map((session) => {
+                    const isSelected = session.id === sessionId;
+                    const updatedAt = formatDateTime(session.updated_at);
+
+                    return (
+                      <Link
+                        aria-label={`${session.title}, updated ${updatedAt}`}
+                        className={cn(
+                          buttonVariants({
+                            size: "sm",
+                            variant: isSelected ? "default" : "ghost"
+                          }),
+                          "grid w-full max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden px-2 text-left"
+                        )}
+                        key={session.id}
+                        title={`${session.title} · updated ${updatedAt}`}
+                        to={`/chat/${session.id}`}
+                      >
+                        <span className="block min-w-0 truncate text-left">{session.title}</span>
+                        <span
+                          className={cn(
+                            "justify-self-end text-right text-xs tabular-nums",
+                            isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}
                         >
-                          <Link to={`/chat/${session.id}`}>{session.title}</Link>
-                        </Button>
-                        {session.document_id ? <Badge>document-first</Badge> : null}
-                        <p className="text-sm text-muted-foreground">
-                          {session.message_count} messages · updated {formatDateTime(session.updated_at)}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          {formatRelativeAgeShort(session.updated_at)}
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </ScrollArea>
             ) : (
