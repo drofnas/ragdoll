@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useAuthSession } from "@/shared/state/authSession";
+import { AuthUnavailablePanel } from "./AuthUnavailablePanel";
 
 export function AdminRoute({ children }: PropsWithChildren) {
   const { isAuthenticated, isAdmin, status } = useAuthSession();
@@ -16,6 +17,10 @@ export function AdminRoute({ children }: PropsWithChildren) {
         </div>
       </div>
     );
+  }
+
+  if (status === "unavailable") {
+    return <AuthUnavailablePanel />;
   }
 
   if (!isAuthenticated) {

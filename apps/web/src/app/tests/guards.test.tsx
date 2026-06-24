@@ -49,6 +49,51 @@ describe("route guards", () => {
     expect(screen.getByText("login-page")).toBeInTheDocument();
   });
 
+  it("shows an unavailable state without clearing the token when the backend cannot be reached", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "user-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("Failed to fetch")))
+    );
+
+    renderProtected("/protected");
+
+    await waitFor(() =>
+      expect(screen.getByText("Workspace connection unavailable")).toBeInTheDocument()
+    );
+    expect(screen.queryByText("login-page")).not.toBeInTheDocument();
+    expect(screen.getByText(/saved session is still present/i)).toBeInTheDocument();
+    expect(window.localStorage.getItem(AUTH_ACCESS_TOKEN_STORAGE_KEY)).toBe("user-token");
+  });
+
+  it("clears the token and redirects when the backend rejects the session", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "user-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(
+            {
+              detail: "Authentication required",
+              instance: "/api/v1/auth/me",
+              status: 401,
+              title: "Authentication required",
+              type: "https://ragdoll.dev/problems/authentication-required"
+            },
+            { status: 401 }
+          );
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderProtected("/protected");
+
+    await waitFor(() => expect(screen.getByText("login-page")).toBeInTheDocument());
+    expect(window.localStorage.getItem(AUTH_ACCESS_TOKEN_STORAGE_KEY)).toBeNull();
+  });
+
   it("redirects non-admin users away from admin routes", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "user-token");
     vi.stubGlobal(

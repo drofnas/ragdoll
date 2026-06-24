@@ -154,7 +154,7 @@ export function SpaceScopeProvider({ children }: PropsWithChildren) {
       resetScope();
       return;
     }
-    if (status === "loading") {
+    if (status === "loading" || status === "unavailable") {
       setIsReady(false);
       return;
     }

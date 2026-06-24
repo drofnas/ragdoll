@@ -85,6 +85,20 @@ describe("AppRouter", () => {
     expect(screen.getByText("Service overview")).toBeInTheDocument();
   });
 
+  it("shows a status error when the runtime status endpoint cannot be reached", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("Failed to fetch")))
+    );
+
+    renderRoute("/status");
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load runtime status")
+    );
+    expect(screen.getByText(/runtime status endpoint could not be reached/i)).toBeInTheDocument();
+  });
+
   it("renders the authenticated dashboard when a session token is present", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "user-token");
     vi.stubGlobal(

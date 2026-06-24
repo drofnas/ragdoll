@@ -20,7 +20,8 @@ export function StatusPage() {
   const statusQuery = useQuery({
     queryFn: readRuntimeStatus,
     queryKey: ["public-runtime-status"],
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    retry: false
   });
   const backendStatusUrl = `${resolveApiBaseUrl()}/status`;
   const backendStatusJsonUrl = `${backendStatusUrl}?type=json`;
@@ -57,6 +58,13 @@ export function StatusPage() {
         <Alert variant="destructive">
           <AlertTitle>Unable to load runtime status</AlertTitle>
           <AlertDescription>{statusQuery.error.problem.detail}</AlertDescription>
+        </Alert>
+      ) : statusQuery.error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load runtime status</AlertTitle>
+          <AlertDescription>
+            The runtime status endpoint could not be reached. Check that the backend is running.
+          </AlertDescription>
         </Alert>
       ) : null}
 

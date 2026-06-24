@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiProblemError, apiClient, configureApiClientAuth } from "../api/client";
 
-export type AuthSessionStatus = "anonymous" | "authenticated" | "loading";
+export type AuthSessionStatus = "anonymous" | "authenticated" | "loading" | "unavailable";
 
 export const AUTH_ACCESS_TOKEN_STORAGE_KEY = "ragdoll.auth.accessToken";
 
@@ -27,6 +27,7 @@ interface AuthSessionContextValue {
   login: (credentials: LoginCredentials) => Promise<UserProfileResponse>;
   logout: () => void;
   refreshSession: () => Promise<UserProfileResponse | null>;
+  sessionErrorMessage: string | null;
   status: AuthSessionStatus;
 }
 
@@ -60,6 +61,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
   const logoutRef = useRef<() => void>(() => undefined);
   const [status, setStatus] = useState<AuthSessionStatus>(tokenRef.current ? "loading" : "anonymous");
   const [currentUser, setCurrentUser] = useState<UserProfileResponse | null>(null);
+  const [sessionErrorMessage, setSessionErrorMessage] = useState<string | null>(null);
 
   function clearCachedProductState() {
     queryClient.clear();
@@ -67,6 +69,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
 
   function applyAuthenticatedUser(user: UserProfileResponse) {
     setCurrentUser(user);
+    setSessionErrorMessage(null);
     setStatus("authenticated");
     return user;
   }
@@ -75,8 +78,20 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     tokenRef.current = null;
     writeStoredToken(null);
     setCurrentUser(null);
+    setSessionErrorMessage(null);
     setStatus("anonymous");
     clearCachedProductState();
+  }
+
+  function applyUnavailableState(error: unknown) {
+    if (error instanceof ApiProblemError) {
+      setSessionErrorMessage(error.problem.detail);
+    } else {
+      setSessionErrorMessage(
+        "The backend could not be reached. Your saved session is still on this device."
+      );
+    }
+    setStatus("unavailable");
   }
 
   async function refreshSession() {
@@ -95,7 +110,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         applyAnonymousState();
         return null;
       }
-      setStatus("anonymous");
+      applyUnavailableState(error);
       throw error;
     }
   }
@@ -129,7 +144,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     if (!tokenRef.current) {
       return;
     }
-    void refreshSession();
+    void refreshSession().catch(() => undefined);
   }, []);
 
   const value: AuthSessionContextValue = {
@@ -139,6 +154,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     login,
     logout,
     refreshSession,
+    sessionErrorMessage,
     status
   };
 
