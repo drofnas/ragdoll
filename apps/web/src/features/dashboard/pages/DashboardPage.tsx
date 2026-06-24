@@ -1,15 +1,18 @@
-import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { formatDateTime } from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { Page, PageHeader } from "@/components/app/page";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiProblemError } from "@/shared/api/client";
+import { formatDateTime } from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { readUsageSummary } from "../../account/api/accountApi";
 import { listDocuments } from "../../documents/api/documentsApi";
 
 export function DashboardPage() {
-  const { activeSpace, allSpaces, buildReadScopeParams, isReady } = useSpaceScope();
+  const { buildReadScopeParams, isReady } = useSpaceScope();
   const scopeQuery = buildReadScopeParams();
 
   const documentsQuery = useQuery({
@@ -29,84 +32,105 @@ export function DashboardPage() {
   });
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Workspace dashboard</Title>
-        <Group gap="sm">
-          <Badge color={allSpaces ? "blue" : "teal"} variant="light">
-            {allSpaces ? "All spaces" : activeSpace?.name ?? "No active space"}
-          </Badge>
-          <Text c="dimmed">Use the shell scope controls to change what this dashboard summarizes.</Text>
-        </Group>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Overview"
+        title="Workspace dashboard"
+        description="Use the shell scope controls to change what this dashboard summarizes."
+      />
 
-      <SimpleGrid cols={{ base: 1, md: 3 }}>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap={4}>
-            <Text fw={600}>Documents in scope</Text>
-            <Text size="xl">{documentsQuery.data?.total ?? 0}</Text>
-          </Stack>
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Documents in scope</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-4xl font-semibold tracking-tight">
+              {documentsQuery.data?.total ?? 0}
+            </p>
+          </CardContent>
         </Card>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap={4}>
-            <Text fw={600}>Configured retrieval budget</Text>
-            <Text size="xl">{usageQuery.data?.limits.retrieval_chunks ?? "loading"}</Text>
-            <Text c="dimmed" size="sm">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Configured retrieval budget</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-4xl font-semibold tracking-tight">
+              {usageQuery.data?.limits.retrieval_chunks ?? "…"}
+            </p>
+            <p className="text-sm text-muted-foreground">
               Chunks available to retrieval-backed features
-            </Text>
-          </Stack>
+            </p>
+          </CardContent>
         </Card>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap={4}>
-            <Text fw={600}>Upload status</Text>
-            <Text size="xl">{usageQuery.data?.status.partially_indexed_documents ?? 0}</Text>
-            <Text c="dimmed" size="sm">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Upload status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-4xl font-semibold tracking-tight">
+              {usageQuery.data?.status.partially_indexed_documents ?? 0}
+            </p>
+            <p className="text-sm text-muted-foreground">
               Documents still working through processing
-            </Text>
-          </Stack>
+            </p>
+          </CardContent>
         </Card>
-      </SimpleGrid>
+      </section>
 
       {documentsQuery.error instanceof ApiProblemError ? (
-        <Alert color="red" title="Unable to load recent documents">
-          {documentsQuery.error.problem.detail}
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load recent documents</AlertTitle>
+          <AlertDescription>{documentsQuery.error.problem.detail}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Card withBorder radius="lg" p="lg">
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Title order={4}>Recent documents</Title>
-            <Button component={Link} to="/documents" variant="subtle">
-              Open library
-            </Button>
-          </Group>
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div className="space-y-2">
+            <CardTitle>Recent documents</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              The most recently updated documents inside the current read scope.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/documents">Open library</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
           {documentsQuery.isLoading ? (
-            <Text c="dimmed">Loading recent documents…</Text>
+            <p className="text-sm text-muted-foreground">Loading recent documents…</p>
           ) : documentsQuery.data && documentsQuery.data.items.length > 0 ? (
-            <Stack gap="sm">
+            <div className="space-y-3">
               {documentsQuery.data.items.map((document) => (
-                <Group key={document.id} justify="space-between" wrap="nowrap">
-                  <Stack gap={0}>
-                    <Text fw={600}>{document.title}</Text>
-                    <Text c="dimmed" size="sm">
+                <div
+                  key={document.id}
+                  className="flex flex-col gap-2 rounded-md border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">{document.title}</p>
+                    <p className="text-sm text-muted-foreground">
                       {document.original_filename}
-                    </Text>
-                  </Stack>
-                  <Stack align="end" gap={0}>
-                    <Text size="sm">{document.processing_status.overall}</Text>
-                    <Text c="dimmed" size="xs">
+                    </p>
+                  </div>
+                  <div className="space-y-1 text-left sm:text-right">
+                    <p className="text-sm font-medium text-foreground">
+                      {document.processing_status.overall}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTime(document.updated_at)}
-                    </Text>
-                  </Stack>
-                </Group>
+                    </p>
+                  </div>
+                </div>
               ))}
-            </Stack>
+            </div>
           ) : (
-            <Text c="dimmed">Upload a document to start filling in the dashboard.</Text>
+            <p className="text-sm text-muted-foreground">
+              Upload a document to start filling in the dashboard.
+            </p>
           )}
-        </Stack>
+        </CardContent>
       </Card>
-    </Stack>
+    </Page>
   );
 }

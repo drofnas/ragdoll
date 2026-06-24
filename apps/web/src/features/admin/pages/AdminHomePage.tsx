@@ -1,27 +1,28 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  SimpleGrid,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { readRuntimeStatus } from "../../../shared/api/runtimeStatus";
-import { formatDateTime } from "../../../shared/lib/formatting";
+import { Page, PageHeader } from "@/components/app/page";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import { ApiProblemError } from "@/shared/api/client";
+import { readRuntimeStatus } from "@/shared/api/runtimeStatus";
+import { formatDateTime } from "@/shared/lib/formatting";
 import {
   readAdminUser,
   readAdminUsers,
   readEffectiveLimits,
-  updateAdminUser,
+  updateAdminUser
 } from "../api/adminApi";
 
 export function AdminHomePage() {
@@ -30,20 +31,20 @@ export function AdminHomePage() {
 
   const usersQuery = useQuery({
     queryFn: () => readAdminUsers(),
-    queryKey: ["admin-users"],
+    queryKey: ["admin-users"]
   });
   const limitsQuery = useQuery({
     queryFn: readEffectiveLimits,
-    queryKey: ["admin-effective-limits"],
+    queryKey: ["admin-effective-limits"]
   });
   const statusQuery = useQuery({
     queryFn: readRuntimeStatus,
-    queryKey: ["admin-runtime-status"],
+    queryKey: ["admin-runtime-status"]
   });
   const userDetailQuery = useQuery({
     enabled: Boolean(selectedUserId),
     queryFn: () => readAdminUser(selectedUserId!),
-    queryKey: ["admin-user", selectedUserId],
+    queryKey: ["admin-user", selectedUserId]
   });
 
   async function toggleUserField(
@@ -59,161 +60,184 @@ export function AdminHomePage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Operator admin</Title>
-        <Text c="dimmed">
-          Review runtime readiness, inspect effective instance limits, and manage user access for this self-hosted installation.
-        </Text>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Operations"
+        title="Operator admin"
+        description="Review runtime readiness, inspect effective instance limits, and manage user access for this self-hosted installation."
+      />
 
       {feedback ? (
-        <Alert color="teal" title="Saved">
-          {feedback}
+        <Alert variant="success">
+          <AlertTitle>Saved</AlertTitle>
+          <AlertDescription>{feedback}</AlertDescription>
         </Alert>
       ) : null}
 
-      <SimpleGrid cols={{ base: 1, xl: 3 }}>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Title order={4}>Runtime status</Title>
-              <Badge variant="light">{statusQuery.data?.status ?? "loading"}</Badge>
-            </Group>
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+            <CardTitle>Runtime status</CardTitle>
+            <StatusBadge value={statusQuery.data?.status ?? "loading"} />
+          </CardHeader>
+          <CardContent>
             {statusQuery.error instanceof ApiProblemError ? (
-              <Alert color="red" title="Unable to load runtime status">
-                {statusQuery.error.problem.detail}
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load runtime status</AlertTitle>
+                <AlertDescription>{statusQuery.error.problem.detail}</AlertDescription>
               </Alert>
             ) : statusQuery.data ? (
-              <Stack gap="xs">
+              <div className="space-y-3">
                 {Object.entries(statusQuery.data.services).map(([name, service]) => (
-                  <Group key={name} justify="space-between">
-                    <Text tt="capitalize">{name}</Text>
-                    <Badge variant="light">{service.status}</Badge>
-                  </Group>
+                  <div key={name} className="flex items-center justify-between gap-4">
+                    <span className="capitalize">{name}</span>
+                    <StatusBadge value={service.status} />
+                  </div>
                 ))}
-              </Stack>
+              </div>
             ) : (
-              <Text c="dimmed">Loading runtime status…</Text>
+              <p className="text-sm text-muted-foreground">Loading runtime status…</p>
             )}
-          </Stack>
+          </CardContent>
         </Card>
 
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Title order={4}>Effective instance limits</Title>
+        <Card>
+          <CardHeader>
+            <CardTitle>Effective instance limits</CardTitle>
+          </CardHeader>
+          <CardContent>
             {limitsQuery.error instanceof ApiProblemError ? (
-              <Alert color="red" title="Unable to load limits">
-                {limitsQuery.error.problem.detail}
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load limits</AlertTitle>
+                <AlertDescription>{limitsQuery.error.problem.detail}</AlertDescription>
               </Alert>
             ) : limitsQuery.data ? (
-              <Stack gap="xs">
-                <Text>Documents: {limitsQuery.data.documents ?? "unlimited"}</Text>
-                <Text>Storage: {limitsQuery.data.storage_bytes ?? "unlimited"}</Text>
-                <Text>Tokens / 5h: {limitsQuery.data.tokens_5h ?? "unlimited"}</Text>
-                <Text>Tokens / week: {limitsQuery.data.tokens_week ?? "unlimited"}</Text>
-                <Text>Max file size: {limitsQuery.data.max_file_size_bytes ?? "unlimited"} bytes</Text>
-                <Text>Per-document chunks: {limitsQuery.data.per_document_chunks}</Text>
-                <Text>Retrieval chunks: {limitsQuery.data.retrieval_chunks}</Text>
-                <Text>Output tokens: {limitsQuery.data.output_tokens}</Text>
-                <Text>
+              <div className="space-y-3 text-sm">
+                <p>Documents: {limitsQuery.data.documents ?? "unlimited"}</p>
+                <p>Storage: {limitsQuery.data.storage_bytes ?? "unlimited"}</p>
+                <p>Tokens / 5h: {limitsQuery.data.tokens_5h ?? "unlimited"}</p>
+                <p>Tokens / week: {limitsQuery.data.tokens_week ?? "unlimited"}</p>
+                <p>
+                  Max file size: {limitsQuery.data.max_file_size_bytes ?? "unlimited"} bytes
+                </p>
+                <p>Per-document chunks: {limitsQuery.data.per_document_chunks}</p>
+                <p>Retrieval chunks: {limitsQuery.data.retrieval_chunks}</p>
+                <p>Output tokens: {limitsQuery.data.output_tokens}</p>
+                <p>
                   Upload rate limit:{" "}
                   {limitsQuery.data.upload_rate_limit.enabled
                     ? `${limitsQuery.data.upload_rate_limit.requests} per ${limitsQuery.data.upload_rate_limit.window_seconds}s`
                     : "disabled"}
-                </Text>
-              </Stack>
+                </p>
+              </div>
             ) : (
-              <Text c="dimmed">Loading limits…</Text>
+              <p className="text-sm text-muted-foreground">Loading limits…</p>
             )}
-          </Stack>
+          </CardContent>
         </Card>
 
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Title order={4}>Selected user</Title>
+        <Card>
+          <CardHeader>
+            <CardTitle>Selected user</CardTitle>
+          </CardHeader>
+          <CardContent>
             {userDetailQuery.error instanceof ApiProblemError ? (
-              <Alert color="red" title="Unable to load user">
-                {userDetailQuery.error.problem.detail}
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load user</AlertTitle>
+                <AlertDescription>{userDetailQuery.error.problem.detail}</AlertDescription>
               </Alert>
             ) : userDetailQuery.data ? (
-              <Stack gap="sm">
-                <Text fw={600}>{userDetailQuery.data.full_name ?? userDetailQuery.data.email}</Text>
-                <Text c="dimmed" size="sm">
-                  {userDetailQuery.data.email}
-                </Text>
-                <Text>Last login: {formatDateTime(userDetailQuery.data.last_login)}</Text>
-                <Switch
-                  checked={userDetailQuery.data.is_active}
-                  label="Active account"
-                  onChange={(event) => void toggleUserField("is_active", event.currentTarget.checked)}
-                />
-                <Switch
-                  checked={userDetailQuery.data.is_admin}
-                  label="Admin access"
-                  onChange={(event) => void toggleUserField("is_admin", event.currentTarget.checked)}
-                />
-                <Switch
-                  checked={userDetailQuery.data.must_change_password}
-                  label="Require password change"
-                  onChange={(event) =>
-                    void toggleUserField("must_change_password", event.currentTarget.checked)
-                  }
-                />
-              </Stack>
-            ) : (
-              <Text c="dimmed">Choose a user from the table to inspect and manage account state.</Text>
-            )}
-          </Stack>
-        </Card>
-      </SimpleGrid>
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <p className="font-semibold">
+                    {userDetailQuery.data.full_name ?? userDetailQuery.data.email}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{userDetailQuery.data.email}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Last login: {formatDateTime(userDetailQuery.data.last_login)}
+                  </p>
+                </div>
 
-      <Card withBorder radius="lg" p="lg">
-        <Stack gap="md">
-          <Title order={4}>User management</Title>
+                <label className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 px-3 py-2">
+                  <span className="text-sm font-medium">Active account</span>
+                  <Switch
+                    checked={userDetailQuery.data.is_active}
+                    onCheckedChange={(checked) => void toggleUserField("is_active", Boolean(checked))}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 px-3 py-2">
+                  <span className="text-sm font-medium">Admin access</span>
+                  <Switch
+                    checked={userDetailQuery.data.is_admin}
+                    onCheckedChange={(checked) => void toggleUserField("is_admin", Boolean(checked))}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 px-3 py-2">
+                  <span className="text-sm font-medium">Require password change</span>
+                  <Switch
+                    checked={userDetailQuery.data.must_change_password}
+                    onCheckedChange={(checked) =>
+                      void toggleUserField("must_change_password", Boolean(checked))
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Choose a user from the table to inspect and manage account state.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>User management</CardTitle>
+        </CardHeader>
+        <CardContent>
           {usersQuery.error instanceof ApiProblemError ? (
-            <Alert color="red" title="Unable to load users">
-              {usersQuery.error.problem.detail}
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load users</AlertTitle>
+              <AlertDescription>{usersQuery.error.problem.detail}</AlertDescription>
             </Alert>
           ) : usersQuery.data ? (
-            <Table highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>User</Table.Th>
-                  <Table.Th>Admin</Table.Th>
-                  <Table.Th>Active</Table.Th>
-                  <Table.Th>Last login</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Admin</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Last login</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {usersQuery.data.items.map((user) => (
-                  <Table.Tr key={user.id}>
-                    <Table.Td>
-                      <Stack gap={0}>
-                        <Text fw={600}>{user.full_name ?? user.email}</Text>
-                        <Text c="dimmed" size="sm">
-                          {user.email}
-                        </Text>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>{user.is_admin ? "Yes" : "No"}</Table.Td>
-                    <Table.Td>{user.is_active ? "Yes" : "No"}</Table.Td>
-                    <Table.Td>{formatDateTime(user.last_login)}</Table.Td>
-                    <Table.Td>
-                      <Button size="xs" variant="light" onClick={() => setSelectedUserId(user.id)}>
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-semibold">{user.full_name ?? user.email}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.is_admin ? "Yes" : "No"}</TableCell>
+                    <TableCell>{user.is_active ? "Yes" : "No"}</TableCell>
+                    <TableCell>{formatDateTime(user.last_login)}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedUserId(user.id)}>
                         Inspect
                       </Button>
-                    </Table.Td>
-                  </Table.Tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </Table.Tbody>
+              </TableBody>
             </Table>
           ) : (
-            <Text c="dimmed">Loading users…</Text>
+            <p className="text-sm text-muted-foreground">Loading users…</p>
           )}
-        </Stack>
+        </CardContent>
       </Card>
-    </Stack>
+    </Page>
   );
 }

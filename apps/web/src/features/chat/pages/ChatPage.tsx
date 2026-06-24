@@ -1,28 +1,23 @@
 import type { ChatMessageRecord } from "@contracts";
 import { useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  ScrollArea,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
+import { Page, PageHeader } from "@/components/app/page";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
   formatDateTime,
   formatSourceTier
-} from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import {
   createChatSession,
   createCorrection,
@@ -152,243 +147,232 @@ export function ChatPage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Chat</Title>
-        <Text c="dimmed">
-          Ask retrieval-backed questions, review citations, and submit targeted corrections from assistant answers.
-        </Text>
-        <Badge color={allSpaces ? "blue" : "teal"} variant="light" w="fit-content">
-          {allSpaces ? "Session creation disabled in all-spaces mode" : activeSpace?.name ?? "One active Space"}
-        </Badge>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Retrieval chat"
+        title="Chat"
+        description="Ask retrieval-backed questions, review citations, and submit targeted corrections from assistant answers."
+      />
 
       {allSpaces ? (
-        <Alert color="blue" title="All-spaces mode is on">
-          You can read sessions across Spaces, but creating new sessions requires one active Space.
+        <Alert variant="info">
+          <AlertTitle>All-spaces mode is on</AlertTitle>
+          <AlertDescription>
+            You can read sessions across Spaces, but creating new sessions requires one active Space.
+          </AlertDescription>
         </Alert>
       ) : null}
 
       {errorMessage ? (
-        <Alert color="red" title="Chat action failed">
-          {errorMessage}
+        <Alert variant="destructive">
+          <AlertTitle>Chat action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
       {feedbackMessage ? (
-        <Alert color="teal" title="Saved">
-          {feedbackMessage}
+        <Alert variant="success">
+          <AlertTitle>Saved</AlertTitle>
+          <AlertDescription>{feedbackMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      <SimpleGrid cols={{ base: 1, lg: 3 }}>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Title order={4}>Sessions</Title>
-              <Button
-                disabled={allSpaces}
-                loading={isCreatingSession}
-                variant="light"
-                onClick={() => void handleCreateSession()}
-              >
-                New session
-              </Button>
-            </Group>
-
+      <section className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            <CardTitle>Sessions</CardTitle>
+            <Button disabled={allSpaces} variant="outline" onClick={() => void handleCreateSession()}>
+              {isCreatingSession ? "Creating…" : "New session"}
+            </Button>
+          </CardHeader>
+          <CardContent>
             {sessionsQuery.error instanceof ApiProblemError ? (
-              <Alert color="red" title="Unable to load sessions">
-                {sessionsQuery.error.problem.detail}
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load sessions</AlertTitle>
+                <AlertDescription>{sessionsQuery.error.problem.detail}</AlertDescription>
               </Alert>
             ) : sessionsQuery.isLoading ? (
-              <Text c="dimmed">Loading sessions…</Text>
+              <p className="text-sm text-muted-foreground">Loading sessions…</p>
             ) : sessionsQuery.data && sessionsQuery.data.items.length > 0 ? (
-              <ScrollArea.Autosize mah={560}>
-                <Stack gap="sm">
+              <ScrollArea className="h-[35rem] pr-3">
+                <div className="space-y-3">
                   {sessionsQuery.data.items.map((session) => (
                     <Card
                       key={session.id}
-                      withBorder
-                      p="md"
-                      radius="md"
-                      style={{
-                        borderColor: session.id === sessionId ? "var(--mantine-color-teal-5)" : undefined
-                      }}
+                      className={session.id === sessionId ? "border-primary/40 bg-muted/20" : "shadow-none"}
                     >
-                      <Stack gap={6}>
+                      <CardContent className="space-y-3 p-4">
                         <Button
-                          component={Link}
-                          fullWidth
-                          justify="space-between"
-                          to={`/chat/${session.id}`}
-                          variant={session.id === sessionId ? "light" : "subtle"}
+                          asChild
+                          className="w-full justify-between"
+                          variant={session.id === sessionId ? "default" : "ghost"}
                         >
-                          {session.title}
+                          <Link to={`/chat/${session.id}`}>{session.title}</Link>
                         </Button>
-                        {session.document_id ? (
-                          <Badge color="teal" variant="light" w="fit-content">
-                            document-first
-                          </Badge>
-                        ) : null}
-                        <Text c="dimmed" size="sm">
+                        {session.document_id ? <Badge>document-first</Badge> : null}
+                        <p className="text-sm text-muted-foreground">
                           {session.message_count} messages · updated {formatDateTime(session.updated_at)}
-                        </Text>
-                      </Stack>
+                        </p>
+                      </CardContent>
                     </Card>
                   ))}
-                </Stack>
-              </ScrollArea.Autosize>
+                </div>
+              </ScrollArea>
             ) : (
-              <Text c="dimmed">Create the first chat session to begin asking questions.</Text>
+              <p className="text-sm text-muted-foreground">
+                Create the first chat session to begin asking questions.
+              </p>
             )}
-          </Stack>
+          </CardContent>
         </Card>
 
-        <Card withBorder radius="lg" p="lg" style={{ gridColumn: "span 2" }}>
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Stack gap={2}>
-                <Title order={4}>{detailQuery.data?.title ?? "Chat transcript"}</Title>
-                <Text c="dimmed" size="sm">
-                  {detailQuery.data
-                    ? `Session updated ${formatDateTime(detailQuery.data.updated_at)}`
-                    : "Select a session from the list or create a new one."}
-                </Text>
-              </Stack>
-              {detailQuery.data ? (
-                <Group gap="xs">
-                  {detailQuery.data.document_id ? (
-                    <Badge color="teal" variant="light">
-                      document-first
-                    </Badge>
-                  ) : null}
-                  <Badge variant="light">
-                    {detailQuery.data.message_count} messages
-                  </Badge>
-                </Group>
-              ) : null}
-            </Group>
-
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            <div className="space-y-2">
+              <CardTitle>{detailQuery.data?.title ?? "Chat transcript"}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {detailQuery.data
+                  ? `Session updated ${formatDateTime(detailQuery.data.updated_at)}`
+                  : "Select a session from the list or create a new one."}
+              </p>
+            </div>
+            {detailQuery.data ? (
+              <div className="flex flex-wrap gap-2">
+                {detailQuery.data.document_id ? <Badge>document-first</Badge> : null}
+                <Badge variant="outline">{detailQuery.data.message_count} messages</Badge>
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent className="space-y-5">
             {detailQuery.error instanceof ApiProblemError ? (
-              <Alert color="red" title="Unable to load the selected session">
-                {detailQuery.error.problem.detail}
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load the selected session</AlertTitle>
+                <AlertDescription>{detailQuery.error.problem.detail}</AlertDescription>
               </Alert>
             ) : detailQuery.isLoading ? (
-              <Text c="dimmed">Loading chat transcript…</Text>
+              <p className="text-sm text-muted-foreground">Loading chat transcript…</p>
             ) : detailQuery.data ? (
               <>
-                <ScrollArea.Autosize mah={520}>
-                  <Stack gap="md">
+                <ScrollArea className="h-[32rem] rounded-md border bg-muted/20 p-4">
+                  <div className="space-y-4 pr-3">
                     {detailQuery.data.messages?.map((messageRecord) => (
-                      <Card key={messageRecord.id} withBorder radius="md" p="md">
-                        <Stack gap="sm">
-                          <Group justify="space-between" align="start">
-                            <Group gap="xs">
-                              <Badge color={messageRecord.role === "assistant" ? "teal" : "gray"}>
-                                {messageRecord.role}
-                              </Badge>
-                            </Group>
-                            <Text c="dimmed" size="sm">
+                      <Card key={messageRecord.id} className="shadow-none">
+                        <CardContent className="space-y-4 p-5">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <StatusBadge label={messageRecord.role} value={messageRecord.role === "assistant" ? "active" : "inactive"} />
+                            <p className="text-sm text-muted-foreground">
                               {formatDateTime(messageRecord.created_at)}
-                            </Text>
-                          </Group>
+                            </p>
+                          </div>
 
-                          <Text style={{ whiteSpace: "pre-wrap" }}>{messageRecord.content}</Text>
+                          <p className="whitespace-pre-wrap leading-7 text-foreground">
+                            {messageRecord.content}
+                          </p>
 
                           {messageRecord.citations && messageRecord.citations.length > 0 ? (
-                            <Stack gap={4}>
-                              <Text fw={600} size="sm">
-                                Citations
-                              </Text>
+                            <div className="space-y-2 rounded-md border bg-muted/20 p-4">
+                              <p className="text-sm font-semibold">Citations</p>
                               {messageRecord.citations.map((citation, index) => (
-                                <Text key={`${messageRecord.id}-${index}`} size="sm">
+                                <p key={`${messageRecord.id}-${index}`} className="text-sm text-muted-foreground">
                                   {formatCitationLabel(citation)} · {formatSourceTier(citation.source_tier)}
-                                </Text>
+                                </p>
                               ))}
-                            </Stack>
+                            </div>
                           ) : null}
 
                           {messageRecord.role === "assistant" ? (
-                            <Stack gap="sm">
-                              <Group>
-                                <Button
-                                  size="xs"
-                                  variant="subtle"
-                                  onClick={() =>
-                                    setOpenCorrectionMessageId(
-                                      openCorrectionMessageId === messageRecord.id
-                                        ? null
-                                        : messageRecord.id
-                                    )
-                                  }
-                                >
-                                  Submit correction
-                                </Button>
-                              </Group>
+                            <div className="space-y-3">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  setOpenCorrectionMessageId(
+                                    openCorrectionMessageId === messageRecord.id ? null : messageRecord.id
+                                  )
+                                }
+                              >
+                                Submit correction
+                              </Button>
 
                               {openCorrectionMessageId === messageRecord.id ? (
-                                <Card withBorder radius="md" p="md">
-                                  <Stack gap="sm">
-                                    <Textarea
-                                      label="Proposed correction"
-                                      minRows={2}
-                                      value={proposedValue}
-                                      onChange={(event) => setProposedValue(event.currentTarget.value)}
-                                    />
-                                    <Textarea
-                                      label="Rationale"
-                                      minRows={2}
-                                      value={rationale}
-                                      onChange={(event) => setRationale(event.currentTarget.value)}
-                                    />
-                                    <Group justify="flex-end">
+                                <Card className="bg-muted/20 shadow-none">
+                                  <CardContent className="space-y-4 p-5">
+                                    <div className="space-y-2">
+                                      <label
+                                        className="text-sm font-medium"
+                                        htmlFor={`proposed-correction-${messageRecord.id}`}
+                                      >
+                                        Proposed correction
+                                      </label>
+                                      <Textarea
+                                        id={`proposed-correction-${messageRecord.id}`}
+                                        rows={3}
+                                        value={proposedValue}
+                                        onChange={(event) => setProposedValue(event.currentTarget.value)}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <label
+                                        className="text-sm font-medium"
+                                        htmlFor={`correction-rationale-${messageRecord.id}`}
+                                      >
+                                        Rationale
+                                      </label>
+                                      <Textarea
+                                        id={`correction-rationale-${messageRecord.id}`}
+                                        rows={3}
+                                        value={rationale}
+                                        onChange={(event) => setRationale(event.currentTarget.value)}
+                                      />
+                                    </div>
+                                    <div className="flex justify-end">
                                       <Button
-                                        loading={isSubmittingCorrection}
-                                        size="xs"
+                                        size="sm"
                                         onClick={() => void handleSubmitCorrection(messageRecord)}
                                       >
-                                        Submit for review
+                                        {isSubmittingCorrection ? "Submitting…" : "Submit for review"}
                                       </Button>
-                                    </Group>
-                                  </Stack>
+                                    </div>
+                                  </CardContent>
                                 </Card>
                               ) : null}
-                            </Stack>
+                            </div>
                           ) : null}
-                        </Stack>
+                        </CardContent>
                       </Card>
                     ))}
-                  </Stack>
-                </ScrollArea.Autosize>
+                  </div>
+                </ScrollArea>
 
-                <form onSubmit={handleSendMessage}>
-                  <Stack gap="sm">
+                <form className="space-y-3" onSubmit={handleSendMessage}>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="chat-message">
+                      Message
+                    </label>
                     <Textarea
+                      id="chat-message"
                       required
-                      label="Message"
-                      minRows={3}
+                      rows={4}
                       placeholder="Ask a question grounded in your uploaded material"
                       value={message}
                       onChange={(event) => setMessage(event.currentTarget.value)}
                     />
-                    <Group justify="flex-end">
-                      <Button loading={isSendingMessage} type="submit">
-                        Send message
-                      </Button>
-                    </Group>
-                  </Stack>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="submit">{isSendingMessage ? "Sending…" : "Send message"}</Button>
+                  </div>
                 </form>
               </>
             ) : (
-              <Text c="dimmed">
+              <p className="text-sm text-muted-foreground">
                 {sessionsQuery.data?.items.length
                   ? "Select a session on the left to open the transcript."
                   : "Create a session to start a retrieval-backed conversation."}
-              </Text>
+              </p>
             )}
-          </Stack>
+          </CardContent>
         </Card>
-      </SimpleGrid>
-    </Stack>
+      </section>
+    </Page>
   );
 }

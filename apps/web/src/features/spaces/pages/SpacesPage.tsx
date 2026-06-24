@@ -1,20 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Divider,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Title
-} from "@mantine/core";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { Page, PageHeader } from "@/components/app/page";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { ApiProblemError } from "@/shared/api/client";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { archiveSpace, createSpace, updateSpace } from "../api/spacesApi";
 
 interface SpaceDraft {
@@ -113,59 +108,71 @@ export function SpacesPage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Spaces</Title>
-        <Text c="dimmed">
-          Organize documents by workspace and keep the current read scope explicit.
-        </Text>
-        {allSpaces ? (
-          <Alert color="blue" title="All-spaces mode is on">
-            Read views can span every Space right now. Actions that need one target Space should ask you to pick it explicitly.
-          </Alert>
-        ) : null}
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Workspace scope"
+        title="Spaces"
+        description="Organize documents by workspace and keep the current read scope explicit."
+      />
 
-      {errorMessage ? (
-        <Alert color="red" title="Space action failed">
-          {errorMessage}
+      {allSpaces ? (
+        <Alert variant="info">
+          <AlertTitle>All-spaces mode is on</AlertTitle>
+          <AlertDescription>
+            Read views can span every Space right now. Actions that need one target Space should ask you to pick it explicitly.
+          </AlertDescription>
         </Alert>
       ) : null}
 
-      <Card withBorder radius="lg" p="lg">
-        <Stack gap="md">
-          <Title order={4}>Create a Space</Title>
-          <form onSubmit={handleCreateSpace}>
-            <Stack gap="md">
-              <TextInput
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertTitle>Space action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create a Space</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleCreateSpace}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="space-name">
+                Name
+              </label>
+              <Input
+                id="space-name"
                 required
                 disabled={isCreating}
-                label="Name"
                 placeholder="Research workspace"
                 value={createName}
                 onChange={(event) => setCreateName(event.currentTarget.value)}
               />
-              <TextInput
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="space-description">
+                Description
+              </label>
+              <Input
+                id="space-description"
                 disabled={isCreating}
-                label="Description"
                 placeholder="Optional note for the team"
                 value={createDescription}
                 onChange={(event) => setCreateDescription(event.currentTarget.value)}
               />
-              <Button loading={isCreating} type="submit">
-                Create Space
-              </Button>
-            </Stack>
+            </div>
+            <Button type="submit">{isCreating ? "Creating Space…" : "Create Space"}</Button>
           </form>
-        </Stack>
+        </CardContent>
       </Card>
 
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={3}>Active Spaces</Title>
-          <Badge variant="light">{isReady ? `${spaces.length} active` : "Loading"}</Badge>
-        </Group>
-        <SimpleGrid cols={{ base: 1, md: 2 }}>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Active Spaces</h2>
+          <Badge variant="outline">{isReady ? `${spaces.length} active` : "Loading"}</Badge>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
           {spaces.map((space) => {
             const draft = drafts[space.id] ?? {
               description: space.description ?? "",
@@ -173,52 +180,55 @@ export function SpacesPage() {
             };
 
             return (
-              <Card key={space.id} withBorder radius="lg" p="lg">
-                <Stack gap="md">
-                  <Group justify="space-between">
-                    <Stack gap={0}>
-                      <Title order={4}>{space.name}</Title>
-                      <Text c="dimmed" size="sm">
+              <Card key={space.id}>
+                <CardContent className="space-y-5 p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold">{space.name}</h3>
+                      <p className="text-sm text-muted-foreground">
                         {space.description || "No description"}
-                      </Text>
-                    </Stack>
-                    <Group gap="xs">
-                      {space.id === activeSpace?.id ? <Badge color="teal">active</Badge> : null}
-                      {space.is_default ? <Badge variant="light">default</Badge> : null}
-                    </Group>
-                  </Group>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {space.id === activeSpace?.id ? <StatusBadge label="Active" value="active" /> : null}
+                      {space.is_default ? <Badge variant="outline">Default</Badge> : null}
+                    </div>
+                  </div>
 
-                  <TextInput
-                    label="Name"
-                    value={draft.name}
-                    onChange={(event) =>
-                      setDrafts((currentDrafts) => ({
-                        ...currentDrafts,
-                        [space.id]: {
-                          ...draft,
-                          name: event.currentTarget.value
-                        }
-                      }))
-                    }
-                  />
-                  <TextInput
-                    label="Description"
-                    value={draft.description}
-                    onChange={(event) =>
-                      setDrafts((currentDrafts) => ({
-                        ...currentDrafts,
-                        [space.id]: {
-                          ...draft,
-                          description: event.currentTarget.value
-                        }
-                      }))
-                    }
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name</label>
+                    <Input
+                      value={draft.name}
+                      onChange={(event) =>
+                        setDrafts((currentDrafts) => ({
+                          ...currentDrafts,
+                          [space.id]: {
+                            ...draft,
+                            name: event.currentTarget.value
+                          }
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Description</label>
+                    <Input
+                      value={draft.description}
+                      onChange={(event) =>
+                        setDrafts((currentDrafts) => ({
+                          ...currentDrafts,
+                          [space.id]: {
+                            ...draft,
+                            description: event.currentTarget.value
+                          }
+                        }))
+                      }
+                    />
+                  </div>
 
-                  <Group>
+                  <div className="flex flex-wrap gap-3">
                     <Button
-                      loading={savingSpaceId === space.id}
-                      variant="light"
+                      variant="outline"
                       onClick={() =>
                         void handleSpaceUpdate(space.id, {
                           description: draft.description || null,
@@ -226,60 +236,66 @@ export function SpacesPage() {
                         })
                       }
                     >
-                      Save
+                      {savingSpaceId === space.id ? "Saving…" : "Save"}
                     </Button>
-                    <Button variant="subtle" onClick={() => setActiveSpace(space)}>
+                    <Button variant="ghost" onClick={() => setActiveSpace(space)}>
                       Use as active Space
                     </Button>
                     {!space.is_default ? (
                       <Button
-                        variant="subtle"
+                        variant="ghost"
                         onClick={() => void handleSpaceUpdate(space.id, { is_default: true })}
                       >
                         Set as default
                       </Button>
                     ) : null}
                     {!space.is_default ? (
-                      <Button color="red" variant="subtle" onClick={() => void handleArchiveSpace(space.id)}>
+                      <Button
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => void handleArchiveSpace(space.id)}
+                      >
                         Archive
                       </Button>
                     ) : null}
-                  </Group>
-                </Stack>
+                  </div>
+                </CardContent>
               </Card>
             );
           })}
-        </SimpleGrid>
-      </Stack>
+        </div>
+      </section>
 
-      <Divider />
+      <Separator />
 
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={3}>Archived Spaces</Title>
-          <Badge variant="light">{archivedSpaces.length} archived</Badge>
-        </Group>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Archived Spaces</h2>
+          <Badge variant="outline">{archivedSpaces.length} archived</Badge>
+        </div>
         {archivedSpaces.length === 0 ? (
-          <Text c="dimmed">No archived Spaces yet.</Text>
+          <p className="text-sm text-muted-foreground">No archived Spaces yet.</p>
         ) : (
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
+          <div className="grid gap-4 md:grid-cols-2">
             {archivedSpaces.map((space) => (
-              <Card key={space.id} withBorder radius="lg" p="lg">
-                <Stack gap="xs">
-                  <Group justify="space-between">
-                    <Title order={4}>{space.name}</Title>
-                    <Badge color="gray">archived</Badge>
-                  </Group>
-                  <Text c="dimmed" size="sm">
+              <Card key={space.id}>
+                <CardContent className="space-y-3 p-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className="text-lg font-semibold">{space.name}</h3>
+                    <StatusBadge label="Archived" value="inactive" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
                     {space.description || "No description"}
-                  </Text>
-                  <Text size="sm">Archived Spaces stay visible for read history but are not active upload targets.</Text>
-                </Stack>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Archived Spaces stay visible for read history but are not active upload targets.
+                  </p>
+                </CardContent>
               </Card>
             ))}
-          </SimpleGrid>
+          </div>
         )}
-      </Stack>
-    </Stack>
+      </section>
+    </Page>
   );
 }

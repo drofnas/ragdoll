@@ -53,8 +53,11 @@ services:
     ports:
       - "8030:3000"
     volumes:
+      - ../../apps/web/components.json:/app/components.json
+      - ../../apps/web/postcss.config.js:/app/postcss.config.js
       - ../../apps/web/src:/app/src
       - ../../apps/web/public:/app/public
+      - ../../apps/web/tailwind.config.ts:/app/tailwind.config.ts
       - ../../apps/web/tsconfig.json:/app/tsconfig.json
       - ../../apps/web/vite.config.ts:/app/vite.config.ts
       - ../../packages/contracts:/packages/contracts

@@ -1,29 +1,24 @@
 import { useState } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  Pagination,
-  Select,
-  SimpleGrid,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
+import { Page, PageHeader } from "@/components/app/page";
+import { SelectField } from "@/components/app/select-field";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
   formatDateTime,
   formatSourceTier
-} from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import {
   listChanges,
   listCorrections,
@@ -145,9 +140,7 @@ export function ChangesPage() {
       } else {
         await rejectCorrection(correctionId, { review_notes: reviewNotes || null });
       }
-      setFeedbackMessage(
-        action === "verify" ? "Correction verified." : "Correction rejected."
-      );
+      setFeedbackMessage(action === "verify" ? "Correction verified." : "Correction rejected.");
       await Promise.all([correctionsQuery.refetch(), correctionDetailQuery.refetch()]);
     } catch (error) {
       if (error instanceof ApiProblemError) {
@@ -161,305 +154,283 @@ export function ChangesPage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Changes</Title>
-        <Text c="dimmed">
-          Review activity updates, inspect change details, and manage correction review from one place.
-        </Text>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Review hub"
+        title="Changes"
+        description="Review activity updates, inspect change details, and manage correction review from one place."
+      />
 
       {errorMessage ? (
-        <Alert color="red" title="Changes action failed">
-          {errorMessage}
+        <Alert variant="destructive">
+          <AlertTitle>Changes action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
       {feedbackMessage ? (
-        <Alert color="teal" title="Saved">
-          {feedbackMessage}
+        <Alert variant="success">
+          <AlertTitle>Saved</AlertTitle>
+          <AlertDescription>{feedbackMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Tabs
-        value={activeTab}
-        onChange={(value) =>
-          updateParams({
-            tab: value ?? "activity"
-          })
-        }
-      >
-        <Tabs.List>
-          <Tabs.Tab value="activity">Activity</Tabs.Tab>
-          <Tabs.Tab value="corrections">Corrections</Tabs.Tab>
-        </Tabs.List>
+      <Tabs value={activeTab} onValueChange={(value) => updateParams({ tab: value ?? "activity" })}>
+        <TabsList>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="corrections">Corrections</TabsTrigger>
+        </TabsList>
 
-        <Tabs.Panel value="activity" pt="lg">
-          <SimpleGrid cols={{ base: 1, lg: 2 }}>
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={4}>Activity feed</Title>
-                  <Badge variant="light">{changesQuery.data?.total ?? 0} events</Badge>
-                </Group>
-
+        <TabsContent value="activity">
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle>Activity feed</CardTitle>
+                <Badge variant="outline">{changesQuery.data?.total ?? 0} events</Badge>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {changesQuery.error instanceof ApiProblemError ? (
-                  <Alert color="red" title="Unable to load changes">
-                    {changesQuery.error.problem.detail}
+                  <Alert variant="destructive">
+                    <AlertTitle>Unable to load changes</AlertTitle>
+                    <AlertDescription>{changesQuery.error.problem.detail}</AlertDescription>
                   </Alert>
                 ) : changesQuery.isLoading ? (
-                  <Text c="dimmed">Loading change events…</Text>
+                  <p className="text-sm text-muted-foreground">Loading change events…</p>
                 ) : changesQuery.data && changesQuery.data.items.length > 0 ? (
                   <>
-                    <Stack gap="sm">
+                    <div className="space-y-3">
                       {changesQuery.data.items.map((item) => (
                         <Card
                           key={item.id}
-                          withBorder
-                          radius="md"
-                          p="sm"
-                          style={{
-                            borderColor:
-                              item.id === changeId ? "var(--mantine-color-teal-5)" : undefined
-                          }}
+                          className={item.id === changeId ? "border-primary/40 bg-muted/20" : "shadow-none"}
                         >
-                          <Stack gap={4}>
-                            <Group justify="space-between" align="start">
-                              <Stack gap={2}>
+                          <CardContent className="space-y-3 p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="space-y-2">
                                 <Button
-                                  size="compact-sm"
-                                  variant="subtle"
-                                  onClick={() =>
-                                    updateParams({
-                                      change_id: item.id,
-                                      tab: "activity"
-                                    })
-                                  }
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-auto px-0 py-0 text-left"
+                                  onClick={() => updateParams({ change_id: item.id, tab: "activity" })}
                                 >
                                   {item.title}
                                 </Button>
-                                <Text c="dimmed" size="sm">
-                                  {item.summary}
-                                </Text>
-                              </Stack>
-                              <Badge color={item.is_read ? "gray" : "teal"} variant="light">
-                                {item.is_read ? "read" : "unread"}
-                              </Badge>
-                            </Group>
-                            <Text c="dimmed" size="sm">
+                                <p className="text-sm text-muted-foreground">{item.summary}</p>
+                              </div>
+                              <StatusBadge value={item.is_read ? "read" : "unread"} />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
                               {formatDateTime(item.created_at)}
-                            </Text>
-                          </Stack>
+                            </p>
+                          </CardContent>
                         </Card>
                       ))}
-                    </Stack>
-                    <Group justify="center">
-                      <Pagination
-                        total={Math.max(1, Math.ceil(changesQuery.data.total / changesQuery.data.page_size))}
-                        value={changePage}
-                        onChange={(nextPage) =>
-                          updateParams({ changes_page: String(nextPage) })
-                        }
-                      />
-                    </Group>
+                    </div>
+                    <Pagination
+                      currentPage={changePage}
+                      totalPages={Math.max(1, Math.ceil(changesQuery.data.total / changesQuery.data.page_size))}
+                      onPageChange={(nextPage) => updateParams({ changes_page: String(nextPage) })}
+                    />
                   </>
                 ) : (
-                  <Text c="dimmed">No change events are available for this scope yet.</Text>
+                  <p className="text-sm text-muted-foreground">
+                    No change events are available for this scope yet.
+                  </p>
                 )}
-              </Stack>
+              </CardContent>
             </Card>
 
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={4}>Change detail</Title>
-                  {changeDetailQuery.data ? (
-                    <Badge color={changeDetailQuery.data.is_read ? "gray" : "teal"} variant="light">
-                      {changeDetailQuery.data.is_read ? "read" : "unread"}
-                    </Badge>
-                  ) : null}
-                </Group>
-
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle>Change detail</CardTitle>
+                {changeDetailQuery.data ? (
+                  <StatusBadge value={changeDetailQuery.data.is_read ? "read" : "unread"} />
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {changeDetailQuery.error instanceof ApiProblemError ? (
-                  <Alert color="red" title="Unable to load change detail">
-                    {changeDetailQuery.error.problem.detail}
+                  <Alert variant="destructive">
+                    <AlertTitle>Unable to load change detail</AlertTitle>
+                    <AlertDescription>{changeDetailQuery.error.problem.detail}</AlertDescription>
                   </Alert>
                 ) : changeDetailQuery.isLoading ? (
-                  <Text c="dimmed">Loading change detail…</Text>
+                  <p className="text-sm text-muted-foreground">Loading change detail…</p>
                 ) : changeDetailQuery.data ? (
                   <>
-                    <Stack gap="xs">
-                      <Title order={5}>{changeDetailQuery.data.title}</Title>
-                      <Text>{changeDetailQuery.data.summary}</Text>
-                      <Text c="dimmed" size="sm">
-                        Event type: {changeDetailQuery.data.event_type} · {formatDateTime(changeDetailQuery.data.created_at)}
-                      </Text>
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold">{changeDetailQuery.data.title}</h3>
+                      <p>{changeDetailQuery.data.summary}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Event type: {changeDetailQuery.data.event_type} ·{" "}
+                        {formatDateTime(changeDetailQuery.data.created_at)}
+                      </p>
                       {changeDetailQuery.data.payload ? (
-                        <Card withBorder radius="md" p="sm">
-                          <Text size="sm">{JSON.stringify(changeDetailQuery.data.payload, null, 2)}</Text>
-                        </Card>
+                        <pre className="overflow-x-auto rounded-md border bg-slate-950 p-4 text-sm text-slate-100">
+                          {JSON.stringify(changeDetailQuery.data.payload, null, 2)}
+                        </pre>
                       ) : null}
-                    </Stack>
-                    <Group justify="flex-end">
-                      <Button
-                        loading={isMarkingRead}
-                        variant="light"
-                        onClick={() => void handleMarkRead()}
-                      >
-                        Mark read
+                    </div>
+                    <div className="flex justify-end">
+                      <Button variant="outline" onClick={() => void handleMarkRead()}>
+                        {isMarkingRead ? "Marking…" : "Mark read"}
                       </Button>
-                    </Group>
+                    </div>
                   </>
                 ) : (
-                  <Text c="dimmed">Choose an activity item to inspect its detail.</Text>
+                  <p className="text-sm text-muted-foreground">
+                    Choose an activity item to inspect its detail.
+                  </p>
                 )}
-              </Stack>
+              </CardContent>
             </Card>
-          </SimpleGrid>
-        </Tabs.Panel>
+          </section>
+        </TabsContent>
 
-        <Tabs.Panel value="corrections" pt="lg">
-          <SimpleGrid cols={{ base: 1, lg: 2 }}>
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={4}>Corrections</Title>
-                  <Badge variant="light">{correctionsQuery.data?.total ?? 0} records</Badge>
-                </Group>
-                <Select
-                  data={CORRECTION_STATUS_OPTIONS}
+        <TabsContent value="corrections">
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle>Corrections</CardTitle>
+                <Badge variant="outline">{correctionsQuery.data?.total ?? 0} records</Badge>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <SelectField
                   label="Status filter"
-                  value={correctionStatus}
-                  onChange={(value) =>
+                  options={CORRECTION_STATUS_OPTIONS.map((option) => ({
+                    ...option,
+                    value: option.value || "__all__"
+                  }))}
+                  value={correctionStatus || "__all__"}
+                  onValueChange={(value) =>
                     updateParams({
                       corrections_page: "1",
-                      status: value ?? ""
+                      status: value === "__all__" ? "" : value
                     })
                   }
                 />
 
                 {correctionsQuery.error instanceof ApiProblemError ? (
-                  <Alert color="red" title="Unable to load corrections">
-                    {correctionsQuery.error.problem.detail}
+                  <Alert variant="destructive">
+                    <AlertTitle>Unable to load corrections</AlertTitle>
+                    <AlertDescription>{correctionsQuery.error.problem.detail}</AlertDescription>
                   </Alert>
                 ) : correctionsQuery.isLoading ? (
-                  <Text c="dimmed">Loading corrections…</Text>
+                  <p className="text-sm text-muted-foreground">Loading corrections…</p>
                 ) : correctionsQuery.data && correctionsQuery.data.items.length > 0 ? (
                   <>
-                    <Stack gap="sm">
+                    <div className="space-y-3">
                       {correctionsQuery.data.items.map((item) => (
                         <Card
                           key={item.id}
-                          withBorder
-                          radius="md"
-                          p="sm"
-                          style={{
-                            borderColor:
-                              item.id === correctionId ? "var(--mantine-color-teal-5)" : undefined
-                          }}
+                          className={item.id === correctionId ? "border-primary/40 bg-muted/20" : "shadow-none"}
                         >
-                          <Stack gap={4}>
-                            <Group justify="space-between" align="start">
-                              <Stack gap={2}>
+                          <CardContent className="space-y-3 p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="space-y-2">
                                 <Button
-                                  size="compact-sm"
-                                  variant="subtle"
-                                  onClick={() =>
-                                    updateParams({
-                                      correction_id: item.id,
-                                      tab: "corrections"
-                                    })
-                                  }
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-auto px-0 py-0 text-left"
+                                  onClick={() => updateParams({ correction_id: item.id, tab: "corrections" })}
                                 >
                                   {item.proposed_value}
                                 </Button>
-                                <Text c="dimmed" size="sm">
+                                <p className="text-sm text-muted-foreground">
                                   {item.rationale ?? "No rationale provided"}
-                                </Text>
-                              </Stack>
-                              <Badge variant="light">{item.status}</Badge>
-                            </Group>
-                            <Text c="dimmed" size="sm">
+                                </p>
+                              </div>
+                              <StatusBadge value={item.status} />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
                               {formatDateTime(item.created_at)}
-                            </Text>
-                          </Stack>
+                            </p>
+                          </CardContent>
                         </Card>
                       ))}
-                    </Stack>
-                    <Group justify="center">
-                      <Pagination
-                        total={Math.max(1, Math.ceil(correctionsQuery.data.total / correctionsQuery.data.page_size))}
-                        value={correctionsPage}
-                        onChange={(nextPage) =>
-                          updateParams({ corrections_page: String(nextPage) })
-                        }
-                      />
-                    </Group>
+                    </div>
+                    <Pagination
+                      currentPage={correctionsPage}
+                      totalPages={Math.max(
+                        1,
+                        Math.ceil(correctionsQuery.data.total / correctionsQuery.data.page_size)
+                      )}
+                      onPageChange={(nextPage) => updateParams({ corrections_page: String(nextPage) })}
+                    />
                   </>
                 ) : (
-                  <Text c="dimmed">No corrections match the current scope and filter.</Text>
+                  <p className="text-sm text-muted-foreground">
+                    No corrections match the current scope and filter.
+                  </p>
                 )}
-              </Stack>
+              </CardContent>
             </Card>
 
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Title order={4}>Correction detail</Title>
+            <Card>
+              <CardHeader>
+                <CardTitle>Correction detail</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {correctionDetailQuery.error instanceof ApiProblemError ? (
-                  <Alert color="red" title="Unable to load correction detail">
-                    {correctionDetailQuery.error.problem.detail}
+                  <Alert variant="destructive">
+                    <AlertTitle>Unable to load correction detail</AlertTitle>
+                    <AlertDescription>{correctionDetailQuery.error.problem.detail}</AlertDescription>
                   </Alert>
                 ) : correctionDetailQuery.isLoading ? (
-                  <Text c="dimmed">Loading correction detail…</Text>
+                  <p className="text-sm text-muted-foreground">Loading correction detail…</p>
                 ) : correctionDetailQuery.data ? (
                   <>
-                    <Stack gap="xs">
-                      <Group justify="space-between">
-                        <Title order={5}>{correctionDetailQuery.data.proposed_value}</Title>
-                        <Badge variant="light">{correctionDetailQuery.data.status}</Badge>
-                      </Group>
-                      <Text>{correctionDetailQuery.data.rationale ?? "No rationale provided."}</Text>
-                      <Text c="dimmed" size="sm">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <h3 className="text-lg font-semibold">
+                          {correctionDetailQuery.data.proposed_value}
+                        </h3>
+                        <StatusBadge value={correctionDetailQuery.data.status} />
+                      </div>
+                      <p>{correctionDetailQuery.data.rationale ?? "No rationale provided."}</p>
+                      <p className="text-sm text-muted-foreground">
                         Submitted {formatDateTime(correctionDetailQuery.data.created_at)}
-                      </Text>
-                      <Text size="sm">
+                      </p>
+                      <p className="text-sm text-muted-foreground">
                         Citation: {formatCitationLabel(correctionDetailQuery.data.citation)} ·{" "}
                         {formatSourceTier(correctionDetailQuery.data.citation.source_tier)}
-                      </Text>
-                    </Stack>
+                      </p>
+                    </div>
 
-                    <Textarea
-                      label="Review notes"
-                      minRows={3}
-                      value={reviewNotes}
-                      onChange={(event) => setReviewNotes(event.currentTarget.value)}
-                    />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="review-notes">
+                        Review notes
+                      </label>
+                      <Textarea
+                        id="review-notes"
+                        rows={4}
+                        value={reviewNotes}
+                        onChange={(event) => setReviewNotes(event.currentTarget.value)}
+                      />
+                    </div>
 
-                    <Group justify="flex-end">
+                    <div className="flex justify-end gap-3">
                       <Button
-                        color="red"
-                        loading={reviewAction === "reject"}
-                        variant="subtle"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
                         onClick={() => void handleReview("reject")}
                       >
-                        Reject
+                        {reviewAction === "reject" ? "Rejecting…" : "Reject"}
                       </Button>
-                      <Button
-                        loading={reviewAction === "verify"}
-                        onClick={() => void handleReview("verify")}
-                      >
-                        Verify
+                      <Button onClick={() => void handleReview("verify")}>
+                        {reviewAction === "verify" ? "Verifying…" : "Verify"}
                       </Button>
-                    </Group>
+                    </div>
                   </>
                 ) : (
-                  <Text c="dimmed">Choose a correction to inspect and review it.</Text>
+                  <p className="text-sm text-muted-foreground">
+                    Choose a correction to inspect and review it.
+                  </p>
                 )}
-              </Stack>
+              </CardContent>
             </Card>
-          </SimpleGrid>
-        </Tabs.Panel>
+          </section>
+        </TabsContent>
       </Tabs>
-    </Stack>
+    </Page>
   );
 }

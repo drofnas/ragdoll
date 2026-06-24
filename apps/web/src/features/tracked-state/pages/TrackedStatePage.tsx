@@ -1,29 +1,24 @@
 import type { TrackedFieldDefinition, TrackedFieldSummary } from "@contracts";
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  SimpleGrid,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Textarea,
-  Title
-} from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
+import { Page, PageHeader } from "@/components/app/page";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
   formatDateTime,
   formatSourceTier,
   humanizeLabel
-} from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import {
   createTrackedField,
   listTrackedFields,
@@ -55,8 +50,7 @@ export function TrackedStatePage() {
   const [recomputingFieldId, setRecomputingFieldId] = useState<string | null>(null);
 
   const readScopeQuery = buildReadScopeParams();
-  const writeScopeQuery =
-    !allSpaces && activeSpace ? { space_id: activeSpace.id } : null;
+  const writeScopeQuery = !allSpaces && activeSpace ? { space_id: activeSpace.id } : null;
   const writeDisabledReason = allSpaces
     ? "Choose one active Space before creating or editing tracked state."
     : activeSpace === null
@@ -106,11 +100,7 @@ export function TrackedStatePage() {
   ) as Record<string, TrackedFieldSummary>;
 
   async function refetchAll() {
-    await Promise.all([
-      fieldsQuery.refetch(),
-      summaryQuery.refetch(),
-      conflictsQuery.refetch()
-    ]);
+    await Promise.all([fieldsQuery.refetch(), summaryQuery.refetch(), conflictsQuery.refetch()]);
   }
 
   async function handleCreateField(event: FormEvent<HTMLFormElement>) {
@@ -213,101 +203,126 @@ export function TrackedStatePage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Tracked state</Title>
-        <Text c="dimmed">
-          Define current-state questions, review resolution status, and inspect conflicts in the current scope.
-        </Text>
-        {writeDisabledReason ? (
-          <Alert color="blue" title="Write actions are limited">
-            {writeDisabledReason}
-          </Alert>
-        ) : null}
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Resolution state"
+        title="Tracked state"
+        description="Define current-state questions, review resolution status, and inspect conflicts in the current scope."
+      />
+
+      {writeDisabledReason ? (
+        <Alert variant="info">
+          <AlertTitle>Write actions are limited</AlertTitle>
+          <AlertDescription>{writeDisabledReason}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {errorMessage ? (
-        <Alert color="red" title="Tracked-state action failed">
-          {errorMessage}
+        <Alert variant="destructive">
+          <AlertTitle>Tracked-state action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
       {feedbackMessage ? (
-        <Alert color="teal" title="Saved">
-          {feedbackMessage}
+        <Alert variant="success">
+          <AlertTitle>Saved</AlertTitle>
+          <AlertDescription>{feedbackMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Card withBorder radius="lg" p="lg">
-        <Stack gap="md">
-          <Title order={4}>Create tracked field</Title>
-          <form onSubmit={handleCreateField}>
-            <Stack gap="md">
-              <SimpleGrid cols={{ base: 1, md: 2 }}>
-                <TextInput
+      <Card>
+        <CardHeader>
+          <CardTitle>Create tracked field</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleCreateField}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="tracked-field-key">
+                  Key
+                </label>
+                <Input
+                  id="tracked-field-key"
                   required
                   disabled={!writeScopeQuery || isCreating}
-                  label="Key"
                   placeholder="current_backend_framework"
                   value={createKey}
                   onChange={(event) => setCreateKey(event.currentTarget.value)}
                 />
-                <TextInput
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="tracked-field-label">
+                  Label
+                </label>
+                <Input
+                  id="tracked-field-label"
                   required
                   disabled={!writeScopeQuery || isCreating}
-                  label="Label"
                   placeholder="Current backend framework"
                   value={createLabel}
                   onChange={(event) => setCreateLabel(event.currentTarget.value)}
                 />
-              </SimpleGrid>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="tracked-field-prompt">
+                Prompt
+              </label>
               <Textarea
+                id="tracked-field-prompt"
                 required
                 disabled={!writeScopeQuery || isCreating}
-                label="Prompt"
-                minRows={2}
+                rows={3}
                 placeholder="What is the current backend framework in this codebase?"
                 value={createPrompt}
                 onChange={(event) => setCreatePrompt(event.currentTarget.value)}
               />
-              <SimpleGrid cols={{ base: 1, md: 2 }}>
-                <TextInput
+            </div>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="tracked-field-entity-type">
+                  Entity type hint
+                </label>
+                <Input
+                  id="tracked-field-entity-type"
                   disabled={!writeScopeQuery || isCreating}
-                  label="Entity type hint"
                   placeholder="Optional entity type"
                   value={createEntityTypeHint}
                   onChange={(event) => setCreateEntityTypeHint(event.currentTarget.value)}
                 />
+              </div>
+              <label className="flex items-center gap-3 rounded-md border bg-muted/20 px-3 py-2">
                 <Switch
                   checked={createIsActive}
                   disabled={!writeScopeQuery || isCreating}
-                  label="Active"
-                  mt="xl"
-                  onChange={(event) => setCreateIsActive(event.currentTarget.checked)}
+                  onCheckedChange={(checked) => setCreateIsActive(Boolean(checked))}
                 />
-              </SimpleGrid>
-              <Group justify="flex-end">
-                <Button disabled={!writeScopeQuery} loading={isCreating} type="submit">
-                  Create field
-                </Button>
-              </Group>
-            </Stack>
+                <span className="text-sm font-medium">Active</span>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button disabled={!writeScopeQuery} type="submit">
+                {isCreating ? "Creating…" : "Create field"}
+              </Button>
+            </div>
           </form>
-        </Stack>
+        </CardContent>
       </Card>
 
       {fieldsQuery.error instanceof ApiProblemError ? (
-        <Alert color="red" title="Unable to load tracked fields">
-          {fieldsQuery.error.problem.detail}
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load tracked fields</AlertTitle>
+          <AlertDescription>{fieldsQuery.error.problem.detail}</AlertDescription>
         </Alert>
       ) : fieldsQuery.isLoading ? (
-        <Text c="dimmed">Loading tracked fields…</Text>
+        <p className="text-sm text-muted-foreground">Loading tracked fields…</p>
       ) : (
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Title order={3}>Field summaries</Title>
-            <Badge variant="light">{fieldsQuery.data?.total ?? 0} fields</Badge>
-          </Group>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight">Field summaries</h2>
+            <Badge variant="outline">{fieldsQuery.data?.total ?? 0} fields</Badge>
+          </div>
           {fieldsQuery.data?.items.length ? (
             fieldsQuery.data.items.map((field) => {
               const draft = drafts[field.id] ?? {
@@ -319,205 +334,212 @@ export function TrackedStatePage() {
               const summary = summaryById[field.id];
 
               return (
-                <Card key={field.id} withBorder radius="lg" p="lg">
-                  <Stack gap="md">
-                    <Group justify="space-between" align="start">
-                      <Stack gap={2}>
-                        <Title order={4}>{field.label}</Title>
-                        <Text c="dimmed" size="sm">
-                          {field.key}
-                        </Text>
-                      </Stack>
-                      <Group gap="xs">
-                        <Badge color={field.is_active ? "teal" : "gray"} variant="light">
-                          {field.is_active ? "active" : "inactive"}
-                        </Badge>
-                        {summary ? (
-                          <Badge variant="dot">{humanizeLabel(summary.status)}</Badge>
-                        ) : null}
-                      </Group>
-                    </Group>
+                <Card key={field.id}>
+                  <CardContent className="space-y-5 p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold">{field.label}</h3>
+                        <p className="text-sm text-muted-foreground">{field.key}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge
+                          label={field.is_active ? "Active" : "Inactive"}
+                          value={field.is_active ? "active" : "inactive"}
+                        />
+                        {summary ? <StatusBadge value={summary.status} /> : null}
+                      </div>
+                    </div>
 
-                    <SimpleGrid cols={{ base: 1, lg: 2 }}>
-                      <Stack gap="sm">
-                        <TextInput
-                          label="Label"
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Label</label>
+                        <Input
                           value={draft.label}
                           onChange={(event) => {
-                            const value = event.currentTarget.value;
+                            const nextValue = event.currentTarget.value;
                             return (
-                            setDrafts((currentDrafts) => ({
-                              ...currentDrafts,
-                              [field.id]: {
-                                ...draft,
-                                label: value
-                              }
-                            }))
+                              setDrafts((currentDrafts) => ({
+                                ...currentDrafts,
+                                [field.id]: {
+                                  ...draft,
+                                  label: nextValue
+                                }
+                              }))
                             );
                           }}
                         />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Prompt</label>
                         <Textarea
-                          label="Prompt"
-                          minRows={2}
+                          rows={4}
                           value={draft.prompt}
                           onChange={(event) => {
-                            const value = event.currentTarget.value;
+                            const nextValue = event.currentTarget.value;
                             return (
-                            setDrafts((currentDrafts) => ({
-                              ...currentDrafts,
-                              [field.id]: {
-                                ...draft,
-                                prompt: value
-                              }
-                            }))
+                              setDrafts((currentDrafts) => ({
+                                ...currentDrafts,
+                                [field.id]: {
+                                  ...draft,
+                                  prompt: nextValue
+                                }
+                              }))
                             );
                           }}
                         />
-                      </Stack>
+                        </div>
+                      </div>
 
-                      <Stack gap="sm">
-                        <TextInput
-                          label="Entity type hint"
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Entity type hint</label>
+                        <Input
                           value={draft.entityTypeHint}
                           onChange={(event) => {
-                            const value = event.currentTarget.value;
+                            const nextValue = event.currentTarget.value;
                             return (
-                            setDrafts((currentDrafts) => ({
-                              ...currentDrafts,
-                              [field.id]: {
-                                ...draft,
-                                entityTypeHint: value
-                              }
-                            }))
+                              setDrafts((currentDrafts) => ({
+                                ...currentDrafts,
+                                [field.id]: {
+                                  ...draft,
+                                  entityTypeHint: nextValue
+                                }
+                              }))
                             );
                           }}
                         />
-                        <Switch
-                          checked={draft.isActive}
-                          label="Active"
-                          onChange={(event) => {
-                            const value = event.currentTarget.checked;
-                            return (
-                            setDrafts((currentDrafts) => ({
-                              ...currentDrafts,
-                              [field.id]: {
-                                ...draft,
-                                isActive: value
-                              }
-                            }))
-                            );
-                          }}
-                        />
-                        <Text c="dimmed" size="sm">
+                        </div>
+                        <label className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 px-3 py-2">
+                          <span className="text-sm font-medium">Active</span>
+                          <Switch
+                            checked={draft.isActive}
+                            onCheckedChange={(checked) =>
+                              setDrafts((currentDrafts) => ({
+                                ...currentDrafts,
+                                [field.id]: {
+                                  ...draft,
+                                  isActive: Boolean(checked)
+                                }
+                              }))
+                            }
+                          />
+                        </label>
+                        <p className="text-sm text-muted-foreground">
                           Last updated {formatDateTime(field.updated_at)}
-                        </Text>
-                      </Stack>
-                    </SimpleGrid>
+                        </p>
+                      </div>
+                    </div>
 
                     {summary ? (
-                      <SimpleGrid cols={{ base: 1, md: 3 }}>
-                        <Card withBorder radius="md" p="sm">
-                          <Stack gap={2}>
-                            <Text fw={600}>Current value</Text>
-                            <Text>{summary.current_value ?? "Not resolved yet"}</Text>
-                          </Stack>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <Card className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-5">
+                            <p className="text-sm font-semibold">Current value</p>
+                            <p>{summary.current_value ?? "Not resolved yet"}</p>
+                          </CardContent>
                         </Card>
-                        <Card withBorder radius="md" p="sm">
-                          <Stack gap={2}>
-                            <Text fw={600}>Source tier</Text>
-                            <Text>{formatSourceTier(summary.current_source_tier)}</Text>
-                          </Stack>
+                        <Card className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-5">
+                            <p className="text-sm font-semibold">Source tier</p>
+                            <p>{formatSourceTier(summary.current_source_tier)}</p>
+                          </CardContent>
                         </Card>
-                        <Card withBorder radius="md" p="sm">
-                          <Stack gap={2}>
-                            <Text fw={600}>Pending work</Text>
-                            <Text>
-                              {summary.conflict_count ?? 0} conflicts · {summary.pending_correction_count ?? 0} pending corrections
-                            </Text>
-                          </Stack>
+                        <Card className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-5">
+                            <p className="text-sm font-semibold">Pending work</p>
+                            <p>
+                              {summary.conflict_count ?? 0} conflicts ·{" "}
+                              {summary.pending_correction_count ?? 0} pending corrections
+                            </p>
+                          </CardContent>
                         </Card>
-                      </SimpleGrid>
+                      </div>
                     ) : null}
 
-                    <Group justify="flex-end">
+                    <div className="flex justify-end gap-3">
                       <Button
                         disabled={!writeScopeQuery}
-                        loading={recomputingFieldId === field.id}
-                        variant="subtle"
+                        variant="ghost"
                         onClick={() => void handleRecompute(field.id)}
                       >
-                        Recompute
+                        {recomputingFieldId === field.id ? "Recomputing…" : "Recompute"}
                       </Button>
                       <Button
                         disabled={!writeScopeQuery}
-                        loading={savingFieldId === field.id}
                         onClick={() => void handleSaveField(field)}
                       >
-                        Save changes
+                        {savingFieldId === field.id ? "Saving…" : "Save changes"}
                       </Button>
-                    </Group>
-                  </Stack>
+                    </div>
+                  </CardContent>
                 </Card>
               );
             })
           ) : (
-            <Text c="dimmed">No tracked fields are configured for this scope yet.</Text>
+            <p className="text-sm text-muted-foreground">
+              No tracked fields are configured for this scope yet.
+            </p>
           )}
-        </Stack>
+        </section>
       )}
 
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={3}>Conflicts</Title>
-          <Badge variant="light">{conflictsQuery.data?.items.length ?? 0} conflicts</Badge>
-        </Group>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Conflicts</h2>
+          <Badge variant="outline">{conflictsQuery.data?.items.length ?? 0} conflicts</Badge>
+        </div>
         {conflictsQuery.error instanceof ApiProblemError ? (
-          <Alert color="red" title="Unable to load tracked conflicts">
-            {conflictsQuery.error.problem.detail}
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load tracked conflicts</AlertTitle>
+            <AlertDescription>{conflictsQuery.error.problem.detail}</AlertDescription>
           </Alert>
         ) : conflictsQuery.isLoading ? (
-          <Text c="dimmed">Loading conflicts…</Text>
+          <p className="text-sm text-muted-foreground">Loading conflicts…</p>
         ) : conflictsQuery.data && conflictsQuery.data.items.length > 0 ? (
           conflictsQuery.data.items.map((conflict) => (
-            <Card key={conflict.field.id} withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Stack gap={2}>
-                    <Title order={4}>{conflict.field.label}</Title>
-                    <Text c="dimmed" size="sm">
-                      {conflict.field.prompt}
-                    </Text>
-                  </Stack>
-                  <Badge color="yellow" variant="light">
-                    {humanizeLabel(conflict.status)}
-                  </Badge>
-                </Group>
+            <Card key={conflict.field.id}>
+              <CardContent className="space-y-5 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold">{conflict.field.label}</h3>
+                    <p className="text-sm text-muted-foreground">{conflict.field.prompt}</p>
+                  </div>
+                  <StatusBadge value={conflict.status} label={humanizeLabel(conflict.status)} />
+                </div>
 
-                {conflict.candidates?.map((candidate, index) => (
-                  <Card key={`${conflict.field.id}-${index}`} withBorder radius="md" p="sm">
-                    <Stack gap={4}>
-                      <Text fw={600}>{candidate.value_text}</Text>
-                      <Text size="sm">
-                        {formatSourceTier(candidate.source_tier)} · {candidate.status}
-                      </Text>
-                      <Text c="dimmed" size="sm">
-                        {formatDateTime(candidate.created_at)}
-                      </Text>
-                      {candidate.citations?.map((citation, citationIndex) => (
-                        <Text key={`${conflict.field.id}-${index}-${citationIndex}`} size="sm">
-                          {formatCitationLabel(citation)}
-                        </Text>
-                      ))}
-                    </Stack>
-                  </Card>
-                ))}
-              </Stack>
+                <div className="space-y-3">
+                  {conflict.candidates?.map((candidate, index) => (
+                    <Card key={`${conflict.field.id}-${index}`} className="bg-background/65 shadow-none">
+                      <CardContent className="space-y-2 p-5">
+                        <p className="font-semibold">{candidate.value_text}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatSourceTier(candidate.source_tier)} · {candidate.status}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateTime(candidate.created_at)}
+                        </p>
+                        {candidate.citations?.map((citation, citationIndex) => (
+                          <p
+                            key={`${conflict.field.id}-${index}-${citationIndex}`}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {formatCitationLabel(citation)}
+                          </p>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
             </Card>
           ))
         ) : (
-          <Text c="dimmed">No tracked-state conflicts are present in the current scope.</Text>
+          <p className="text-sm text-muted-foreground">
+            No tracked-state conflicts are present in the current scope.
+          </p>
         )}
-      </Stack>
-    </Stack>
+      </section>
+    </Page>
   );
 }

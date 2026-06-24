@@ -1,30 +1,24 @@
 import type { SearchMode } from "@contracts";
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  Pagination,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
+import { Page, PageHeader } from "@/components/app/page";
+import { SelectField } from "@/components/app/select-field";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
   formatScore,
   formatSearchMode,
   formatSourceTier
-} from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { readSearchResults, type SearchQuery } from "../api/searchApi";
 
 const SEARCH_MODE_OPTIONS: Array<{ label: string; value: SearchMode }> = [
@@ -43,7 +37,7 @@ const FILE_TYPE_OPTIONS = [
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { activeSpace, allSpaces, buildReadScopeParams, isReady } = useSpaceScope();
+  const { buildReadScopeParams, isReady } = useSpaceScope();
   const [queryText, setQueryText] = useState(searchParams.get("q") ?? "");
   const [documentIdInput, setDocumentIdInput] = useState(searchParams.get("document_id") ?? "");
   const [entityTypeInput, setEntityTypeInput] = useState(searchParams.get("entity_type") ?? "");
@@ -61,10 +55,7 @@ export function SearchPage() {
     setEntityTypeInput(entityTypeParam);
   }, [documentIdParam, entityTypeParam, queryTextParam]);
 
-  function updateParams(
-    updates: Record<string, string | null | undefined>,
-    resetPage = false
-  ) {
+  function updateParams(updates: Record<string, string | null | undefined>, resetPage = false) {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
       if (!value) {
@@ -110,159 +101,162 @@ export function SearchPage() {
   });
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Search</Title>
-        <Text c="dimmed">
-          Query the current Space scope across retrieval modes without leaving the workspace.
-        </Text>
-        <Badge color={allSpaces ? "blue" : "teal"} variant="light" w="fit-content">
-          {allSpaces ? "Reading across all Spaces" : activeSpace?.name ?? "One active Space"}
-        </Badge>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Retrieval"
+        title="Search"
+        description="Query the current Space scope across retrieval modes without leaving the workspace."
+      />
 
-      <Card withBorder radius="lg" p="lg">
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <TextInput
-              label="Search query"
-              placeholder="Find architecture decisions or implementation details"
-              value={queryText}
-              onChange={(event) => setQueryText(event.currentTarget.value)}
-            />
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-              <Select
-                data={SEARCH_MODE_OPTIONS}
-                label="Retrieval mode"
-                value={modeParam}
-                onChange={(value) =>
-                  updateParams({ mode: value ?? "combined" }, true)
-                }
+      <Card>
+        <CardContent className="p-6">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="search-query">
+                Search query
+              </label>
+              <Input
+                id="search-query"
+                placeholder="Find architecture decisions or implementation details"
+                value={queryText}
+                onChange={(event) => setQueryText(event.currentTarget.value)}
               />
-              <Select
-                clearable
-                data={FILE_TYPE_OPTIONS}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField
+                label="Retrieval mode"
+                options={SEARCH_MODE_OPTIONS}
+                value={modeParam}
+                onValueChange={(value) => updateParams({ mode: value }, true)}
+              />
+              <SelectField
+                emptyLabel="All file types"
                 label="File type"
+                options={FILE_TYPE_OPTIONS}
                 placeholder="All file types"
                 value={fileTypeParam || null}
-                onChange={(value) => updateParams({ file_type: value }, true)}
+                onValueChange={(value) =>
+                  updateParams({ file_type: value === "__all__" ? null : value }, true)
+                }
               />
-            </SimpleGrid>
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-              <TextInput
-                label="Document ID filter"
-                placeholder="Optional document UUID"
-                value={documentIdInput}
-                onChange={(event) => setDocumentIdInput(event.currentTarget.value)}
-              />
-              <TextInput
-                label="Entity type filter"
-                placeholder="Optional entity type"
-                value={entityTypeInput}
-                onChange={(event) => setEntityTypeInput(event.currentTarget.value)}
-              />
-            </SimpleGrid>
-            <Group justify="space-between">
-              <Text c="dimmed" size="sm">
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="document-id-filter">
+                  Document ID filter
+                </label>
+                <Input
+                  id="document-id-filter"
+                  placeholder="Optional document UUID"
+                  value={documentIdInput}
+                  onChange={(event) => setDocumentIdInput(event.currentTarget.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="entity-type-filter">
+                  Entity type filter
+                </label>
+                <Input
+                  id="entity-type-filter"
+                  placeholder="Optional entity type"
+                  value={entityTypeInput}
+                  onChange={(event) => setEntityTypeInput(event.currentTarget.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
                 Empty query state stays idle until you run a search.
-              </Text>
+              </p>
               <Button type="submit">Run search</Button>
-            </Group>
-          </Stack>
-        </form>
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
       {!queryTextParam ? (
-        <Alert color="blue" title="Search is ready">
-          Enter a query to load retrieval results for the current scope.
+        <Alert variant="info">
+          <AlertTitle>Search is ready</AlertTitle>
+          <AlertDescription>
+            Enter a query to load retrieval results for the current scope.
+          </AlertDescription>
         </Alert>
       ) : resultsQuery.error instanceof ApiProblemError ? (
-        <Alert color="red" title="Unable to load search results">
-          {resultsQuery.error.problem.detail}
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load search results</AlertTitle>
+          <AlertDescription>{resultsQuery.error.problem.detail}</AlertDescription>
         </Alert>
       ) : resultsQuery.isLoading ? (
-        <Text c="dimmed">Loading search results…</Text>
+        <p className="text-sm text-muted-foreground">Loading search results…</p>
       ) : resultsQuery.data && resultsQuery.data.items.length > 0 ? (
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Title order={3}>Results</Title>
-            <Badge variant="light">{resultsQuery.data.total} matches</Badge>
-          </Group>
-          {resultsQuery.data.items.map((item) => (
-            <Card key={item.result_id} withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Group justify="space-between" align="start">
-                  <Stack gap={2}>
-                    <Title order={4}>
-                      {item.document?.title ??
-                        item.entity?.display_name ??
-                        "Retrieval result"}
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                      {item.result_kind === "entity"
-                        ? item.entity?.entity_type ?? "entity"
-                        : item.document?.file_type?.toUpperCase() ?? "document"}
-                    </Text>
-                  </Stack>
-                  <Group gap="xs">
-                    <Badge variant="light">Score {formatScore(item.score)}</Badge>
-                    {item.matched_modes?.map((mode) => (
-                      <Badge key={mode} color="teal" variant="dot">
-                        {formatSearchMode(mode)}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Group>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight">Results</h2>
+            <Badge variant="outline">{resultsQuery.data.total} matches</Badge>
+          </div>
+          <div className="space-y-4">
+            {resultsQuery.data.items.map((item) => (
+              <Card key={item.result_id}>
+                <CardContent className="space-y-5 p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold">
+                        {item.document?.title ?? item.entity?.display_name ?? "Retrieval result"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {item.result_kind === "entity"
+                          ? item.entity?.entity_type ?? "entity"
+                          : item.document?.file_type?.toUpperCase() ?? "document"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">Score {formatScore(item.score)}</Badge>
+                      {item.matched_modes?.map((mode) => (
+                        <Badge key={mode}>{formatSearchMode(mode)}</Badge>
+                      ))}
+                    </div>
+                  </div>
 
-                <Text>{item.preview_text}</Text>
+                  <p className="leading-7 text-foreground">{item.preview_text}</p>
 
-                {item.citations && item.citations.length > 0 ? (
-                  <Stack gap="xs">
-                    <Text fw={600} size="sm">
-                      Citations
-                    </Text>
-                    {item.citations.map((citation, index) => (
-                      <Text key={`${item.result_id}-${index}`} size="sm">
-                        {formatCitationLabel(citation)} · {formatSourceTier(citation.source_tier)}
-                      </Text>
-                    ))}
-                  </Stack>
-                ) : null}
-
-                <Group>
-                  {item.document?.id ? (
-                    <Button
-                      component={Link}
-                      to={`/documents/${item.document.id}`}
-                      variant="light"
-                    >
-                      Open document
-                    </Button>
+                  {item.citations && item.citations.length > 0 ? (
+                    <div className="space-y-2 rounded-md border bg-muted/20 p-4">
+                      <p className="text-sm font-semibold">Citations</p>
+                      {item.citations.map((citation, index) => (
+                        <p key={`${item.result_id}-${index}`} className="text-sm text-muted-foreground">
+                          {formatCitationLabel(citation)} · {formatSourceTier(citation.source_tier)}
+                        </p>
+                      ))}
+                    </div>
                   ) : null}
-                  {item.entity?.id ? (
-                    <Button
-                      component={Link}
-                      to={`/entities/${item.entity.id}`}
-                      variant="subtle"
-                    >
-                      Open entity
-                    </Button>
-                  ) : null}
-                </Group>
-              </Stack>
-            </Card>
-          ))}
-          <Group justify="center">
-            <Pagination
-              total={Math.max(1, Math.ceil(resultsQuery.data.total / resultsQuery.data.page_size))}
-              value={page}
-              onChange={(nextPage) => updateParams({ page: String(nextPage) })}
-            />
-          </Group>
-        </Stack>
+
+                  <div className="flex flex-wrap gap-3">
+                    {item.document?.id ? (
+                      <Button asChild variant="outline">
+                        <Link to={`/documents/${item.document.id}`}>Open document</Link>
+                      </Button>
+                    ) : null}
+                    {item.entity?.id ? (
+                      <Button asChild variant="ghost">
+                        <Link to={`/entities/${item.entity.id}`}>Open entity</Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(resultsQuery.data.total / resultsQuery.data.page_size))}
+            onPageChange={(nextPage) => updateParams({ page: String(nextPage) })}
+          />
+        </section>
       ) : queryTextParam ? (
-        <Text c="dimmed">No results match the current query and scope.</Text>
+        <p className="text-sm text-muted-foreground">
+          No results match the current query and scope.
+        </p>
       ) : null}
-    </Stack>
+    </Page>
   );
 }

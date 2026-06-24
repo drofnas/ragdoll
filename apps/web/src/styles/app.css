@@ -1,19 +1,54 @@
-:root {
-  color-scheme: light;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
-  background: #f4f8fb;
-  color: #1d2b36;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(70, 136, 156, 0.18), transparent 32%),
-    linear-gradient(180deg, #f7fbfd 0%, #eef4f7 100%);
-}
+@layer base {
+  :root {
+    --background: 195 33% 96%;
+    --foreground: 206 28% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 206 28% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 206 28% 17%;
+    --primary: 184 57% 34%;
+    --primary-foreground: 192 100% 98%;
+    --secondary: 190 29% 91%;
+    --secondary-foreground: 206 28% 20%;
+    --muted: 192 24% 92%;
+    --muted-foreground: 204 16% 41%;
+    --accent: 36 70% 93%;
+    --accent-foreground: 24 47% 25%;
+    --destructive: 0 73% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 196 27% 84%;
+    --input: 196 27% 84%;
+    --ring: 184 57% 34%;
+    --radius: 0.5rem;
+    color-scheme: light;
+  }
 
-a {
-  color: inherit;
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    margin: 0;
+    min-width: 320px;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }

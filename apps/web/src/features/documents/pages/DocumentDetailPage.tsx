@@ -1,25 +1,24 @@
 import type { ProcessingStageStatus } from "@contracts";
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Code,
-  Group,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { triggerBrowserDownload } from "../../../shared/lib/downloads";
-import { formatDateTime, formatElapsedDuration, formatFileSize, humanizeStageStatus } from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { Page, PageHeader } from "@/components/app/page";
+import { SelectField } from "@/components/app/select-field";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ApiProblemError } from "@/shared/api/client";
+import { triggerBrowserDownload } from "@/shared/lib/downloads";
+import {
+  formatDateTime,
+  formatElapsedDuration,
+  formatFileSize,
+  humanizeStageStatus
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { createChatSession } from "../../chat/api/chatApi";
 import {
   deleteDocument,
@@ -37,7 +36,7 @@ export function DocumentDetailPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const { spaces } = useSpaceScope();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
@@ -165,7 +164,7 @@ export function DocumentDetailPage() {
     try {
       const session = await createChatSession({
         space_id: detailQuery.data.space_id,
-        document_id: detailQuery.data.id,
+        document_id: detailQuery.data.id
       });
       navigate(`/chat/${session.id}`);
     } catch (error) {
@@ -180,143 +179,182 @@ export function DocumentDetailPage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Group justify="space-between" align="end">
-        <Stack gap={4}>
-          <Button component={Link} to="/documents" variant="subtle">
-            Back to library
+    <Page>
+      <PageHeader
+        eyebrow="Document detail"
+        title={detailQuery.data?.title ?? "Document detail"}
+        description={detailQuery.data?.original_filename}
+        actions={statusQuery.data ? <StatusBadge value={statusQuery.data.processing_status.overall} label={humanizeStageStatus(statusQuery.data.processing_status.overall)} /> : undefined}
+      >
+        <div>
+          <Button asChild variant="ghost">
+            <Link to="/documents">Back to library</Link>
           </Button>
-          <Title order={2}>{detailQuery.data?.title ?? "Document detail"}</Title>
-          <Text c="dimmed">{detailQuery.data?.original_filename}</Text>
-        </Stack>
-        {statusQuery.data ? <Badge variant="light">{humanizeStageStatus(statusQuery.data.processing_status.overall)}</Badge> : null}
-      </Group>
+        </div>
+      </PageHeader>
 
       {errorMessage ? (
-        <Alert color="red" title="Document action failed">
-          {errorMessage}
+        <Alert variant="destructive">
+          <AlertTitle>Document action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
       {detailQuery.isLoading ? (
-        <Text c="dimmed">Loading document detail…</Text>
+        <p className="text-sm text-muted-foreground">Loading document detail…</p>
       ) : detailQuery.error instanceof ApiProblemError ? (
-        <Alert color="red" title="Unable to load document">
-          {detailQuery.error.problem.detail}
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load document</AlertTitle>
+          <AlertDescription>{detailQuery.error.problem.detail}</AlertDescription>
         </Alert>
       ) : detailQuery.data ? (
         <>
-          <SimpleGrid cols={{ base: 1, lg: 3 }}>
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="xs">
-                <Title order={4}>Metadata</Title>
-                <Text>{formatFileSize(detailQuery.data.file_size)}</Text>
-                <Text>{detailQuery.data.file_type.toUpperCase()}</Text>
-                <Text>Uploaded {formatDateTime(detailQuery.data.created_at)}</Text>
-                <Text>Updated {formatDateTime(detailQuery.data.updated_at)}</Text>
-              </Stack>
+          <section className="grid gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Metadata</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p>{formatFileSize(detailQuery.data.file_size)}</p>
+                <p>{detailQuery.data.file_type.toUpperCase()}</p>
+                <p>Uploaded {formatDateTime(detailQuery.data.created_at)}</p>
+                <p>Updated {formatDateTime(detailQuery.data.updated_at)}</p>
+              </CardContent>
             </Card>
 
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Title order={4}>Processing</Title>
+            <Card>
+              <CardHeader>
+                <CardTitle>Processing</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
                 {statusQuery.data ? (
                   <>
-                    <Text>Overall: {humanizeStageStatus(statusQuery.data.processing_status.overall)}</Text>
-                    <Text>Chunks: {statusQuery.data.chunk_count}</Text>
-                    <Text>Indexed chunks: {statusQuery.data.indexed_chunk_count}</Text>
-                    <Text>Latest job: {statusQuery.data.latest_job?.status ?? "Not yet queued"}</Text>
-                    <Text>Started: {formatDateTime(latestJob?.started_at)}</Text>
+                    <p>
+                      Overall: {humanizeStageStatus(statusQuery.data.processing_status.overall)}
+                    </p>
+                    <p>Chunks: {statusQuery.data.chunk_count}</p>
+                    <p>Indexed chunks: {statusQuery.data.indexed_chunk_count}</p>
+                    <p>Latest job: {statusQuery.data.latest_job?.status ?? "Not yet queued"}</p>
+                    <p>Started: {formatDateTime(latestJob?.started_at)}</p>
                     {isProcessing && latestJob?.started_at ? (
-                      <Text>Elapsed: {formatElapsedDuration(latestJob.started_at)}</Text>
+                      <p>Elapsed: {formatElapsedDuration(latestJob.started_at)}</p>
                     ) : null}
                     {extractionIsActive ? (
-                      <Alert color="blue" variant="light" title="Extraction is still running">
-                        {extractionHint}
+                      <Alert variant="info">
+                        <AlertTitle>Extraction is still running</AlertTitle>
+                        <AlertDescription>{extractionHint}</AlertDescription>
                       </Alert>
                     ) : null}
-                    <Button
-                      loading={isReprocessing}
-                      variant="light"
-                      onClick={() => void handleReprocessDocument()}
-                    >
-                      Reprocess document
+                    <Button variant="outline" onClick={() => void handleReprocessDocument()}>
+                      {isReprocessing ? "Reprocessing…" : "Reprocess document"}
                     </Button>
                   </>
                 ) : (
-                  <Text c="dimmed">Waiting for live status…</Text>
+                  <p className="text-muted-foreground">Waiting for live status…</p>
                 )}
-              </Stack>
+              </CardContent>
             </Card>
 
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Title order={4}>Actions</Title>
-                <Button loading={isDownloading} onClick={() => void handleDownloadDocument()}>
-                  Download original
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button className="w-full" onClick={() => void handleDownloadDocument()}>
+                  {isDownloading ? "Downloading…" : "Download original"}
                 </Button>
-                <Button loading={isStartingChat} variant="light" onClick={() => void handleStartDocumentChat()}>
-                  Chat about this document
+                <Button className="w-full" variant="outline" onClick={() => void handleStartDocumentChat()}>
+                  {isStartingChat ? "Starting chat…" : "Chat about this document"}
                 </Button>
-                <Select
-                  data={spaces
-                    .filter((space) => space.id !== detailQuery.data.space_id)
-                    .map((space) => ({ label: space.name, value: space.id }))}
-                  label="Move to Space"
-                  placeholder="Choose a Space"
-                  value={moveTarget}
-                  onChange={setMoveTarget}
-                />
-                <Button loading={isMoving} variant="light" onClick={() => void handleMoveDocument()}>
-                  Move document
+                {moveTarget ? (
+                  <SelectField
+                    label="Move to Space"
+                    options={spaces.map((space) => ({ label: space.name, value: space.id }))}
+                    placeholder="Choose a Space"
+                    value={moveTarget}
+                    onValueChange={setMoveTarget}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Move to Space</p>
+                    <p className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                      Loading available Spaces…
+                    </p>
+                  </div>
+                )}
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  disabled={!moveTarget || moveTarget === detailQuery.data.space_id}
+                  onClick={() => void handleMoveDocument()}
+                >
+                  {isMoving ? "Moving…" : "Move document"}
                 </Button>
-                <Button color="red" loading={isDeleting} variant="light" onClick={() => void handleDeleteDocument()}>
-                  Delete document
+                <Button className="w-full" variant="destructive" onClick={() => void handleDeleteDocument()}>
+                  {isDeleting ? "Deleting…" : "Delete document"}
                 </Button>
-              </Stack>
+              </CardContent>
             </Card>
-          </SimpleGrid>
+          </section>
 
-          <Card withBorder radius="lg" p="lg">
-            <Stack gap="md">
-              <Title order={4}>Stage detail</Title>
+          <Card>
+            <CardHeader>
+              <CardTitle>Stage detail</CardTitle>
+            </CardHeader>
+            <CardContent>
               {statusQuery.data ? (
-                <SimpleGrid cols={{ base: 2, md: 3 }}>
+                <div className="grid gap-3 md:grid-cols-3">
                   {Object.entries(statusQuery.data.processing_status).map(([key, value]) => (
-                    <Card key={key} withBorder radius="md" p="sm">
-                      <Stack gap={2}>
-                        <Text fw={600} tt="capitalize">
-                          {key.replace(/_/g, " ")}
-                        </Text>
-                        <Badge variant="light">{typeof value === "string" ? humanizeStageStatus(value) : String(value)}</Badge>
-                      </Stack>
+                    <Card key={key} className="bg-background/65 shadow-none">
+                      <CardContent className="space-y-2 p-5">
+                        <p className="text-sm font-semibold capitalize">{key.replace(/_/g, " ")}</p>
+                        <StatusBadge
+                          value={typeof value === "string" ? value : String(value)}
+                          label={
+                            typeof value === "string"
+                              ? humanizeStageStatus(value)
+                              : String(value)
+                          }
+                        />
+                      </CardContent>
                     </Card>
                   ))}
-                </SimpleGrid>
+                </div>
               ) : (
-                <Text c="dimmed">Status is still loading.</Text>
+                <p className="text-sm text-muted-foreground">Status is still loading.</p>
               )}
-            </Stack>
+            </CardContent>
           </Card>
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }}>
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Title order={4}>Preview text</Title>
-                <Text style={{ whiteSpace: "pre-wrap" }}>
-                  {detailQuery.data.preview_text || "No preview text is available yet."}
-                </Text>
-              </Stack>
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Preview text</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[28rem] rounded-md border bg-muted/20 p-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7">
+                    {detailQuery.data.preview_text || "No preview text is available yet."}
+                  </p>
+                </ScrollArea>
+              </CardContent>
             </Card>
-            <Card withBorder radius="lg" p="lg">
-              <Stack gap="md">
-                <Title order={4}>Original extracted text</Title>
-                <Code block>{detailQuery.data.original_text_content || "Extraction has not populated full text yet."}</Code>
-              </Stack>
+            <Card>
+              <CardHeader>
+                <CardTitle>Original extracted text</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[28rem] rounded-md border bg-slate-950 p-4">
+                  <pre className="whitespace-pre-wrap text-sm leading-7 text-slate-100">
+                    {detailQuery.data.original_text_content ||
+                      "Extraction has not populated full text yet."}
+                  </pre>
+                </ScrollArea>
+              </CardContent>
             </Card>
-          </SimpleGrid>
+          </section>
         </>
       ) : null}
-    </Stack>
+    </Page>
   );
 }

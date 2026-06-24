@@ -1,9 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Anchor, Button, Card, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { useAuthSession } from "../../../shared/state/authSession";
+import { PageHeader } from "@/components/app/page";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiProblemError } from "@/shared/api/client";
+import { useAuthSession } from "@/shared/state/authSession";
 import { registerUser } from "../api/authApi";
 
 export function RegisterPage() {
@@ -49,64 +54,93 @@ export function RegisterPage() {
   }
 
   return (
-    <Card withBorder radius="lg" shadow="sm" maw={520} mx="auto" p="xl">
-      <Stack gap="lg">
-        <Stack gap={4}>
-          <Title order={2}>Create an account</Title>
-          <Text c="dimmed" size="sm">
-            Start with one Space, then grow into all-spaces views and retrieval workflows later.
-          </Text>
-        </Stack>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(440px,0.9fr)] lg:items-center">
+      <PageHeader
+        eyebrow="Get started"
+        title="Create an account"
+        description="Start with one Space, then grow into all-spaces views and retrieval workflows later."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border bg-muted/30 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Spaces
+            </p>
+            <p className="mt-2 text-sm leading-6 text-foreground">
+              Create focused work areas for uploads, search, and tracked state.
+            </p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Retrieval
+            </p>
+            <p className="mt-2 text-sm leading-6 text-foreground">
+              Move from documents to evidence-backed chat without changing tools.
+            </p>
+          </div>
+        </div>
+      </PageHeader>
 
-        {errorMessage ? (
-          <Alert color="red" title="Registration failed">
-            {errorMessage}
-          </Alert>
-        ) : null}
+      <Card className="mx-auto w-full max-w-xl">
+        <CardContent className="space-y-6 p-8">
+          {errorMessage ? (
+            <Alert variant="destructive">
+              <AlertTitle>Registration failed</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          ) : null}
 
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <TextInput
-              autoComplete="name"
-              disabled={isSubmitting}
-              label="Full name"
-              placeholder="Ada Lovelace"
-              value={fullName}
-              onChange={(event) => setFullName(event.currentTarget.value)}
-            />
-            <TextInput
-              required
-              autoComplete="email"
-              disabled={isSubmitting}
-              label="Email"
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.currentTarget.value)}
-            />
-            <PasswordInput
-              required
-              autoComplete="new-password"
-              disabled={isSubmitting}
-              label="Password"
-              placeholder="Use at least 8 characters"
-              value={password}
-              onChange={(event) => setPassword(event.currentTarget.value)}
-            />
-            <Button loading={isSubmitting} type="submit">
-              Create account
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="register-name">Full name</Label>
+              <Input
+                id="register-name"
+                autoComplete="name"
+                disabled={isSubmitting}
+                placeholder="Ada Lovelace"
+                value={fullName}
+                onChange={(event) => setFullName(event.currentTarget.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="register-email">Email</Label>
+              <Input
+                id="register-email"
+                required
+                autoComplete="email"
+                disabled={isSubmitting}
+                placeholder="you@example.com"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="register-password">Password</Label>
+              <Input
+                id="register-password"
+                required
+                autoComplete="new-password"
+                disabled={isSubmitting}
+                placeholder="Use at least 8 characters"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.currentTarget.value)}
+              />
+            </div>
+            <Button className="w-full" type="submit">
+              {isSubmitting ? "Creating account…" : "Create account"}
             </Button>
-          </Stack>
-        </form>
+          </form>
 
-        <Text size="sm">
-          Already have an account?{" "}
-          <Anchor component={Link} to="/login">
-            Sign in
-          </Anchor>
-          .
-        </Text>
-      </Stack>
-    </Card>
+          <p className="text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link className="font-semibold text-primary hover:underline" to="/login">
+              Sign in
+            </Link>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

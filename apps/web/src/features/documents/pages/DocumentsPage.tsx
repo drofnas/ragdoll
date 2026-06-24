@@ -1,27 +1,34 @@
 import type { ProcessingStageStatus } from "@contracts";
 import { useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  Pagination,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { formatDateTime, formatFileSize, humanizeStageStatus } from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { Page, PageHeader } from "@/components/app/page";
+import { SelectField } from "@/components/app/select-field";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { ApiProblemError } from "@/shared/api/client";
+import {
+  formatDateTime,
+  formatFileSize,
+  humanizeStageStatus
+} from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { listDocuments, uploadDocument, type ListDocumentsQuery } from "../api/documentsApi";
 
 const TERMINAL_STATUSES: ProcessingStageStatus[] = ["completed", "deferred", "failed"];
+
+const fileTypeOptions = [
+  { label: "PDF", value: "pdf" },
+  { label: "DOCX", value: "docx" },
+  { label: "Markdown", value: "md" },
+  { label: "Text", value: "txt" }
+];
 
 export function DocumentsPage() {
   const navigate = useNavigate();
@@ -46,7 +53,9 @@ export function DocumentsPage() {
     queryKey: ["documents", documentQuery],
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
-      return items.some((item) => !TERMINAL_STATUSES.includes(item.processing_status.overall)) ? 3000 : false;
+      return items.some((item) => !TERMINAL_STATUSES.includes(item.processing_status.overall))
+        ? 3000
+        : false;
     }
   });
 
@@ -63,7 +72,9 @@ export function DocumentsPage() {
     try {
       concreteSpaceId = requireConcreteSpace().id;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Choose one Space before uploading.");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Choose one Space before uploading."
+      );
       return;
     }
 
@@ -83,127 +94,134 @@ export function DocumentsPage() {
   }
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Documents</Title>
-        <Text c="dimmed">
-          Upload files, track processing progress, and move between Spaces without leaving the workspace.
-        </Text>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Library"
+        title="Documents"
+        description="Upload files, track processing progress, and move between Spaces without leaving the workspace."
+      />
 
       {allSpaces ? (
-        <Alert color="blue" title="Read scope spans all Spaces">
-          Upload is disabled until you choose one active Space in the shell selector.
+        <Alert variant="info">
+          <AlertTitle>Read scope spans all Spaces</AlertTitle>
+          <AlertDescription>
+            Upload is disabled until you choose one active Space in the shell selector.
+          </AlertDescription>
         </Alert>
       ) : null}
 
       {errorMessage ? (
-        <Alert color="red" title="Document action failed">
-          {errorMessage}
+        <Alert variant="destructive">
+          <AlertTitle>Document action failed</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      <SimpleGrid cols={{ base: 1, lg: 2 }}>
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Title order={4}>Upload a document</Title>
-            <Text c="dimmed" size="sm">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Upload a document</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-sm text-muted-foreground">
               Current target: {activeSpace?.name ?? "Choose a Space first"}
-            </Text>
-            <form onSubmit={handleUpload}>
-              <Stack gap="md">
-                <input
-                  accept=".pdf,.docx,.txt,.md,.markdown"
-                  disabled={isUploading || allSpaces}
-                  type="file"
-                  onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
-                />
-                <Button disabled={allSpaces} loading={isUploading} type="submit">
-                  Upload
-                </Button>
-              </Stack>
+            </p>
+            <form className="space-y-4" onSubmit={handleUpload}>
+              <Input
+                accept=".pdf,.docx,.txt,.md,.markdown"
+                disabled={isUploading || allSpaces}
+                type="file"
+                onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
+              />
+              <Button disabled={allSpaces} type="submit">
+                {isUploading ? "Uploading…" : "Upload"}
+              </Button>
             </form>
-          </Stack>
+          </CardContent>
         </Card>
 
-        <Card withBorder radius="lg" p="lg">
-          <Stack gap="md">
-            <Title order={4}>Filter the library</Title>
-            <Select
-              clearable
-              data={[
-                { label: "PDF", value: "pdf" },
-                { label: "DOCX", value: "docx" },
-                { label: "Markdown", value: "md" },
-                { label: "Text", value: "txt" }
-              ]}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filter the library</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <SelectField
+              emptyLabel="All file types"
               label="File type"
+              options={fileTypeOptions}
               placeholder="All file types"
               value={fileTypeFilter}
-              onChange={(value) => {
+              onValueChange={(value) => {
                 setPage(1);
-                setFileTypeFilter(value);
+                setFileTypeFilter(value === "__all__" ? null : value);
               }}
             />
-            <Text c="dimmed" size="sm">
+            <p className="text-sm text-muted-foreground">
               Scope-aware reads respect the active Space unless the all-spaces toggle is enabled.
-            </Text>
-          </Stack>
+            </p>
+          </CardContent>
         </Card>
-      </SimpleGrid>
+      </section>
 
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={3}>Library</Title>
-          <Badge variant="light">{documentsQuery.data?.total ?? 0} documents</Badge>
-        </Group>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Library</h2>
+          <Badge variant="outline">{documentsQuery.data?.total ?? 0} documents</Badge>
+        </div>
 
         {documentsQuery.isLoading ? (
-          <Text c="dimmed">Loading documents…</Text>
+          <p className="text-sm text-muted-foreground">Loading documents…</p>
         ) : documentsQuery.error instanceof ApiProblemError ? (
-          <Alert color="red" title="Unable to load documents">
-            {documentsQuery.error.problem.detail}
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load documents</AlertTitle>
+            <AlertDescription>{documentsQuery.error.problem.detail}</AlertDescription>
           </Alert>
         ) : documentsQuery.data && documentsQuery.data.items.length > 0 ? (
           <>
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
+            <div className="grid gap-4 md:grid-cols-2">
               {documentsQuery.data.items.map((document) => (
-                <Card key={document.id} withBorder radius="lg" p="lg">
-                  <Stack gap="md">
-                    <Group justify="space-between" align="start">
-                      <Stack gap={2}>
-                        <Title order={4}>{document.title}</Title>
-                        <Text c="dimmed" size="sm">
+                <Card key={document.id}>
+                  <CardContent className="space-y-5 p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold">{document.title}</h3>
+                        <p className="text-sm text-muted-foreground">
                           {document.original_filename}
-                        </Text>
-                      </Stack>
-                      <Badge variant="light">{humanizeStageStatus(document.processing_status.overall)}</Badge>
-                    </Group>
+                        </p>
+                      </div>
+                      <StatusBadge value={document.processing_status.overall} label={humanizeStageStatus(document.processing_status.overall)} />
+                    </div>
 
-                    <Text size="sm">
-                      {formatFileSize(document.file_size)} · {document.file_type.toUpperCase()} · {document.chunk_count} chunks
-                    </Text>
-                    <Text size="sm">Updated {formatDateTime(document.updated_at)}</Text>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(document.file_size)} · {document.file_type.toUpperCase()} ·{" "}
+                      {document.chunk_count} chunks
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Updated {formatDateTime(document.updated_at)}
+                    </p>
 
-                    <Button component={Link} to={`/documents/${document.id}`} variant="light">
-                      Open detail
+                    <Button asChild variant="outline">
+                      <Link to={`/documents/${document.id}`}>Open detail</Link>
                     </Button>
-                  </Stack>
+                  </CardContent>
                 </Card>
               ))}
-            </SimpleGrid>
-            <Group justify="center">
-              <Pagination
-                total={Math.max(1, Math.ceil(documentsQuery.data.total / documentsQuery.data.page_size))}
-                value={page}
-                onChange={setPage}
-              />
-            </Group>
+            </div>
+            <Pagination
+              currentPage={page}
+              totalPages={Math.max(
+                1,
+                Math.ceil(documentsQuery.data.total / documentsQuery.data.page_size)
+              )}
+              onPageChange={setPage}
+            />
           </>
         ) : (
-          <Text c="dimmed">No documents match the current scope and filter yet.</Text>
+          <p className="text-sm text-muted-foreground">
+            No documents match the current scope and filter yet.
+          </p>
         )}
-      </Stack>
-    </Stack>
+      </section>
+    </Page>
   );
 }

@@ -1,9 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Anchor, Button, Card, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { useAuthSession } from "../../../shared/state/authSession";
+import { PageHeader } from "@/components/app/page";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiProblemError } from "@/shared/api/client";
+import { useAuthSession } from "@/shared/state/authSession";
 
 interface LoginLocationState {
   email?: string;
@@ -43,62 +48,76 @@ export function LoginPage() {
   }
 
   return (
-    <Card withBorder radius="lg" shadow="sm" maw={480} mx="auto" p="xl">
-      <Stack gap="lg">
-        <Stack gap={4}>
-          <Title order={2}>Sign in</Title>
-          <Text c="dimmed" size="sm">
-            Use your Ragdoll account to open the workspace experience.
-          </Text>
-        </Stack>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)] lg:items-center">
+      <PageHeader
+        eyebrow="Welcome back"
+        title="Sign in"
+        description="Use your Ragdoll account to open the workspace experience."
+      >
+        <div className="rounded-lg border bg-muted/30 p-5 text-sm leading-6 text-muted-foreground">
+          Workspaces, retrieval, document operations, and scoped state tools all open from the same signed-in shell.
+        </div>
+      </PageHeader>
 
-        {(location.state as LoginLocationState | null)?.message ? (
-          <Alert color="teal" title="Account ready">
-            {(location.state as LoginLocationState | null)?.message}
-          </Alert>
-        ) : null}
+      <Card className="mx-auto w-full max-w-xl">
+        <CardContent className="space-y-6 p-8">
+          {(location.state as LoginLocationState | null)?.message ? (
+            <Alert variant="success">
+              <AlertTitle>Account ready</AlertTitle>
+              <AlertDescription>
+                {(location.state as LoginLocationState | null)?.message}
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
-        {errorMessage ? (
-          <Alert color="red" title="Sign-in failed">
-            {errorMessage}
-          </Alert>
-        ) : null}
+          {errorMessage ? (
+            <Alert variant="destructive">
+              <AlertTitle>Sign-in failed</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          ) : null}
 
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <TextInput
-              required
-              autoComplete="email"
-              disabled={isSubmitting || status === "loading"}
-              label="Email"
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.currentTarget.value)}
-            />
-            <PasswordInput
-              required
-              autoComplete="current-password"
-              disabled={isSubmitting || status === "loading"}
-              label="Password"
-              placeholder="Your password"
-              value={password}
-              onChange={(event) => setPassword(event.currentTarget.value)}
-            />
-            <Button loading={isSubmitting} type="submit">
-              Sign in
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="login-email">Email</Label>
+              <Input
+                id="login-email"
+                required
+                autoComplete="email"
+                disabled={isSubmitting || status === "loading"}
+                placeholder="you@example.com"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="login-password">Password</Label>
+              <Input
+                id="login-password"
+                required
+                autoComplete="current-password"
+                disabled={isSubmitting || status === "loading"}
+                placeholder="Your password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.currentTarget.value)}
+              />
+            </div>
+            <Button className="w-full" disabled={status === "loading"} type="submit">
+              {isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
-          </Stack>
-        </form>
+          </form>
 
-        <Text size="sm">
-          Need an account?{" "}
-          <Anchor component={Link} to="/register">
-            Register here
-          </Anchor>
-          .
-        </Text>
-      </Stack>
-    </Card>
+          <p className="text-sm text-muted-foreground">
+            Need an account?{" "}
+            <Link className="font-semibold text-primary hover:underline" to="/register">
+              Register here
+            </Link>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@": resolve(__dirname, "./src"),
       "@contracts": resolve(__dirname, "../../packages/contracts/typescript")
     }
   },

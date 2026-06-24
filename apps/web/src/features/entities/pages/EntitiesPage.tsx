@@ -1,28 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  Pagination,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Title
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
-import { ApiProblemError } from "../../../shared/api/client";
-import { formatDateTime } from "../../../shared/lib/formatting";
-import { useSpaceScope } from "../../../shared/state/spaceScope";
+import { Page, PageHeader } from "@/components/app/page";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { ApiProblemError } from "@/shared/api/client";
+import { formatDateTime } from "@/shared/lib/formatting";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 import { listEntities, type ListEntitiesQuery } from "../api/entitiesApi";
 
 export function EntitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { activeSpace, allSpaces, buildReadScopeParams, isReady } = useSpaceScope();
+  const { buildReadScopeParams, isReady } = useSpaceScope();
   const [queryText, setQueryText] = useState(searchParams.get("q") ?? "");
   const [entityTypeText, setEntityTypeText] = useState(searchParams.get("entity_type") ?? "");
 
@@ -35,10 +29,7 @@ export function EntitiesPage() {
     setEntityTypeText(entityTypeParam);
   }, [entityTypeParam, queryTextParam]);
 
-  function updateParams(
-    updates: Record<string, string | null | undefined>,
-    resetPage = false
-  ) {
+  function updateParams(updates: Record<string, string | null | undefined>, resetPage = false) {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
       if (!value) {
@@ -80,87 +71,95 @@ export function EntitiesPage() {
   });
 
   return (
-    <Stack gap="xl">
-      <Stack gap={4}>
-        <Title order={2}>Entities</Title>
-        <Text c="dimmed">
-          Explore extracted entities, their provenance, and how often they appear in the current scope.
-        </Text>
-        <Badge color={allSpaces ? "blue" : "teal"} variant="light" w="fit-content">
-          {allSpaces ? "Reading across all Spaces" : activeSpace?.name ?? "One active Space"}
-        </Badge>
-      </Stack>
+    <Page>
+      <PageHeader
+        eyebrow="Knowledge graph"
+        title="Entities"
+        description="Explore extracted entities, their provenance, and how often they appear in the current scope."
+      />
 
-      <Card withBorder radius="lg" p="lg">
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <TextInput
-              label="Search entities"
-              placeholder="Find a person, system, or concept"
-              value={queryText}
-              onChange={(event) => setQueryText(event.currentTarget.value)}
-            />
-            <TextInput
-              label="Entity type"
-              placeholder="Optional entity type"
-              value={entityTypeText}
-              onChange={(event) => setEntityTypeText(event.currentTarget.value)}
-            />
-            <Group justify="flex-end">
+      <Card>
+        <CardContent className="p-6">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="entity-search">
+                  Search entities
+                </label>
+                <Input
+                  id="entity-search"
+                  placeholder="Find a person, system, or concept"
+                  value={queryText}
+                  onChange={(event) => setQueryText(event.currentTarget.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="entity-type">
+                  Entity type
+                </label>
+                <Input
+                  id="entity-type"
+                  placeholder="Optional entity type"
+                  value={entityTypeText}
+                  onChange={(event) => setEntityTypeText(event.currentTarget.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
               <Button type="submit">Apply filters</Button>
-            </Group>
-          </Stack>
-        </form>
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
       {entitiesQuery.error instanceof ApiProblemError ? (
-        <Alert color="red" title="Unable to load entities">
-          {entitiesQuery.error.problem.detail}
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load entities</AlertTitle>
+          <AlertDescription>{entitiesQuery.error.problem.detail}</AlertDescription>
         </Alert>
       ) : entitiesQuery.isLoading ? (
-        <Text c="dimmed">Loading entities…</Text>
+        <p className="text-sm text-muted-foreground">Loading entities…</p>
       ) : entitiesQuery.data && entitiesQuery.data.items.length > 0 ? (
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Title order={3}>Results</Title>
-            <Badge variant="light">{entitiesQuery.data.total} entities</Badge>
-          </Group>
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight">Results</h2>
+            <Badge variant="outline">{entitiesQuery.data.total} entities</Badge>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
             {entitiesQuery.data.items.map((entity) => (
-              <Card key={entity.id} withBorder radius="lg" p="lg">
-                <Stack gap="md">
-                  <Group justify="space-between" align="start">
-                    <Stack gap={2}>
-                      <Title order={4}>{entity.display_name}</Title>
-                      <Text c="dimmed" size="sm">
-                        {entity.entity_type}
-                      </Text>
-                    </Stack>
-                    <Badge variant="light">{entity.document_count} documents</Badge>
-                  </Group>
+              <Card key={entity.id}>
+                <CardContent className="space-y-5 p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold">{entity.display_name}</h3>
+                      <p className="text-sm text-muted-foreground">{entity.entity_type}</p>
+                    </div>
+                    <Badge variant="outline">{entity.document_count} documents</Badge>
+                  </div>
 
-                  <Text size="sm">
-                    {entity.mention_count} mentions · latest mention {formatDateTime(entity.latest_mentioned_at)}
-                  </Text>
+                  <p className="text-sm text-muted-foreground">
+                    {entity.mention_count} mentions · latest mention{" "}
+                    {formatDateTime(entity.latest_mentioned_at)}
+                  </p>
 
-                  <Button component={Link} to={`/entities/${entity.id}`} variant="light">
-                    Open entity detail
+                  <Button asChild variant="outline">
+                    <Link to={`/entities/${entity.id}`}>Open entity detail</Link>
                   </Button>
-                </Stack>
+                </CardContent>
               </Card>
             ))}
-          </SimpleGrid>
-          <Group justify="center">
-            <Pagination
-              total={Math.max(1, Math.ceil(entitiesQuery.data.total / entitiesQuery.data.page_size))}
-              value={page}
-              onChange={(nextPage) => updateParams({ page: String(nextPage) })}
-            />
-          </Group>
-        </Stack>
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(entitiesQuery.data.total / entitiesQuery.data.page_size))}
+            onPageChange={(nextPage) => updateParams({ page: String(nextPage) })}
+          />
+        </section>
       ) : (
-        <Text c="dimmed">No entities match the current scope and filters.</Text>
+        <p className="text-sm text-muted-foreground">
+          No entities match the current scope and filters.
+        </p>
       )}
-    </Stack>
+    </Page>
   );
 }

@@ -1,22 +1,13 @@
-import {
-  AppShell,
-  Badge,
-  Box,
-  Burger,
-  Button,
-  Container,
-  Group,
-  NavLink,
-  Select,
-  Stack,
-  Switch,
-  Text
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Menu, Shield, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
-import { useAuthSession } from "../../shared/state/authSession";
-import { useSpaceScope } from "../../shared/state/spaceScope";
+import { SelectField } from "@/components/app/select-field";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { useAuthSession } from "@/shared/state/authSession";
+import { useSpaceScope } from "@/shared/state/spaceScope";
 
 const primaryLinks = [
   { label: "Dashboard", to: "/dashboard" },
@@ -34,104 +25,174 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
 }
 
+function NavRail({
+  currentPath,
+  isAdmin,
+  onNavigate
+}: {
+  currentPath: string;
+  isAdmin: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="grid gap-1">
+      {primaryLinks.map((item) => (
+        <Link
+          key={item.to}
+          to={item.to}
+          className={cn(
+            "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            isActivePath(currentPath, item.to)
+              ? "bg-secondary text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+          onClick={onNavigate}
+        >
+          <span>{item.label}</span>
+          {isActivePath(currentPath, item.to) ? <Sparkles className="h-4 w-4" /> : null}
+        </Link>
+      ))}
+      {isAdmin ? (
+        <Link
+          to="/admin"
+          className={cn(
+            "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            isActivePath(currentPath, "/admin")
+              ? "bg-destructive text-destructive-foreground"
+              : "text-destructive hover:bg-destructive/10"
+          )}
+          onClick={onNavigate}
+        >
+          <span>Admin</span>
+          <Shield className="h-4 w-4" />
+        </Link>
+      ) : null}
+    </nav>
+  );
+}
+
+function ScopeSelect({
+  activeSpaceId,
+  allSpaces,
+  disabled,
+  onValueChange,
+  options
+}: {
+  activeSpaceId: string | null;
+  allSpaces: boolean;
+  disabled: boolean;
+  onValueChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <SelectField
+      disabled={disabled}
+      emptyLabel="All Spaces"
+      label="Space"
+      options={options}
+      placeholder="Choose a Space"
+      value={allSpaces ? "__all__" : activeSpaceId}
+      onValueChange={onValueChange}
+    />
+  );
+}
+
 export function AuthenticatedShell() {
   const { currentUser, isAdmin, logout } = useAuthSession();
   const { activeSpace, allSpaces, isReady, setActiveSpace, setAllSpaces, spaces } = useSpaceScope();
-  const [opened, { toggle, close }] = useDisclosure();
   const { pathname } = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const spaceOptions = spaces.map((space) => ({ label: space.name, value: space.id }));
+
+  function handleScopeChange(value: string) {
+    if (value === "__all__") {
+      setAllSpaces(true);
+      return;
+    }
+
+    setAllSpaces(false);
+    setActiveSpace(spaces.find((space) => space.id === value) ?? null);
+  }
 
   return (
-    <AppShell
-      header={{ height: 96 }}
-      navbar={{ breakpoint: "md", collapsed: { mobile: !opened }, width: 220 }}
-      padding="md"
-    >
-      <AppShell.Header>
-        <Container size="xl" h="100%">
-          <Box
-            h="100%"
-            style={{
-              alignItems: "center",
-              display: "grid",
-              gap: "1rem",
-              gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)"
-            }}
-          >
-            <Group gap="sm" wrap="nowrap">
-              <Burger hiddenFrom="md" opened={opened} onClick={toggle} size="sm" />
-              <Stack gap={0}>
-                <Text fw={700}>Ragdoll</Text>
-                <Text size="xs" c="dimmed">
-                  Web workspace foundations
-                </Text>
-              </Stack>
-            </Group>
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 border-b bg-background">
+        <div className="container flex min-h-14 items-center justify-between gap-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-semibold">Ragdoll</p>
+                <p className="text-xs text-muted-foreground">Web workspace foundations</p>
+              </div>
+            </div>
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="lg:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Open navigation</span>
+                </Button>
+              </SheetTrigger>
+              {mobileOpen ? (
+                <SheetContent side="left" className="w-[20rem]">
+                  <SheetHeader>
+                    <SheetTitle>Workspace navigation</SheetTitle>
+                    <SheetDescription>
+                      Move between retrieval, document, and account surfaces.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-6">
+                    <ScopeSelect
+                      activeSpaceId={activeSpace?.id ?? null}
+                      allSpaces={allSpaces}
+                      disabled={!isReady}
+                      options={spaceOptions}
+                      onValueChange={handleScopeChange}
+                    />
+                    <NavRail currentPath={pathname} isAdmin={isAdmin} onNavigate={() => setMobileOpen(false)} />
+                  </div>
+                </SheetContent>
+              ) : null}
+            </Sheet>
+          </div>
 
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <Select
-                data={spaces.map((space) => ({ label: space.name, value: space.id }))}
-                disabled={!isReady || allSpaces}
-                placeholder="Choose a Space"
-                size="sm"
-                value={activeSpace?.id ?? null}
-                w={140}
-                onChange={(value) => setActiveSpace(spaces.find((space) => space.id === value) ?? null)}
-              />
-              <Switch checked={allSpaces} label="All spaces" onChange={(event) => setAllSpaces(event.currentTarget.checked)} />
-              <Badge color={allSpaces ? "blue" : "teal"} maw={180} variant="light" visibleFrom="lg">
-                {allSpaces ? "Reading across all Spaces" : activeSpace?.name ?? "Single Space"}
-              </Badge>
-            </Group>
+          <div className="flex items-center justify-between gap-3 lg:justify-end">
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-semibold text-foreground">
+                {currentUser?.full_name ?? currentUser?.email}
+              </p>
+              <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
+            </div>
+            <Button variant="outline" onClick={logout}>
+              Log out
+            </Button>
+          </div>
+        </div>
+      </header>
 
-            <Group gap="sm" justify="flex-end" wrap="nowrap">
-              <Stack gap={0} align="end" visibleFrom="sm">
-                <Text size="sm" fw={600}>
-                  {currentUser?.full_name ?? currentUser?.email}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {currentUser?.email}
-                </Text>
-              </Stack>
-              <Button variant="light" onClick={logout}>
-                Log out
-              </Button>
-            </Group>
-          </Box>
-        </Container>
-      </AppShell.Header>
-      <AppShell.Navbar p="md">
-        <AppShell.Section>
-          <Stack gap="xs">
-            {primaryLinks.map((item) => (
-              <NavLink
-                key={item.to}
-                active={isActivePath(pathname, item.to)}
-                component={Link}
-                label={item.label}
-                to={item.to}
-                variant="filled"
-                onClick={close}
+      <div className="container grid gap-6 py-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-8">
+        <aside className="hidden lg:block">
+          <div className="sticky top-20 rounded-lg border bg-card p-4 shadow-sm">
+            <div className="mb-4">
+              <ScopeSelect
+                activeSpaceId={activeSpace?.id ?? null}
+                allSpaces={allSpaces}
+                disabled={!isReady}
+                options={spaceOptions}
+                onValueChange={handleScopeChange}
               />
-            ))}
-            {isAdmin ? (
-              <NavLink
-                active={isActivePath(pathname, "/admin")}
-                color="red"
-                component={Link}
-                label="Admin"
-                to="/admin"
-                variant="light"
-                onClick={close}
-              />
-            ) : null}
-          </Stack>
-        </AppShell.Section>
-      </AppShell.Navbar>
-      <AppShell.Main>
-        <Container size="xl" py="xl">
+            </div>
+            <NavRail currentPath={pathname} isAdmin={isAdmin} />
+          </div>
+        </aside>
+
+        <main className="min-w-0">
           <Outlet />
-        </Container>
-      </AppShell.Main>
-    </AppShell>
+        </main>
+      </div>
+    </div>
   );
 }
