@@ -4,6 +4,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from ragdoll.core.config import get_settings
+from ragdoll.core.logging import get_logger
 from ragdoll.modules.ingestion.domain.policies import (
     build_preview_text,
     chunk_text,
@@ -21,7 +23,9 @@ from ragdoll.platform.db.models import Document, DocumentChunk, Entity
 from ragdoll.platform.db.session import get_session_factory
 from ragdoll.platform.graph import GraphCleanupService, get_graph_cleanup_service
 from ragdoll.platform.llm import (
+    DeterministicEntityExtractionService,
     EmbeddingGenerationService,
+    EntityExtractionError,
     EntityExtractionService,
     get_embedding_generation_service,
     get_entity_extraction_service,
@@ -29,6 +33,9 @@ from ragdoll.platform.llm import (
 from ragdoll.platform.queues import DocumentProcessingQueueService, ProcessingJobPayload
 from ragdoll.platform.storage import DocumentStorageService, get_document_storage
 from ragdoll.platform.vector import VectorCleanupService, get_vector_cleanup_service
+
+logger = get_logger("ragdoll.modules.ingestion.service")
+AUTO_EXTRACTION_FAILURE_THRESHOLD = 3
 
 
 def _build_document_chunks(document: Document, *, text: str) -> tuple[int, list[DocumentChunk]]:
@@ -56,13 +63,66 @@ def _load_document(session: Session, document_id: UUID) -> Document:
 def _extract_entities(
     session: Session,
     *,
+    job_id: UUID,
     document: Document,
     extractor: EntityExtractionService,
+    extraction_mode: str,
 ) -> list[Entity]:
     repo = IngestionRepository(session)
     rows: list[Entity] = []
-    for chunk in document.chunks:
-        for candidate in extractor.extract_entities(chunk.text_content):
+    chunk_count = len(document.chunks)
+    consecutive_failures = 0
+    fallback_mode_active = extraction_mode == "deterministic"
+    deterministic_extractor = DeterministicEntityExtractionService()
+
+    logger.info(
+        "document_id=%s job_id=%s stage=extraction chunk_count=%s mode=%s status=start",
+        document.id,
+        job_id,
+        chunk_count,
+        extraction_mode,
+    )
+
+    for index, chunk in enumerate(document.chunks, start=1):
+        if fallback_mode_active:
+            candidates = deterministic_extractor.extract_entities(chunk.text_content)
+        else:
+            try:
+                candidates = extractor.extract_entities(chunk.text_content)
+                consecutive_failures = 0
+            except (EntityExtractionError, TimeoutError, RuntimeError) as exc:
+                if extraction_mode != "auto":
+                    logger.warning(
+                        "document_id=%s job_id=%s stage=extraction chunk_index=%s mode=%s status=failed error=%s",
+                        document.id,
+                        job_id,
+                        index,
+                        extraction_mode,
+                        exc,
+                    )
+                    raise
+
+                consecutive_failures += 1
+                logger.warning(
+                    "document_id=%s job_id=%s stage=extraction chunk_index=%s mode=auto status=fallback_chunk failure_count=%s error=%s",
+                    document.id,
+                    job_id,
+                    index,
+                    consecutive_failures,
+                    exc,
+                )
+                candidates = deterministic_extractor.extract_entities(chunk.text_content)
+                if consecutive_failures >= AUTO_EXTRACTION_FAILURE_THRESHOLD and not fallback_mode_active:
+                    fallback_mode_active = True
+                    logger.warning(
+                        "document_id=%s job_id=%s stage=extraction mode=auto status=deterministic_fallback_activated failure_count=%s chunk_count=%s",
+                        document.id,
+                        job_id,
+                        consecutive_failures,
+                        chunk_count,
+                    )
+
+        for candidate in candidates:
             canonical = repo.get_or_create_canonical_entity(
                 space_id=document.space_id,
                 entity_type=candidate.entity_type,
@@ -83,6 +143,13 @@ def _extract_entities(
                     extraction_metadata={"source": "worker_pipeline"},
                 )
             )
+    logger.info(
+        "document_id=%s job_id=%s stage=extraction chunk_count=%s fallback_activated=%s status=completed",
+        document.id,
+        job_id,
+        chunk_count,
+        str(fallback_mode_active).lower(),
+    )
     return rows
 
 
@@ -100,6 +167,10 @@ def process_job_payload(
     active_storage = storage or get_document_storage()
     active_embedding_service = embedding_service or get_embedding_generation_service()
     active_entity_extractor = entity_extraction_service or get_entity_extraction_service()
+    settings = get_settings()
+    extraction_mode = settings.entity_extraction_mode
+    if extraction_mode == "deterministic":
+        active_entity_extractor = get_entity_extraction_service()
     active_vector_cleanup = vector_cleanup or get_vector_cleanup_service()
     active_graph_cleanup = graph_cleanup or get_graph_cleanup_service()
     stage_order = ("parsing", "vector", "extraction", "graph")
@@ -139,7 +210,13 @@ def process_job_payload(
                     embedding_model=getattr(active_embedding_service, "_model", "deterministic"),
                 )
             elif stage == "extraction":
-                entities = _extract_entities(session, document=document, extractor=active_entity_extractor)
+                entities = _extract_entities(
+                    session,
+                    job_id=payload.job_id,
+                    document=document,
+                    extractor=active_entity_extractor,
+                    extraction_mode=extraction_mode,
+                )
                 repo.replace_entities(document, entities)
                 session.flush()
                 repo.prune_orphan_canonical_entities()

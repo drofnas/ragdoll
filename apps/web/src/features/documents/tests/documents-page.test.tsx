@@ -19,6 +19,7 @@ import {
 
 describe("DocumentsPage", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     window.localStorage.clear();
@@ -160,5 +161,67 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => expect(screen.getByText("Overall: pending")).toBeInTheDocument());
     expect(screen.getByText("Latest job: queued")).toBeInTheDocument();
+  });
+
+  it("shows extraction progress details for long-running document jobs", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-06-22T17:15:30Z").getTime());
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    const processingStatus = {
+      ...documentStatusResponse,
+      chunk_count: 113,
+      latest_job: {
+        ...documentStatusResponse.latest_job!,
+        completed_at: null,
+        started_at: "2026-06-22T17:05:00Z",
+        status: "processing" as const,
+      },
+      processing_status: {
+        ...documentStatusResponse.processing_status,
+        extraction: "processing" as const,
+        graph: "pending" as const,
+        overall: "processing" as const,
+        vector: "completed" as const,
+      },
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/documents/${documentDetail.id}`) && (!init?.method || init.method === "GET")) {
+          return jsonResponse({
+            ...documentDetail,
+            processing_status: processingStatus.processing_status,
+          });
+        }
+        if (url.includes(`/api/v1/ingestion/documents/${documentDetail.id}/status`)) {
+          return jsonResponse(processingStatus);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/documents/${documentDetail.id}`]}>
+        <AppProviders>
+          <Routes>
+            <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText("Latest job: processing")).toBeInTheDocument());
+    expect(screen.getByText((content) => content.startsWith("Started:"))).toBeInTheDocument();
+    expect(screen.getByText("Elapsed: 10m 30s")).toBeInTheDocument();
+    expect(screen.getByText(/processed chunk-by-chunk locally/i)).toBeInTheDocument();
+    expect(screen.getByText(/113 chunks/i)).toBeInTheDocument();
   });
 });

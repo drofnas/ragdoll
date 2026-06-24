@@ -12,6 +12,31 @@ export function formatDateTime(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
+export function formatElapsedDuration(value: string | null | undefined, now = Date.now()) {
+  if (!value) {
+    return "Not available";
+  }
+
+  const startedAt = new Date(value).getTime();
+  if (Number.isNaN(startedAt)) {
+    return "Not available";
+  }
+
+  const elapsedMs = Math.max(0, now - startedAt);
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
 export function formatFileSize(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;

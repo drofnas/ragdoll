@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import pytest
 
+from ragdoll.core.config import get_settings
 from ragdoll.modules.ingestion.domain.policies import build_processing_status_for_upload
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, DocumentChunkVector, Entity, GraphEdge, Space, User
-from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService
+from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService, get_entity_extraction_service
 from ragdoll.platform.queues import InMemoryDocumentProcessingQueue, ProcessingJobPayload, SqlDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.workers.document_pipeline import drain_document_jobs
+
+
+@pytest.fixture(autouse=True)
+def clear_entity_extraction_caches():
+    yield
+    get_settings.cache_clear()
+    get_entity_extraction_service.cache_clear()
 
 
 def _seed_user_space_document(db_session):
@@ -162,6 +170,24 @@ class FailingEntityExtractionService:
         raise RuntimeError("entity extraction outage")
 
 
+class CountingEntityExtractionService:
+    def __init__(self, *, failure_count: int = 0) -> None:
+        self.failure_count = failure_count
+        self.call_count = 0
+
+    def extract_entities(self, text: str):
+        self.call_count += 1
+        if self.call_count <= self.failure_count:
+            raise RuntimeError("entity extraction outage")
+        return DeterministicEntityExtractionService().extract_entities(text)
+
+
+def _set_entity_extraction_mode(monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
+    monkeypatch.setenv("ENTITY_EXTRACTION_MODE", mode)
+    get_settings.cache_clear()
+    get_entity_extraction_service.cache_clear()
+
+
 @pytest.mark.parametrize(
     ("embedding_service", "entity_extraction_service", "failed_stage", "expected_completed_stage"),
     [
@@ -171,11 +197,14 @@ class FailingEntityExtractionService:
 )
 def test_worker_marks_stage_specific_failures(
     db_session,
+    monkeypatch,
     embedding_service,
     entity_extraction_service,
     failed_stage,
     expected_completed_stage,
 ):
+    if failed_stage == "extraction":
+        _set_entity_extraction_mode(monkeypatch, "ollama")
     user, space, document = _seed_user_space_document(db_session)
     job = DocumentProcessingJob(
         document_id=document.id,
@@ -221,6 +250,105 @@ def test_worker_marks_stage_specific_failures(
     assert refreshed_document.processing_status[failed_stage] == "failed"
     assert refreshed_document.processing_status[expected_completed_stage] == "completed"
     assert refreshed_job.status == "failed"
+
+
+def test_worker_deterministic_mode_skips_primary_entity_extractor(db_session, monkeypatch):
+    _set_entity_extraction_mode(monkeypatch, "deterministic")
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    storage = InMemoryDocumentStorage()
+    storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+    primary_extractor = CountingEntityExtractionService(failure_count=1)
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=primary_extractor,
+        )
+        == 1
+    )
+
+    db_session.expire_all()
+    refreshed_document = db_session.get(Document, document.id)
+    refreshed_job = db_session.get(DocumentProcessingJob, job.id)
+    assert primary_extractor.call_count == 0
+    assert refreshed_document is not None
+    assert refreshed_document.processing_status["overall"] == "completed"
+    assert refreshed_job is not None
+    assert refreshed_job.status == "completed"
+
+
+def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_session, monkeypatch):
+    _set_entity_extraction_mode(monkeypatch, "auto")
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    storage = InMemoryDocumentStorage()
+    storage.store_original_file(document.storage_key, ("Project Atlas works with Ragdoll " * 800).encode("utf-8"))
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+    primary_extractor = CountingEntityExtractionService(failure_count=3)
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=primary_extractor,
+        )
+        == 1
+    )
+
+    db_session.expire_all()
+    refreshed_document = db_session.get(Document, document.id)
+    refreshed_job = db_session.get(DocumentProcessingJob, job.id)
+    assert primary_extractor.call_count == 3
+    assert refreshed_document is not None
+    assert refreshed_document.processing_status["overall"] == "completed"
+    assert refreshed_document.chunk_count > 3
+    assert refreshed_job is not None
+    assert refreshed_job.status == "completed"
 
 
 def test_worker_graph_stage_persists_entities_vectors_and_edges(db_session):

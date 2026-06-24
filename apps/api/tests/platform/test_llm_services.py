@@ -3,8 +3,14 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from ragdoll.core.config import Settings
-from ragdoll.platform.llm.service import OllamaEmbeddingService, OllamaEntityExtractionService
+from ragdoll.core.config import Settings, get_settings
+from ragdoll.platform.llm.service import (
+    DeterministicEntityExtractionService,
+    EntityExtractionError,
+    OllamaEmbeddingService,
+    OllamaEntityExtractionService,
+    get_entity_extraction_service,
+)
 
 
 class TimeoutClient:
@@ -90,7 +96,7 @@ def test_ollama_entity_extraction_service_raises_clear_timeout_message(monkeypat
         service.extract_entities("Project Atlas works with Ragdoll")
 
 
-def test_ollama_entity_extraction_service_falls_back_when_model_returns_empty_json_body(monkeypatch):
+def test_ollama_entity_extraction_service_raises_when_model_returns_empty_json_body(monkeypatch):
     settings = Settings(
         ollama_worker_base_url="http://ollama.local:11434",
         ollama_worker_model="qwen3.5:0.8b",
@@ -100,12 +106,11 @@ def test_ollama_entity_extraction_service_falls_back_when_model_returns_empty_js
     monkeypatch.setattr(httpx, "Client", lambda *, timeout=None: JsonClient({"response": ""}, timeout=timeout))
 
     service = OllamaEntityExtractionService(settings)
-    entities = service.extract_entities("Project Atlas works with Ragdoll")
+    with pytest.raises(EntityExtractionError, match="malformed JSON"):
+        service.extract_entities("Project Atlas works with Ragdoll")
 
-    assert [entity.surface_text for entity in entities] == ["Project Atlas", "Ragdoll"]
 
-
-def test_ollama_entity_extraction_service_falls_back_when_model_returns_unexpected_schema(monkeypatch):
+def test_ollama_entity_extraction_service_raises_when_model_returns_unexpected_schema(monkeypatch):
     settings = Settings(
         ollama_worker_base_url="http://ollama.local:11434",
         ollama_worker_model="qwen3.5:0.8b",
@@ -119,6 +124,17 @@ def test_ollama_entity_extraction_service_falls_back_when_model_returns_unexpect
     )
 
     service = OllamaEntityExtractionService(settings)
-    entities = service.extract_entities("Project Atlas works with Ragdoll")
+    with pytest.raises(EntityExtractionError, match="unexpected schema"):
+        service.extract_entities("Project Atlas works with Ragdoll")
 
-    assert [entity.surface_text for entity in entities] == ["Project Atlas", "Ragdoll"]
+
+def test_get_entity_extraction_service_uses_deterministic_mode(monkeypatch):
+    monkeypatch.setenv("ENTITY_EXTRACTION_MODE", "deterministic")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama.local:11434")
+    get_settings.cache_clear()
+    get_entity_extraction_service.cache_clear()
+    try:
+        assert isinstance(get_entity_extraction_service(), DeterministicEntityExtractionService)
+    finally:
+        get_settings.cache_clear()
+        get_entity_extraction_service.cache_clear()

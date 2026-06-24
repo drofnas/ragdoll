@@ -1,5 +1,6 @@
 import json
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote_plus
 
 from pydantic import AliasChoices, Field, field_validator
@@ -86,6 +87,7 @@ class Settings(BaseSettings):
     ollama_orchestrator_model: str | None = None
     ollama_worker_model: str | None = None
     ollama_embedding_model: str = "nomic-embed-text"
+    entity_extraction_mode: Literal["auto", "ollama", "deterministic"] = "auto"
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
     ollama_worker_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
 
@@ -119,6 +121,13 @@ class Settings(BaseSettings):
     def parse_allowed_origins_raw(cls, value: object) -> str:
         normalized = _normalize_allowed_origins(value)
         return ",".join(normalized)
+
+    @field_validator("entity_extraction_mode", mode="before")
+    @classmethod
+    def normalize_entity_extraction_mode(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
     @property
     def allowed_origins(self) -> list[str]:

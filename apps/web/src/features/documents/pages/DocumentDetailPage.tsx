@@ -18,7 +18,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
 import { ApiProblemError } from "../../../shared/api/client";
 import { triggerBrowserDownload } from "../../../shared/lib/downloads";
-import { formatDateTime, formatFileSize, humanizeStageStatus } from "../../../shared/lib/formatting";
+import { formatDateTime, formatElapsedDuration, formatFileSize, humanizeStageStatus } from "../../../shared/lib/formatting";
 import { useSpaceScope } from "../../../shared/state/spaceScope";
 import {
   deleteDocument,
@@ -61,6 +61,15 @@ export function DocumentDetailPage() {
       return overall && !TERMINAL_STATUSES.includes(overall) ? 3000 : false;
     }
   });
+
+  const latestJob = statusQuery.data?.latest_job;
+  const extractionIsActive = statusQuery.data?.processing_status.extraction === "processing";
+  const isProcessing = Boolean(
+    statusQuery.data && !TERMINAL_STATUSES.includes(statusQuery.data.processing_status.overall)
+  );
+  const extractionHint = statusQuery.data?.chunk_count
+    ? `Large documents are processed chunk-by-chunk locally and may take tens of minutes. This document currently has ${statusQuery.data.chunk_count} chunks.`
+    : "Large documents are processed chunk-by-chunk locally and may take tens of minutes.";
 
   useEffect(() => {
     if (!detailQuery.data) {
@@ -191,6 +200,15 @@ export function DocumentDetailPage() {
                     <Text>Chunks: {statusQuery.data.chunk_count}</Text>
                     <Text>Indexed chunks: {statusQuery.data.indexed_chunk_count}</Text>
                     <Text>Latest job: {statusQuery.data.latest_job?.status ?? "Not yet queued"}</Text>
+                    <Text>Started: {formatDateTime(latestJob?.started_at)}</Text>
+                    {isProcessing && latestJob?.started_at ? (
+                      <Text>Elapsed: {formatElapsedDuration(latestJob.started_at)}</Text>
+                    ) : null}
+                    {extractionIsActive ? (
+                      <Alert color="blue" variant="light" title="Extraction is still running">
+                        {extractionHint}
+                      </Alert>
+                    ) : null}
                     <Button
                       loading={isReprocessing}
                       variant="light"

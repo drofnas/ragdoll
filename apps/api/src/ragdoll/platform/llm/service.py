@@ -40,6 +40,10 @@ class EntityExtractionService(Protocol):
     def extract_entities(self, text: str) -> list[ExtractedEntityCandidate]: ...
 
 
+class EntityExtractionError(RuntimeError):
+    """Raised when the configured entity extractor cannot produce a valid result."""
+
+
 def normalize_entity_name(value: str) -> str:
     lowered = re.sub(r"\s+", " ", value.strip().lower())
     return re.sub(r"[^a-z0-9 _-]", "", lowered).strip()
@@ -188,33 +192,29 @@ class OllamaEntityExtractionService:
             raise TimeoutError(
                 f"Ollama entity extraction timed out after {self._timeout.read} seconds."
             ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise EntityExtractionError(
+                f"Ollama entity extraction request failed with status {exc.response.status_code}."
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise EntityExtractionError("Ollama entity extraction request failed.") from exc
 
         try:
             payload = response.json()
         except ValueError:
-            logger.warning(
-                "Ollama entity extraction returned a non-JSON envelope; falling back to deterministic extraction."
-            )
-            return DeterministicEntityExtractionService().extract_entities(text)
+            raise EntityExtractionError("Ollama entity extraction returned a non-JSON envelope.")
 
         raw_response = payload.get("response")
         if not isinstance(raw_response, str):
-            logger.warning(
-                "Ollama entity extraction response did not include a string JSON body; falling back to deterministic extraction."
+            raise EntityExtractionError(
+                "Ollama entity extraction response did not include a string JSON body."
             )
-            return DeterministicEntityExtractionService().extract_entities(text)
         decoded = _parse_ollama_json_body(raw_response)
         if decoded is None:
-            logger.warning(
-                "Ollama entity extraction returned malformed JSON; falling back to deterministic extraction."
-            )
-            return DeterministicEntityExtractionService().extract_entities(text)
+            raise EntityExtractionError("Ollama entity extraction returned malformed JSON.")
         entries = decoded.get("entities")
         if not isinstance(entries, list):
-            logger.warning(
-                "Ollama entity extraction response used an unexpected schema; falling back to deterministic extraction."
-            )
-            return DeterministicEntityExtractionService().extract_entities(text)
+            raise EntityExtractionError("Ollama entity extraction response used an unexpected schema.")
 
         candidates: list[ExtractedEntityCandidate] = []
         seen: dict[tuple[str, str], None] = {}
@@ -262,5 +262,8 @@ def get_entity_extraction_service() -> EntityExtractionService:
     if settings.e2e_shared_backends:
         return DeterministicEntityExtractionService()
     if settings.e2e_memory_backends:
+        return DeterministicEntityExtractionService()
+    if settings.entity_extraction_mode == "deterministic":
+        logger.info("entity_extraction_mode=deterministic; using deterministic extractor only.")
         return DeterministicEntityExtractionService()
     return OllamaEntityExtractionService(settings)
