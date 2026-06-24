@@ -1,4 +1,4 @@
-import type { ChatMessageRecord } from "@contracts";
+import type { ChatMessageRecord, Citation } from "@contracts";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -9,16 +9,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ApiProblemError } from "@/shared/api/client";
-import {
-  formatCitationLabel,
-  formatDateTime,
-  formatRelativeAgeShort,
-  formatSourceTier
-} from "@/shared/lib/formatting";
+import { formatDateTime, formatRelativeAgeShort } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
 import {
   createChatSession,
@@ -27,6 +23,43 @@ import {
   readChatSession,
   sendChatMessage
 } from "../api/chatApi";
+
+function formatDocumentCitationLabel(citation: Citation) {
+  const title = citation.title?.trim() || "Document";
+  const line = citation.line_number ? `line ${citation.line_number}` : "line unavailable";
+  return `${title} (${line})`;
+}
+
+function DocumentCitationsHoverCard({
+  citations,
+  messageId
+}: {
+  citations: Citation[];
+  messageId: string;
+}) {
+  return (
+    <HoverCard openDelay={0}>
+      <HoverCardTrigger asChild>
+        <Button className="h-auto p-0 text-sm font-semibold" type="button" variant="link">
+          Citations
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-80 p-3">
+        <div className="space-y-1">
+          {citations.map((citation, index) => (
+            <Link
+              className="block rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              key={`${messageId}-${citation.document_id}-${index}`}
+              to={`/documents/${citation.document_id}`}
+            >
+              {formatDocumentCitationLabel(citation)}
+            </Link>
+          ))}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
 
 export function ChatPage() {
   const navigate = useNavigate();
@@ -273,92 +306,96 @@ export function ChatPage() {
               <>
                 <ScrollArea className="h-[32rem] rounded-md border bg-muted/20 p-4">
                   <div className="space-y-4 pr-3">
-                    {detailQuery.data.messages?.map((messageRecord) => (
-                      <Card key={messageRecord.id} className="shadow-none">
-                        <CardContent className="space-y-4 p-5">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <StatusBadge label={messageRecord.role} value={messageRecord.role === "assistant" ? "active" : "inactive"} />
-                            <p className="text-sm text-muted-foreground">
-                              {formatDateTime(messageRecord.created_at)}
+                    {detailQuery.data.messages?.map((messageRecord) => {
+                      const documentCitations =
+                        messageRecord.citations?.filter((citation) => citation.document_id) ?? [];
+
+                      return (
+                        <Card key={messageRecord.id} className="shadow-none">
+                          <CardContent className="space-y-4 p-5">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <StatusBadge
+                                label={messageRecord.role}
+                                value={messageRecord.role === "assistant" ? "active" : "inactive"}
+                              />
+                              <p className="text-sm text-muted-foreground">
+                                {formatDateTime(messageRecord.created_at)}
+                              </p>
+                            </div>
+
+                            <p className="whitespace-pre-wrap leading-7 text-foreground">
+                              {messageRecord.content}
                             </p>
-                          </div>
 
-                          <p className="whitespace-pre-wrap leading-7 text-foreground">
-                            {messageRecord.content}
-                          </p>
+                            {documentCitations.length > 0 ? (
+                              <DocumentCitationsHoverCard
+                                citations={documentCitations}
+                                messageId={messageRecord.id}
+                              />
+                            ) : null}
 
-                          {messageRecord.citations && messageRecord.citations.length > 0 ? (
-                            <div className="space-y-2 rounded-md border bg-muted/20 p-4">
-                              <p className="text-sm font-semibold">Citations</p>
-                              {messageRecord.citations.map((citation, index) => (
-                                <p key={`${messageRecord.id}-${index}`} className="text-sm text-muted-foreground">
-                                  {formatCitationLabel(citation)} · {formatSourceTier(citation.source_tier)}
-                                </p>
-                              ))}
-                            </div>
-                          ) : null}
+                            {messageRecord.role === "assistant" ? (
+                              <div className="space-y-3">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    setOpenCorrectionMessageId(
+                                      openCorrectionMessageId === messageRecord.id ? null : messageRecord.id
+                                    )
+                                  }
+                                >
+                                  Submit correction
+                                </Button>
 
-                          {messageRecord.role === "assistant" ? (
-                            <div className="space-y-3">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  setOpenCorrectionMessageId(
-                                    openCorrectionMessageId === messageRecord.id ? null : messageRecord.id
-                                  )
-                                }
-                              >
-                                Submit correction
-                              </Button>
-
-                              {openCorrectionMessageId === messageRecord.id ? (
-                                <Card className="bg-muted/20 shadow-none">
-                                  <CardContent className="space-y-4 p-5">
-                                    <div className="space-y-2">
-                                      <label
-                                        className="text-sm font-medium"
-                                        htmlFor={`proposed-correction-${messageRecord.id}`}
-                                      >
-                                        Proposed correction
-                                      </label>
-                                      <Textarea
-                                        id={`proposed-correction-${messageRecord.id}`}
-                                        rows={3}
-                                        value={proposedValue}
-                                        onChange={(event) => setProposedValue(event.currentTarget.value)}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <label
-                                        className="text-sm font-medium"
-                                        htmlFor={`correction-rationale-${messageRecord.id}`}
-                                      >
-                                        Rationale
-                                      </label>
-                                      <Textarea
-                                        id={`correction-rationale-${messageRecord.id}`}
-                                        rows={3}
-                                        value={rationale}
-                                        onChange={(event) => setRationale(event.currentTarget.value)}
-                                      />
-                                    </div>
-                                    <div className="flex justify-end">
-                                      <Button
-                                        size="sm"
-                                        onClick={() => void handleSubmitCorrection(messageRecord)}
-                                      >
-                                        {isSubmittingCorrection ? "Submitting…" : "Submit for review"}
-                                      </Button>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </CardContent>
-                      </Card>
-                    ))}
+                                {openCorrectionMessageId === messageRecord.id ? (
+                                  <Card className="bg-muted/20 shadow-none">
+                                    <CardContent className="space-y-4 p-5">
+                                      <div className="space-y-2">
+                                        <label
+                                          className="text-sm font-medium"
+                                          htmlFor={`proposed-correction-${messageRecord.id}`}
+                                        >
+                                          Proposed correction
+                                        </label>
+                                        <Textarea
+                                          id={`proposed-correction-${messageRecord.id}`}
+                                          rows={3}
+                                          value={proposedValue}
+                                          onChange={(event) => setProposedValue(event.currentTarget.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label
+                                          className="text-sm font-medium"
+                                          htmlFor={`correction-rationale-${messageRecord.id}`}
+                                        >
+                                          Rationale
+                                        </label>
+                                        <Textarea
+                                          id={`correction-rationale-${messageRecord.id}`}
+                                          rows={3}
+                                          value={rationale}
+                                          onChange={(event) => setRationale(event.currentTarget.value)}
+                                        />
+                                      </div>
+                                      <div className="flex justify-end">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => void handleSubmitCorrection(messageRecord)}
+                                        >
+                                          {isSubmittingCorrection ? "Submitting…" : "Submit for review"}
+                                        </Button>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
 

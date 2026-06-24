@@ -93,6 +93,7 @@ def _seed_retrieval_document(
     mime_type: str = "text/plain",
     entity_specs: list[tuple[str, str]] | None = None,
     deleted: bool = False,
+    start_line: int = 1,
 ) -> tuple[Document, DocumentChunk, list[CanonicalEntity]]:
     document = Document(
         space_id=space.id,
@@ -118,6 +119,7 @@ def _seed_retrieval_document(
         document_id=document.id,
         space_id=space.id,
         chunk_index=0,
+        start_line=start_line,
         text_content=text,
     )
     db_session.add(chunk)
@@ -302,6 +304,7 @@ def test_search_modes_return_ranked_results_with_citations(api_client, db_sessio
         title="atlas-notes.txt",
         text="Project Atlas works closely with Ragdoll.",
         entity_specs=[("Project Atlas", "project"), ("Ragdoll", "product")],
+        start_line=7,
     )
 
     boolean_response = api_client.get("/api/v1/search?q=atlas&mode=boolean", headers=auth_headers(token))
@@ -309,6 +312,7 @@ def test_search_modes_return_ranked_results_with_citations(api_client, db_sessio
     boolean_item = boolean_response.json()["items"][0]
     assert boolean_item["result_kind"] == "document_chunk"
     assert boolean_item["citations"][0]["source_tier"] == "document"
+    assert boolean_item["citations"][0]["line_number"] == 7
 
     vector_response = api_client.get("/api/v1/search?q=atlas&mode=vector", headers=auth_headers(token))
     assert vector_response.status_code == 200, vector_response.text

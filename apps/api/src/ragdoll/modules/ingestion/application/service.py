@@ -8,7 +8,7 @@ from ragdoll.core.config import get_settings
 from ragdoll.core.logging import get_logger
 from ragdoll.modules.ingestion.domain.policies import (
     build_preview_text,
-    chunk_text,
+    chunk_text_with_lines,
     extract_text_content,
     limit_chunks_for_instance,
     mark_processing_stage_completed,
@@ -39,14 +39,15 @@ AUTO_EXTRACTION_FAILURE_THRESHOLD = 3
 
 
 def _build_document_chunks(document: Document, *, text: str) -> tuple[int, list[DocumentChunk]]:
-    raw_chunks = chunk_text(text)
+    raw_chunks = chunk_text_with_lines(text)
     limited_chunks = limit_chunks_for_instance(raw_chunks)
     rows = [
         DocumentChunk.from_text(
             document_id=document.id,
             space_id=document.space_id,
             chunk_index=index,
-            text_content=chunk,
+            start_line=chunk.start_line,
+            text_content=chunk.text,
         )
         for index, chunk in enumerate(limited_chunks)
     ]

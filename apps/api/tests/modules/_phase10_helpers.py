@@ -72,6 +72,7 @@ def seed_retrieval_document(
     file_type: str = "txt",
     mime_type: str = "text/plain",
     entity_specs: list[tuple[str, str]] | None = None,
+    start_line: int = 1,
 ):
     document = Document(
         space_id=space.id,
@@ -97,6 +98,7 @@ def seed_retrieval_document(
         document_id=document.id,
         space_id=space.id,
         chunk_index=0,
+        start_line=start_line,
         text_content=text,
     )
     db_session.add(chunk)

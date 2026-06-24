@@ -85,6 +85,7 @@ def _chunk_citation(document: Document, chunk: DocumentChunk, *, source_tier: So
         chunk_id=str(chunk.id),
         title=document.title,
         locator=_chunk_locator(chunk),
+        line_number=chunk.start_line,
         source_tier=source_tier,
     )
 
@@ -249,6 +250,7 @@ def _merge_candidates(candidates: list[SearchCandidate]) -> list[SearchCandidate
                 citation.entity_id,
                 citation.chunk_id,
                 citation.locator,
+                citation.line_number,
                 citation.source_tier,
             )
             for citation in existing.result.citations
@@ -259,6 +261,7 @@ def _merge_candidates(candidates: list[SearchCandidate]) -> list[SearchCandidate
                 citation.entity_id,
                 citation.chunk_id,
                 citation.locator,
+                citation.line_number,
                 citation.source_tier,
             )
             if key not in seen_citations:

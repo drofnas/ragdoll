@@ -1,6 +1,6 @@
 {
   "entrypoint": "packages/contracts/typescript/index.ts",
-  "generated_at": "2026-06-24T03:39:42.772566Z",
+  "generated_at": "2026-06-24T17:40:01.509082Z",
   "notes": [
     "TypeScript contracts are generated from the exported OpenAPI document.",
     "Feature clients should remain thin wrappers around shared transport rather than generated request helpers."

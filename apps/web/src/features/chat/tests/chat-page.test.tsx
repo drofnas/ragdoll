@@ -72,6 +72,8 @@ describe("ChatPage", () => {
       expect(screen.queryByText("degraded")).not.toBeInTheDocument();
       expect(screen.queryByText("combined")).not.toBeInTheDocument();
       expect(screen.queryByText("Suggestions")).not.toBeInTheDocument();
+      expect(screen.queryByText(/chunk:1/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Implementation Plan (chunk:1) · document")).not.toBeInTheDocument();
       const sessionLink = await screen.findByRole("link", {
         name: /Architecture questions, updated/
       });
@@ -84,6 +86,13 @@ describe("ChatPage", () => {
       expect(screen.getAllByText("document-first").length).toBeGreaterThan(0);
 
       const user = userEvent.setup();
+      const citationsTrigger = screen.getByRole("button", { name: "Citations" });
+      await user.hover(citationsTrigger);
+      const citationLink = await screen.findByRole("link", {
+        name: "Implementation Plan (line 12)"
+      });
+      expect(citationLink).toHaveAttribute("href", `/documents/${chatSessionDetail.document_id}`);
+
       await user.click(screen.getByRole("button", { name: "Submit correction" }));
       await user.type(
         screen.getByLabelText(/Proposed correction/),

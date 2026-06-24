@@ -80,7 +80,14 @@ def collect_verified_corrections(session, *, space_id: UUID, query_text: str):
 def _dedupe_citations(citations: Iterable[Citation]) -> list[Citation]:
     unique: dict[tuple[object, ...], Citation] = {}
     for citation in citations:
-        key = (citation.document_id, citation.entity_id, citation.chunk_id, citation.locator, citation.source_tier)
+        key = (
+            citation.document_id,
+            citation.entity_id,
+            citation.chunk_id,
+            citation.locator,
+            citation.line_number,
+            citation.source_tier,
+        )
         unique.setdefault(key, citation)
     return list(unique.values())
 

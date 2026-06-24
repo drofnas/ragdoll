@@ -5,7 +5,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, TypeVar
 from uuid import UUID
 
 from docx import Document as DocxDocument
@@ -21,6 +21,7 @@ DEFAULT_CHUNK_OVERLAP_WORDS = 50
 DEFAULT_CHUNK_MAX_CHARS = 2048
 STATUS_BATCH_MAX_IDS = 100
 PROCESSING_STAGES = ("parsing", "vector", "extraction", "graph")
+ChunkT = TypeVar("ChunkT")
 
 _upload_rate_limit_store: dict[str, deque[float]] = {}
 
@@ -30,6 +31,12 @@ class UploadMetadata:
     filename: str
     file_type: str
     mime_type: str
+
+
+@dataclass(frozen=True)
+class TextChunk:
+    text: str
+    start_line: int
 
 
 def _usage_limit_error(*, detail: str, code: str) -> ApplicationError:
@@ -175,7 +182,7 @@ def enforce_document_limit(*, existing_document_count: int) -> None:
         )
 
 
-def limit_chunks_for_instance(chunks: list[str]) -> list[str]:
+def limit_chunks_for_instance(chunks: list[ChunkT]) -> list[ChunkT]:
     limits = resolve_instance_limits()
     return chunks[: limits.per_document_chunks]
 
@@ -272,22 +279,48 @@ def mark_processing_stage_failed(
     return updated
 
 
-def _split_long_text(text: str, *, max_chars: int) -> list[str]:
-    if len(text) <= max_chars:
-        return [text]
-    pieces: list[str] = []
-    remaining = text
-    while remaining:
-        if len(remaining) <= max_chars:
-            pieces.append(remaining)
-            break
-        window = remaining[:max_chars]
-        split_at = window.rfind(" ")
-        if split_at <= 0:
-            split_at = max_chars
-        pieces.append(remaining[:split_at].strip())
-        remaining = remaining[split_at:].lstrip()
-    return [piece for piece in pieces if piece]
+def _line_tokens(text: str) -> list[tuple[str, int]]:
+    tokens: list[tuple[str, int]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        tokens.extend((match.group(0), line_number) for match in re.finditer(r"\S+", line))
+    if not tokens and text.strip():
+        return [(text.strip(), 1)]
+    return tokens
+
+
+def _split_token_window(window_tokens: list[tuple[str, int]], *, max_chars: int) -> list[TextChunk]:
+    chunks: list[TextChunk] = []
+    current_words: list[str] = []
+    current_start_line = 1
+    current_length = 0
+
+    def flush_current() -> None:
+        nonlocal current_words, current_start_line, current_length
+        if current_words:
+            chunks.append(TextChunk(text=" ".join(current_words), start_line=current_start_line))
+            current_words = []
+            current_start_line = 1
+            current_length = 0
+
+    for word, line_number in window_tokens:
+        if len(word) > max_chars:
+            flush_current()
+            for index in range(0, len(word), max_chars):
+                chunks.append(TextChunk(text=word[index : index + max_chars], start_line=line_number))
+            continue
+
+        next_length = len(word) if not current_words else current_length + 1 + len(word)
+        if current_words and next_length > max_chars:
+            flush_current()
+            next_length = len(word)
+
+        if not current_words:
+            current_start_line = line_number
+        current_words.append(word)
+        current_length = next_length
+
+    flush_current()
+    return chunks
 
 
 def chunk_text(
@@ -297,20 +330,29 @@ def chunk_text(
     overlap: int = DEFAULT_CHUNK_OVERLAP_WORDS,
     max_chars: int = DEFAULT_CHUNK_MAX_CHARS,
 ) -> list[str]:
+    return [chunk.text for chunk in chunk_text_with_lines(text, chunk_size=chunk_size, overlap=overlap, max_chars=max_chars)]
+
+
+def chunk_text_with_lines(
+    text: str,
+    *,
+    chunk_size: int = DEFAULT_CHUNK_WORDS,
+    overlap: int = DEFAULT_CHUNK_OVERLAP_WORDS,
+    max_chars: int = DEFAULT_CHUNK_MAX_CHARS,
+) -> list[TextChunk]:
     if max_chars <= 0:
         raise ValueError("max_chars must be positive.")
-    words = text.split()
-    if not words:
+    tokens = _line_tokens(text)
+    if not tokens:
         return []
-    chunks: list[str] = []
+    chunks: list[TextChunk] = []
     index = 0
-    while index < len(words):
-        window_words = words[index : index + chunk_size]
-        if not window_words:
+    while index < len(tokens):
+        window_tokens = tokens[index : index + chunk_size]
+        if not window_tokens:
             break
-        joined = " ".join(window_words)
-        chunks.extend(_split_long_text(joined, max_chars=max_chars))
-        if index + chunk_size >= len(words):
+        chunks.extend(_split_token_window(window_tokens, max_chars=max_chars))
+        if index + chunk_size >= len(tokens):
             break
         index += max(1, chunk_size - overlap)
     return chunks

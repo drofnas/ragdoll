@@ -157,6 +157,7 @@ export interface Citation {
   chunk_id?: string | null;
   title?: string | null;
   locator?: string | null;
+  line_number?: number | null;
   source_tier?: SourceTier;
 }
 

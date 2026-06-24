@@ -114,6 +114,7 @@ class Citation(BaseModel):
     chunk_id: str | None = Field(default=None)
     title: str | None = Field(default=None)
     locator: str | None = Field(default=None)
+    line_number: int | None = Field(default=None, ge=1)
     source_tier: SourceTier = Field(default=SourceTier.DOCUMENT)
 
 

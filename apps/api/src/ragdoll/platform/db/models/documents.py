@@ -133,6 +133,7 @@ class DocumentChunk(Base):
         nullable=False,
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_line: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     text_content: Mapped[str] = mapped_column(Text, nullable=False)
     text_preview: Mapped[str] = mapped_column(Text, nullable=False)
     checksum: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -156,13 +157,22 @@ class DocumentChunk(Base):
     graph_edges: Mapped[list["GraphEdge"]] = relationship(cascade="all, delete-orphan")
 
     @classmethod
-    def from_text(cls, *, document_id: UUID, space_id: UUID, chunk_index: int, text_content: str) -> "DocumentChunk":
+    def from_text(
+        cls,
+        *,
+        document_id: UUID,
+        space_id: UUID,
+        chunk_index: int,
+        text_content: str,
+        start_line: int = 1,
+    ) -> "DocumentChunk":
         checksum = sha256(text_content.encode("utf-8")).hexdigest()
         return cls(
             id=stable_document_chunk_id(document_id=document_id, chunk_index=chunk_index, checksum=checksum),
             document_id=document_id,
             space_id=space_id,
             chunk_index=chunk_index,
+            start_line=start_line,
             text_content=text_content,
             text_preview=text_content[:280],
             checksum=checksum,

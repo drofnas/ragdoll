@@ -167,7 +167,8 @@ export const searchResponse: SearchResponse = {
       citations: [
         {
           document_id: documentDetail.id,
-          locator: "page 1",
+          line_number: 12,
+          locator: "chunk:1",
           source_tier: "document",
           title: documentDetail.title
         }
@@ -230,7 +231,8 @@ export const chatSessionDetail: ChatSessionDetail = {
       citations: [
         {
           document_id: documentDetail.id,
-          locator: "page 1",
+          line_number: 12,
+          locator: "chunk:1",
           source_tier: "document",
           title: documentDetail.title
         }

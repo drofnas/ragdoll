@@ -107,6 +107,20 @@ def test_ingestion_routes_require_authentication(api_client):
     assert all(response.status_code == 401 for response in responses)
 
 
+def test_chunk_text_with_lines_tracks_source_line_numbers():
+    chunks = ingestion_policies.chunk_text_with_lines(
+        "Title\n\nFirst paragraph starts here.\nSecond paragraph continues here.",
+        chunk_size=3,
+        overlap=0,
+    )
+
+    assert [(chunk.text, chunk.start_line) for chunk in chunks] == [
+        ("Title First paragraph", 1),
+        ("starts here. Second", 3),
+        ("paragraph continues here.", 4),
+    ]
+
+
 def test_upload_uses_default_space_and_enqueues_job(api_client, db_session, ingestion_runtime):
     _, queue, _, _, _, _ = ingestion_runtime
     token = register_and_login(api_client, email="owner@example.com")
@@ -274,11 +288,15 @@ def test_batch_status_rejects_more_than_100_ids(api_client, ingestion_runtime):
 def test_worker_processing_updates_document_reads(api_client, db_session, ingestion_runtime):
     storage, queue, _, _, embedding_service, entity_extraction_service = ingestion_runtime
     token = register_and_login(api_client, email="owner@example.com")
+    line_one = " ".join(["Atlas", *(["a"] * 149)])
+    line_three = " ".join(["b"] * 300)
+    line_four = " ".join(["c"] * 60)
+    content = f"{line_one}\n\n{line_three}\n{line_four}".encode("utf-8")
 
     upload = api_client.post(
         "/api/v1/ingestion/uploads",
         headers=auth_headers(token),
-        files={"file": ("notes.md", BytesIO(b"# Title\n\nA clean room migration plan."), "text/markdown")},
+        files={"file": ("notes.md", BytesIO(content), "text/markdown")},
     )
     assert upload.status_code == 201, upload.text
     document_id = upload.json()["document_id"]
@@ -308,12 +326,18 @@ def test_worker_processing_updates_document_reads(api_client, db_session, ingest
 
     detail = api_client.get(f"/api/v1/documents/{document_id}", headers=auth_headers(token))
     assert detail.status_code == 200, detail.text
-    assert detail.json()["preview_text"].startswith("# Title")
-    assert detail.json()["chunk_count"] >= 1
+    assert detail.json()["preview_text"].startswith("Atlas")
+    assert detail.json()["chunk_count"] >= 2
 
     document = db_session.get(Document, UUID(document_id))
     assert document is not None
-    assert db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).count() >= 1
+    chunks = (
+        db_session.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document.id)
+        .order_by(DocumentChunk.chunk_index)
+        .all()
+    )
+    assert [chunk.start_line for chunk in chunks] == [1, 4]
     assert db_session.query(DocumentChunkVector).filter(DocumentChunkVector.document_id == document.id).count() >= 1
     assert db_session.query(Entity).filter(Entity.document_id == document.id).count() >= 1
     assert db_session.query(CanonicalEntity).filter(CanonicalEntity.space_id == document.space_id).count() >= 1

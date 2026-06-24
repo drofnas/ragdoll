@@ -28,6 +28,7 @@ def test_chat_session_message_flow_returns_citations_and_degraded_answer(api_cli
         title="atlas.txt",
         text="Atlas is the primary project for the workspace.",
         entity_specs=[("Atlas", "project")],
+        start_line=4,
     )
 
     created = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
@@ -44,6 +45,7 @@ def test_chat_session_message_flow_returns_citations_and_degraded_answer(api_cli
     assert payload["assistant_message"]["degraded"] is True
     assert payload["assistant_message"]["retrieval_mode"] == "combined"
     assert payload["assistant_message"]["citations"]
+    assert payload["assistant_message"]["citations"][0]["line_number"] == 4
     assert "Atlas" in payload["assistant_message"]["content"]
     assert payload["session"]["title"].startswith("Tell me about Atlas")
 

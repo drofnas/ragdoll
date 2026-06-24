@@ -859,6 +859,18 @@
             ],
             "title": "Entity Id"
           },
+          "line_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Number"
+          },
           "locator": {
             "anyOf": [
               {
