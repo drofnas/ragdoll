@@ -6,6 +6,7 @@ This directory now owns both the app stack and the local dependency stack used d
 
 - `compose.dev.yml` boots:
   - `apps/api` on host port `8031`
+  - `apps/api` document worker as a dedicated background service
   - `apps/web` on host port `8030`
 - `compose.infra.yml` boots:
   - the local self-hosted Supabase stack
@@ -15,6 +16,7 @@ This directory now owns both the app stack and the local dependency stack used d
 - `compose.e2e.yml` adds the Dockerized Playwright runner used by `./dev-setup.sh test-e2e`
 - backend healthcheck uses `GET /health`
 - frontend waits for backend liveness before starting
+- worker waits for backend health before starting so migrations and shared runtime config are ready
 - backend also mounts the repo root at `/workspace` so repo-root Python tooling can run inside the backend container
 - both stacks share the `ragdoll-dev` Docker network so the backend can reach `db`, `kong`, and `ollama`
 
@@ -48,7 +50,6 @@ Local env behavior:
 
 Still deferred:
 
-- worker-specific long-running compose services beyond the current ingestion entrypoint
 - deeper critical-path E2E coverage beyond the initial shell smoke suite and the opt-in Phase 7 infra smoke path
 
 Phase 7 readiness remains infrastructure-focused. A healthy readiness response and a passing `test-infra` run prove local database, storage, vector prerequisites, graph prerequisites, LLM reachability, and manual-upload processing confidence. They do not prove retrieval, embeddings, entities, or graph projection behavior.

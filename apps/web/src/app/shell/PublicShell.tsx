@@ -1,11 +1,7 @@
 import { AppShell, Anchor, Container, Group, Text } from "@mantine/core";
 import { Outlet, Link } from "react-router-dom";
 
-import { resolveApiBaseUrl } from "../../shared/api/client";
-
 export function PublicShell() {
-  const statusUrl = `${resolveApiBaseUrl()}/status`;
-
   return (
     <AppShell header={{ height: 68 }} padding="md">
       <AppShell.Header>
@@ -19,7 +15,7 @@ export function PublicShell() {
               <Anchor component={Link} to="/register">
                 Register
               </Anchor>
-              <Anchor href={statusUrl}>
+              <Anchor component={Link} to="/status">
                 Status
               </Anchor>
             </Group>

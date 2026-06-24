@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     log_level: str = "INFO"
+    sql_echo: bool = False
     allowed_origins_raw: str = Field(
         default="http://localhost:8030",
         validation_alias=AliasChoices("ALLOWED_ORIGINS", "allowed_origins"),
@@ -86,6 +87,7 @@ class Settings(BaseSettings):
     ollama_worker_model: str | None = None
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
+    ollama_worker_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
 
     instance_limit_documents: int | None = None
     instance_limit_max_file_size_bytes: int | None = Field(default=100 * 1024 * 1024, ge=1)
@@ -100,7 +102,9 @@ class Settings(BaseSettings):
     upload_rate_limit_enabled: bool = True
     upload_rate_limit_requests: int = 10
     upload_rate_limit_window_seconds: int = 60
+    document_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
 
+    e2e_shared_backends: bool = False
     e2e_memory_backends: bool = False
 
     model_config = SettingsConfigDict(
@@ -156,6 +160,8 @@ class Settings(BaseSettings):
 
     @property
     def active_backend_name(self) -> str:
+        if self.e2e_shared_backends:
+            return "e2e_shared"
         return "memory" if self.e2e_memory_backends else "supabase"
 
     @property

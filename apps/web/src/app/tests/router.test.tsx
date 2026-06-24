@@ -33,11 +33,56 @@ describe("AppRouter", () => {
   it("renders login on the default public route", () => {
     renderRoute("/");
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Status" })).toHaveAttribute(
-      "href",
-      "http://localhost:8031/status"
-    );
+    expect(screen.getByRole("link", { name: "Status" })).toHaveAttribute("href", "/status");
     expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
+  });
+
+  it("renders the public status page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/status?type=json")) {
+          return jsonResponse({
+            application: {
+              environment: "development",
+              generated_at: "2026-06-23T17:00:00Z",
+              name: "Ragdoll API",
+              version: "0.1.0",
+            },
+            ollama: {
+              catalog_reachable: true,
+              configured_base_url: true,
+              configured_models: [],
+              detail: "ok",
+              status: "healthy",
+            },
+            services: {
+              database: { detail: "ok", status: "healthy" },
+              graph: { detail: "ok", status: "healthy" },
+              llm: { detail: "ok", status: "healthy" },
+              queue: { detail: "ok", status: "healthy" },
+              storage: { detail: "ok", status: "healthy" },
+              vector: { detail: "ok", status: "healthy" },
+            },
+            status: "ok",
+            supabase: {
+              backend: "supabase",
+              detail: "ok",
+              services: {},
+              status: "healthy",
+            },
+          });
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderRoute("/status");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workspace status" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Environment: development")).toBeInTheDocument());
+    expect(screen.getByText("Service overview")).toBeInTheDocument();
   });
 
   it("renders the authenticated dashboard when a session token is present", async () => {

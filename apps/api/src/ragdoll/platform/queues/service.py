@@ -134,6 +134,8 @@ class InMemoryDocumentProcessingQueue:
 @lru_cache(maxsize=1)
 def get_document_processing_queue() -> DocumentProcessingQueueService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return SqlDocumentProcessingQueue()
     if settings.e2e_memory_backends:
         return InMemoryDocumentProcessingQueue()
     return SqlDocumentProcessingQueue()

@@ -135,6 +135,8 @@ class SqlGraphCleanupService:
 @lru_cache(maxsize=1)
 def get_graph_cleanup_service() -> GraphCleanupService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return SqlGraphCleanupService()
     if settings.e2e_memory_backends:
         return InMemoryGraphCleanupService()
     return SqlGraphCleanupService()

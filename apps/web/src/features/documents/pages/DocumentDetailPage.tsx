@@ -25,7 +25,8 @@ import {
   downloadDocument,
   moveDocument,
   readDocument,
-  readDocumentStatus
+  readDocumentStatus,
+  reprocessDocument
 } from "../api/documentsApi";
 
 const TERMINAL_STATUSES: ProcessingStageStatus[] = ["completed", "deferred", "failed"];
@@ -39,11 +40,16 @@ export function DocumentDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
 
   const detailQuery = useQuery({
     enabled: Boolean(documentId),
     queryFn: () => readDocument(documentId!),
-    queryKey: ["document", documentId]
+    queryKey: ["document", documentId],
+    refetchInterval: (query) => {
+      const overall = query.state.data?.processing_status.overall;
+      return overall && !TERMINAL_STATUSES.includes(overall) ? 3000 : false;
+    }
   });
 
   const statusQuery = useQuery({
@@ -121,6 +127,23 @@ export function DocumentDetailPage() {
     }
   }
 
+  async function handleReprocessDocument() {
+    setIsReprocessing(true);
+    setErrorMessage(null);
+    try {
+      await reprocessDocument(documentId);
+      await Promise.all([detailQuery.refetch(), statusQuery.refetch()]);
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        setErrorMessage(error.problem.detail);
+      } else {
+        setErrorMessage("Unable to reprocess the document right now.");
+      }
+    } finally {
+      setIsReprocessing(false);
+    }
+  }
+
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="end">
@@ -160,7 +183,7 @@ export function DocumentDetailPage() {
             </Card>
 
             <Card withBorder radius="lg" p="lg">
-              <Stack gap="xs">
+              <Stack gap="md">
                 <Title order={4}>Processing</Title>
                 {statusQuery.data ? (
                   <>
@@ -168,6 +191,13 @@ export function DocumentDetailPage() {
                     <Text>Chunks: {statusQuery.data.chunk_count}</Text>
                     <Text>Indexed chunks: {statusQuery.data.indexed_chunk_count}</Text>
                     <Text>Latest job: {statusQuery.data.latest_job?.status ?? "Not yet queued"}</Text>
+                    <Button
+                      loading={isReprocessing}
+                      variant="light"
+                      onClick={() => void handleReprocessDocument()}
+                    >
+                      Reprocess document
+                    </Button>
                   </>
                 ) : (
                   <Text c="dimmed">Waiting for live status…</Text>

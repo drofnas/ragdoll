@@ -33,6 +33,13 @@ export function readDocumentStatus(documentId: DocumentStatusPathParams["documen
   return apiClient.getJson<DocumentProcessingStatusResponse>(`/api/v1/ingestion/documents/${documentId}/status`);
 }
 
+export function reprocessDocument(documentId: DocumentStatusPathParams["document_id"]) {
+  return apiClient.postJson<DocumentProcessingStatusResponse, Record<string, never>>(
+    `/api/v1/ingestion/documents/${documentId}/reprocess`,
+    {}
+  );
+}
+
 export function uploadDocument(file: File, query: UploadDocumentQuery) {
   const formData = new FormData();
   formData.append("file", file);

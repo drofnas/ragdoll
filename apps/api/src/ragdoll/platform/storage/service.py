@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 import logging
+from pathlib import Path, PurePosixPath
+import shutil
 from typing import Protocol
 from urllib.parse import quote
 from uuid import UUID
@@ -52,6 +54,45 @@ class InMemoryDocumentStorage:
 
     def seed_original_file(self, storage_key: str, content: bytes) -> None:
         self.originals[storage_key] = content
+
+
+@dataclass
+class LocalDiskDocumentStorage:
+    root_path: Path
+
+    def _resolve_path(self, storage_key: str) -> Path:
+        relative = PurePosixPath(storage_key.lstrip("/"))
+        return self.root_path.joinpath(*relative.parts)
+
+    def store_original_file(self, storage_key: str, content: bytes, *, content_type: str | None = None) -> None:
+        del content_type
+        path = self._resolve_path(storage_key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+    def download_original_file(self, storage_key: str) -> bytes:
+        path = self._resolve_path(storage_key)
+        if not path.exists():
+            raise FileNotFoundError(storage_key)
+        return path.read_bytes()
+
+    def delete_original_file(self, storage_key: str) -> bool:
+        path = self._resolve_path(storage_key)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
+    def delete_derived_artifacts(self, document_id: UUID, *, storage_prefix: str | None = None) -> bool:
+        prefix = storage_prefix or f"derived/{document_id}"
+        path = self._resolve_path(prefix)
+        if not path.exists():
+            return False
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+        return True
 
 
 class UnconfiguredDocumentStorage:
@@ -163,6 +204,8 @@ class SupabaseDocumentStorage:
 @lru_cache(maxsize=1)
 def get_document_storage() -> DocumentStorageService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return LocalDiskDocumentStorage(Path("/workspace/_tmp/e2e-storage"))
     if settings.e2e_memory_backends:
         return InMemoryDocumentStorage()
     if settings.has_storage_config:

@@ -3,10 +3,10 @@ import type {
   AdminManagedUserListResponse,
   AdminManagedUserResponse,
   AdminUpdateUserRequest,
-  RuntimeStatusResponse,
 } from "@contracts";
 
 import { apiClient } from "../../../shared/api/client";
+import { readRuntimeStatus } from "../../../shared/api/runtimeStatus";
 
 export function readAdminUsers(page = 1, pageSize = 25) {
   return apiClient.getJson<AdminManagedUserListResponse>("/api/v1/admin/users", {
@@ -27,11 +27,4 @@ export function updateAdminUser(userId: string, payload: AdminUpdateUserRequest)
 
 export function readEffectiveLimits() {
   return apiClient.getJson<AdminEffectiveLimitsResponse>("/api/v1/admin/effective-limits");
-}
-
-export function readRuntimeStatus() {
-  return apiClient.getJson<RuntimeStatusResponse>("/status", {
-    auth: false,
-    query: { type: "json" },
-  });
 }

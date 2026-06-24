@@ -2,7 +2,11 @@ services:
   backend:
     environment:
       ALLOWED_ORIGINS: http://frontend:3000,http://localhost:8030
-      E2E_MEMORY_BACKENDS: "true"
+      E2E_SHARED_BACKENDS: "true"
+
+  worker:
+    environment:
+      E2E_SHARED_BACKENDS: "true"
 
   frontend:
     environment:

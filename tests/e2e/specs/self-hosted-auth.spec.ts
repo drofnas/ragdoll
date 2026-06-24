@@ -32,15 +32,12 @@ test.describe("self-hosted public and auth flows", () => {
     await expect(page.getByLabel("Email")).toHaveValue(email);
   });
 
-  test("public status link resolves to the backend status page", async ({ page, request }) => {
+  test("public status link opens the web status page", async ({ page }) => {
     await page.goto("/");
-
-    const statusHref = await page.getByRole("link", { name: "Status" }).getAttribute("href");
-    expect(statusHref).toBeTruthy();
-
-    const response = await request.get(statusHref!);
-    expect(response.ok()).toBeTruthy();
-    expect(response.status()).toBe(200);
+    await page.getByRole("link", { name: "Status" }).click();
+    await expect(page).toHaveURL(/\/status$/);
+    await expect(page.getByRole("heading", { name: "Workspace status" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Service overview" })).toBeVisible();
   });
 
   test("registered users can sign in and upload a document", async ({ page }) => {
@@ -65,5 +62,9 @@ test.describe("self-hosted public and auth flows", () => {
 
     await expect(page).toHaveURL(/\/documents\/.+/);
     await expect(page.getByRole("heading", { name: "e2e-upload.txt" })).toBeVisible();
+    await expect.poll(async () => (await page.locator("body").textContent()) ?? "", {
+      message: "document processing should complete in the dedicated worker"
+    }).toContain("Overall: completed");
+    await expect(page.locator("body")).toContainText("hello from playwright");
   });
 });

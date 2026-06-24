@@ -11,6 +11,7 @@ import httpx
 
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.core.exceptions import ConfigurationError
+from ragdoll.core.logging import get_logger
 
 
 ENTITY_EXTRACTION_PROMPT = """Extract named entities from the provided chunk.
@@ -19,6 +20,8 @@ Use concise lowercase snake_case values for entity_type when possible.
 Skip duplicates that refer to the same entity mention in the same chunk.
 Chunk:
 """
+
+logger = get_logger("ragdoll.platform.llm")
 
 
 @dataclass(frozen=True)
@@ -40,6 +43,39 @@ class EntityExtractionService(Protocol):
 def normalize_entity_name(value: str) -> str:
     lowered = re.sub(r"\s+", " ", value.strip().lower())
     return re.sub(r"[^a-z0-9 _-]", "", lowered).strip()
+
+
+def _ollama_timeout(settings: Settings) -> httpx.Timeout:
+    timeout_seconds = settings.ollama_worker_timeout_seconds
+    return httpx.Timeout(connect=10.0, read=timeout_seconds, write=timeout_seconds, pool=timeout_seconds)
+
+
+def _parse_ollama_json_body(raw_response: str) -> dict[str, object] | None:
+    stripped = raw_response.strip()
+    if not stripped:
+        return None
+
+    candidates = [stripped]
+
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if len(lines) >= 3:
+            candidates.append("\n".join(lines[1:-1]).strip())
+
+    if "{" in stripped and "}" in stripped:
+        candidates.append(stripped[stripped.find("{") : stripped.rfind("}") + 1].strip())
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            decoded = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(decoded, dict):
+            return decoded
+
+    return None
 
 
 class DeterministicEmbeddingService:
@@ -90,20 +126,26 @@ class OllamaEmbeddingService:
     def __init__(self, settings: Settings) -> None:
         self._base_url = (settings.ollama_worker_base_url_effective or "").rstrip("/")
         self._model = settings.ollama_embedding_model.strip()
+        self._timeout = _ollama_timeout(settings)
 
     def _request_embed(self, texts: list[str]) -> list[list[float]]:
         if not self._base_url or not self._model:
             raise ConfigurationError("Ollama embedding configuration is incomplete.")
 
         payload = {"model": self._model, "input": texts}
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(f"{self._base_url}/api/embed", json=payload)
-            if response.status_code == 404:
-                response = client.post(
-                    f"{self._base_url}/api/embeddings",
-                    json={"model": self._model, "prompt": "\n".join(texts)},
-                )
-            response.raise_for_status()
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(f"{self._base_url}/api/embed", json=payload)
+                if response.status_code == 404:
+                    response = client.post(
+                        f"{self._base_url}/api/embeddings",
+                        json={"model": self._model, "prompt": "\n".join(texts)},
+                    )
+                response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(
+                f"Ollama embedding generation timed out after {self._timeout.read} seconds."
+            ) from exc
         body = response.json()
         if "embeddings" in body and isinstance(body["embeddings"], list):
             return [[float(component) for component in item] for item in body["embeddings"]]
@@ -124,31 +166,55 @@ class OllamaEntityExtractionService:
     def __init__(self, settings: Settings) -> None:
         self._base_url = (settings.ollama_worker_base_url_effective or "").rstrip("/")
         self._model = settings.ollama_worker_model_effective.strip()
+        self._timeout = _ollama_timeout(settings)
 
     def extract_entities(self, text: str) -> list[ExtractedEntityCandidate]:
         if not self._base_url or not self._model:
             raise ConfigurationError("Ollama worker configuration is incomplete.")
 
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{self._base_url}/api/generate",
-                json={
-                    "model": self._model,
-                    "prompt": f"{ENTITY_EXTRACTION_PROMPT}{text}",
-                    "stream": False,
-                    "format": "json",
-                },
-            )
-            response.raise_for_status()
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(
+                    f"{self._base_url}/api/generate",
+                    json={
+                        "model": self._model,
+                        "prompt": f"{ENTITY_EXTRACTION_PROMPT}{text}",
+                        "stream": False,
+                        "format": "json",
+                    },
+                )
+                response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(
+                f"Ollama entity extraction timed out after {self._timeout.read} seconds."
+            ) from exc
 
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError:
+            logger.warning(
+                "Ollama entity extraction returned a non-JSON envelope; falling back to deterministic extraction."
+            )
+            return DeterministicEntityExtractionService().extract_entities(text)
+
         raw_response = payload.get("response")
         if not isinstance(raw_response, str):
-            raise ConfigurationError("Ollama entity extraction response did not include a JSON body.")
-        decoded = json.loads(raw_response)
-        entries = decoded.get("entities", [])
+            logger.warning(
+                "Ollama entity extraction response did not include a string JSON body; falling back to deterministic extraction."
+            )
+            return DeterministicEntityExtractionService().extract_entities(text)
+        decoded = _parse_ollama_json_body(raw_response)
+        if decoded is None:
+            logger.warning(
+                "Ollama entity extraction returned malformed JSON; falling back to deterministic extraction."
+            )
+            return DeterministicEntityExtractionService().extract_entities(text)
+        entries = decoded.get("entities")
         if not isinstance(entries, list):
-            raise ConfigurationError("Ollama entity extraction response used an unexpected schema.")
+            logger.warning(
+                "Ollama entity extraction response used an unexpected schema; falling back to deterministic extraction."
+            )
+            return DeterministicEntityExtractionService().extract_entities(text)
 
         candidates: list[ExtractedEntityCandidate] = []
         seen: dict[tuple[str, str], None] = {}
@@ -165,12 +231,16 @@ class OllamaEntityExtractionService:
                 continue
             seen[key] = None
             confidence = entry.get("confidence_score")
+            try:
+                normalized_confidence = float(confidence) if confidence is not None else None
+            except (TypeError, ValueError):
+                normalized_confidence = None
             candidates.append(
                 ExtractedEntityCandidate(
                     surface_text=surface_text[:255],
                     normalized_name=normalized_name[:255],
                     entity_type=entity_type[:80],
-                    confidence_score=float(confidence) if confidence is not None else None,
+                    confidence_score=normalized_confidence,
                 )
             )
         return candidates
@@ -179,6 +249,8 @@ class OllamaEntityExtractionService:
 @lru_cache(maxsize=1)
 def get_embedding_generation_service() -> EmbeddingGenerationService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return DeterministicEmbeddingService(dimensions=settings.ollama_embedding_dimensions)
     if settings.e2e_memory_backends:
         return DeterministicEmbeddingService()
     return OllamaEmbeddingService(settings)
@@ -187,6 +259,8 @@ def get_embedding_generation_service() -> EmbeddingGenerationService:
 @lru_cache(maxsize=1)
 def get_entity_extraction_service() -> EntityExtractionService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return DeterministicEntityExtractionService()
     if settings.e2e_memory_backends:
         return DeterministicEntityExtractionService()
     return OllamaEntityExtractionService(settings)

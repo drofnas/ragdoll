@@ -163,14 +163,19 @@ def process_job_payload(
         )
         session.commit()
     except Exception as exc:
-        document = session.get(Document, payload.document_id)
-        if document is not None:
-            document.processing_status = mark_processing_stage_failed(
-                document.processing_status,
-                failed_stage=current_stage,
-                detail=str(exc),
-            )
-            session.commit()
-        queue.mark_job_failed(payload.job_id, str(exc))
+        session.rollback()
+        try:
+            document = session.get(Document, payload.document_id)
+            if document is not None:
+                document.processing_status = mark_processing_stage_failed(
+                    document.processing_status,
+                    failed_stage=current_stage,
+                    detail=str(exc),
+                )
+                session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            queue.mark_job_failed(payload.job_id, str(exc))
     finally:
         session.close()

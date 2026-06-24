@@ -81,4 +81,84 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => expect(screen.getByText(documentDetail.title)).toBeInTheDocument());
   });
+
+  it("reprocesses a failed document from the detail page", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    const failedStatus = {
+      ...documentStatusResponse,
+      latest_job: {
+        ...documentStatusResponse.latest_job!,
+        status: "failed" as const,
+        visible_error_detail: "Expecting value: line 1 column 1 (char 0)",
+      },
+      processing_status: {
+        ...documentStatusResponse.processing_status,
+        detail: "Expecting value: line 1 column 1 (char 0)",
+        extraction: "failed" as const,
+        graph: "pending" as const,
+        overall: "failed" as const,
+      },
+    };
+    const pendingStatus = {
+      ...failedStatus,
+      latest_job: {
+        ...failedStatus.latest_job!,
+        status: "queued" as const,
+        visible_error_detail: null,
+      },
+      processing_status: {
+        ...failedStatus.processing_status,
+        detail: null,
+        extraction: "pending" as const,
+        overall: "pending" as const,
+      },
+    };
+    let currentStatus = failedStatus;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/documents/${documentDetail.id}`) && (!init?.method || init.method === "GET")) {
+          return jsonResponse({
+            ...documentDetail,
+            processing_status: currentStatus.processing_status,
+          });
+        }
+        if (url.includes(`/api/v1/ingestion/documents/${documentDetail.id}/reprocess`) && init?.method === "POST") {
+          currentStatus = pendingStatus;
+          return jsonResponse(currentStatus);
+        }
+        if (url.includes(`/api/v1/ingestion/documents/${documentDetail.id}/status`)) {
+          return jsonResponse(currentStatus);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/documents/${documentDetail.id}`]}>
+        <AppProviders>
+          <Routes>
+            <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText("Overall: failed")).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Reprocess document" }));
+
+    await waitFor(() => expect(screen.getByText("Overall: pending")).toBeInTheDocument());
+    expect(screen.getByText("Latest job: queued")).toBeInTheDocument();
+  });
 });

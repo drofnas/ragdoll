@@ -1,1 +1,1 @@
-"""Background worker entrypoints reserved for later phases."""
+"""Background worker entrypoints."""

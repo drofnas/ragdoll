@@ -19,6 +19,7 @@ import { EntityDetailPage } from "../features/entities/pages/EntityDetailPage";
 import { SearchPage } from "../features/search/pages/SearchPage";
 import { SpacesPage } from "../features/spaces/pages/SpacesPage";
 import { TrackedStatePage } from "../features/tracked-state/pages/TrackedStatePage";
+import { StatusPage } from "../features/marketing/pages/StatusPage";
 
 export const appRoutes: RouteObject[] = [
   {
@@ -26,7 +27,8 @@ export const appRoutes: RouteObject[] = [
     children: [
       { path: "/", element: <LoginPage /> },
       { path: "/login", element: <LoginPage /> },
-      { path: "/register", element: <RegisterPage /> }
+      { path: "/register", element: <RegisterPage /> },
+      { path: "/status", element: <StatusPage /> }
     ]
   },
   {

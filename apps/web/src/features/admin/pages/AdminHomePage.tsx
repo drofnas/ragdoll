@@ -15,12 +15,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiProblemError } from "../../../shared/api/client";
+import { readRuntimeStatus } from "../../../shared/api/runtimeStatus";
 import { formatDateTime } from "../../../shared/lib/formatting";
 import {
   readAdminUser,
   readAdminUsers,
   readEffectiveLimits,
-  readRuntimeStatus,
   updateAdminUser,
 } from "../api/adminApi";
 

@@ -122,6 +122,32 @@ def test_settings_accept_allowed_origins_as_direct_list():
     ) == ["http://localhost:8030", "http://localhost:3000"]
 
 
+def test_engine_kwargs_do_not_enable_sql_echo_from_debug_alone():
+    settings = Settings(
+        debug=True,
+        sql_echo=False,
+        supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres",
+        _env_file=None,
+    )
+
+    kwargs = engine_module._engine_kwargs(settings)
+
+    assert kwargs["echo"] is False
+
+
+def test_engine_kwargs_enable_sql_echo_only_when_requested():
+    settings = Settings(
+        debug=False,
+        sql_echo=True,
+        supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres",
+        _env_file=None,
+    )
+
+    kwargs = engine_module._engine_kwargs(settings)
+
+    assert kwargs["echo"] is True
+
+
 def test_settings_reject_invalid_allowed_origins_from_env(monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGINS", "[1, 2]")
     with pytest.raises(ValidationError, match="ALLOWED_ORIGINS"):
