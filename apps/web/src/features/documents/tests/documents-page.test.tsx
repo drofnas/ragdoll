@@ -156,12 +156,16 @@ describe("DocumentsPage", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Overall: failed")).toBeInTheDocument());
+    const processingErrorAlert = screen.getByText("Processing error").closest("[role='alert']");
+    expect(processingErrorAlert).toHaveTextContent("Expecting value: line 1 column 1 (char 0)");
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Reprocess document" }));
 
     await waitFor(() => expect(screen.getByText("Overall: pending")).toBeInTheDocument());
     expect(screen.getByText("Latest job: queued")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Processing error")).not.toBeInTheDocument());
+    expect(screen.queryByText("Expecting value: line 1 column 1 (char 0)")).not.toBeInTheDocument();
   });
 
   it("starts a document-first chat session from the document detail page", async () => {
@@ -277,5 +281,8 @@ describe("DocumentsPage", () => {
     expect(screen.getByText("Elapsed: 10m 30s")).toBeInTheDocument();
     expect(screen.getByText(/processed chunk-by-chunk locally/i)).toBeInTheDocument();
     expect(screen.getByText(/113 chunks/i)).toBeInTheDocument();
+    expect(screen.queryByText("Processing error")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Detail$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("null")).not.toBeInTheDocument();
   });
 });

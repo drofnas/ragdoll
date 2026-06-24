@@ -30,6 +30,7 @@ import {
 } from "../api/documentsApi";
 
 const TERMINAL_STATUSES: ProcessingStageStatus[] = ["completed", "deferred", "failed"];
+const PROCESSING_STATUS_STAGE_KEYS = ["overall", "upload", "parsing", "vector", "extraction", "graph"] as const;
 
 export function DocumentDetailPage() {
   const navigate = useNavigate();
@@ -71,6 +72,7 @@ export function DocumentDetailPage() {
   const extractionHint = statusQuery.data?.chunk_count
     ? `Large documents are processed chunk-by-chunk locally and may take tens of minutes. This document currently has ${statusQuery.data.chunk_count} chunks.`
     : "Large documents are processed chunk-by-chunk locally and may take tens of minutes.";
+  const processingErrorDetail = statusQuery.data?.processing_status.detail?.trim() || null;
 
   useEffect(() => {
     if (!detailQuery.data) {
@@ -301,25 +303,37 @@ export function DocumentDetailPage() {
             <CardHeader>
               <CardTitle>Stage detail</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {statusQuery.data ? (
-                <div className="grid gap-3 md:grid-cols-3">
-                  {Object.entries(statusQuery.data.processing_status).map(([key, value]) => (
-                    <Card key={key} className="bg-background/65 shadow-none">
-                      <CardContent className="space-y-2 p-5">
-                        <p className="text-sm font-semibold capitalize">{key.replace(/_/g, " ")}</p>
-                        <StatusBadge
-                          value={typeof value === "string" ? value : String(value)}
-                          label={
-                            typeof value === "string"
-                              ? humanizeStageStatus(value)
-                              : String(value)
-                          }
-                        />
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {PROCESSING_STATUS_STAGE_KEYS.map((key) => {
+                      const value = statusQuery.data.processing_status[key];
+
+                      return (
+                        <Card key={key} className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-5">
+                            <p className="text-sm font-semibold capitalize">{key.replace(/_/g, " ")}</p>
+                            <StatusBadge
+                              value={typeof value === "string" ? value : String(value)}
+                              label={
+                                typeof value === "string"
+                                  ? humanizeStageStatus(value)
+                                  : String(value)
+                              }
+                            />
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                  {processingErrorDetail ? (
+                    <Alert variant="destructive">
+                      <AlertTitle>Processing error</AlertTitle>
+                      <AlertDescription>{processingErrorDetail}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">Status is still loading.</p>
               )}
