@@ -12,7 +12,7 @@ from ragdoll.modules.chat.api.schemas import (
     ChatSessionSummary,
     ChatSuggestion,
 )
-from ragdoll.modules.chat.application.evidence import ChatEvidenceItem, ChatHistoryItem
+from ragdoll.modules.chat.application.evidence import ChatEvidenceItem, ChatHistoryItem, classify_answer_intent
 from ragdoll.modules.corrections.application.service import correction_citation, correction_matches_query
 from ragdoll.modules.corrections.infrastructure.repository import CorrectionsRepository
 from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
@@ -192,8 +192,33 @@ def _clean_summary_fragment(value: str) -> str:
     return cleaned.strip(" -|:")
 
 
+def _clean_markdown_cell(value: str) -> str:
+    cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", value)
+    cleaned = re.sub(r"`+", "", cleaned)
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"<br\s*/?>", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip(" -")
+
+
 def _clean_prompt_fragment(value: str, *, max_chars: int = 1200) -> str:
     return re.sub(r"\s+", " ", value).strip()[:max_chars]
+
+
+def _answerability_label(value: float) -> str:
+    if value >= 75:
+        return "high"
+    if value >= 20:
+        return "medium"
+    return "low"
+
+
+def _prompt_fragment_limit(item: ChatEvidenceItem) -> int:
+    if item.answerability >= 75:
+        return 2600
+    if item.answerability >= 20:
+        return 1600
+    return 800
 
 
 def build_evidence_records(evidence_items: list[ChatEvidenceItem]) -> list[ChatEvidenceRecord]:
@@ -223,7 +248,9 @@ def build_synthesis_messages(
         "provided evidence. Use chat history only to resolve references and follow-up context; do not treat "
         "chat history as authoritative factual evidence. Obey requested formatting such as bullets or tables. "
         "Cite supporting evidence inline with IDs like [E1]. If evidence conflicts, say what conflicts. If the "
-        "evidence is insufficient, say what is missing."
+        "evidence is insufficient, say what is missing. Prefer high-answerability evidence. Treat low-answerability "
+        "evidence as possible noise, especially raw code, JSON events, diagrams, installation paths, Docker snippets, "
+        "and localhost wiring unless the user directly asks for those details."
     )
     history_block = "\n".join(
         f"- {item.role}: {_clean_prompt_fragment(item.content, max_chars=500)}"
@@ -232,7 +259,9 @@ def build_synthesis_messages(
     evidence_block = "\n".join(
         (
             f"[{item.id}] source={item.source_type}; tier={item.source_tier.value}; "
-            f"title={item.title or 'untitled'}; text={_clean_prompt_fragment(item.text)}"
+            f"intent={item.answer_intent}; answerability={_answerability_label(item.answerability)}; "
+            f"title={item.title or 'untitled'}; "
+            f"text={_clean_prompt_fragment(item.text, max_chars=_prompt_fragment_limit(item))}"
         )
         for item in evidence_items
     ) or "None"
@@ -246,6 +275,167 @@ def build_synthesis_messages(
         ChatCompletionMessage(role="system", content=system_prompt),
         ChatCompletionMessage(role="user", content=user_prompt),
     ]
+
+
+def _split_markdown_row(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return []
+    return [_clean_markdown_cell(cell) for cell in stripped.strip("|").split("|")]
+
+
+def _is_markdown_separator_row(cells: list[str]) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells)
+
+
+def _looks_like_technology_stack_row(component: str, technology: str) -> bool:
+    component_terms = (
+        "app",
+        "backend",
+        "build",
+        "database",
+        "desktop",
+        "framework",
+        "frontend",
+        "hashing",
+        "image",
+        "management",
+        "model",
+        "packaging",
+        "parsing",
+        "processing",
+        "scroll",
+        "service",
+        "watching",
+        "xmp",
+    )
+    technology_terms = (
+        "+",
+        "electron",
+        "echo",
+        "fastapi",
+        "fiber",
+        "florence",
+        "go ",
+        "python",
+        "pytorch",
+        "sqlite",
+        "svelte",
+        "transformers",
+        "uvicorn",
+        "vite",
+    )
+    normalized_component = component.lower()
+    normalized_technology = technology.lower()
+    return any(term in normalized_component for term in component_terms) and any(
+        term in normalized_technology for term in technology_terms
+    )
+
+
+def _column_index(headers: list[str], candidates: tuple[str, ...]) -> int | None:
+    normalized_headers = [header.lower() for header in headers]
+    for candidate in candidates:
+        for index, header in enumerate(normalized_headers):
+            if candidate in header:
+                return index
+    return None
+
+
+def _tech_stack_table_rows(item: ChatEvidenceItem) -> list[tuple[str, str, str]]:
+    lines = item.text.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    rows: list[tuple[str, str, str]] = []
+    for index, line in enumerate(lines):
+        headers = _split_markdown_row(line)
+        if not headers:
+            continue
+        component_index = _column_index(headers, ("component", "area", "part"))
+        technology_index = _column_index(headers, ("technology", "tech", "language", "framework"))
+        if component_index is None or technology_index is None:
+            continue
+        next_index = index + 1
+        if next_index < len(lines):
+            separator_cells = _split_markdown_row(lines[next_index])
+            if _is_markdown_separator_row(separator_cells):
+                next_index += 1
+        for table_line in lines[next_index:]:
+            cells = _split_markdown_row(table_line)
+            if not cells:
+                break
+            if _is_markdown_separator_row(cells):
+                continue
+            if max(component_index, technology_index) >= len(cells):
+                continue
+            component = cells[component_index]
+            technology = cells[technology_index]
+            if component and technology:
+                rows.append((component, technology, item.id))
+    return rows
+
+
+def _tech_stack_loose_table_rows(item: ChatEvidenceItem) -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    for line in item.text.replace("\r\n", "\n").replace("\r", "\n").splitlines():
+        cells = _split_markdown_row(line)
+        if len(cells) < 2 or _is_markdown_separator_row(cells):
+            continue
+        component = cells[0]
+        technology = cells[1]
+        if _looks_like_technology_stack_row(component, technology):
+            rows.append((component, technology, item.id))
+    return rows
+
+
+def _tech_stack_list_rows(item: ChatEvidenceItem) -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    for line in item.text.replace("\r\n", "\n").replace("\r", "\n").splitlines():
+        match = re.match(r"^\s*(?:[-*]|\d+\.)\s+\*\*([^*]+)\*\*\s*(?:\(([^)]*)\))?\s*:?\s*(.*)$", line)
+        if match is None:
+            continue
+        label = _clean_markdown_cell(match.group(1))
+        inline_value = _clean_markdown_cell(match.group(2) or "")
+        description = _clean_markdown_cell(match.group(3) or "")
+        technology = inline_value or description
+        if label and technology:
+            rows.append((label, technology, item.id))
+    return rows
+
+
+def _compose_technology_stack_fallback(evidence_items: list[ChatEvidenceItem]) -> str | None:
+    candidate_items = [
+        item
+        for item in evidence_items
+        if item.source_type == "document_chunk" and item.answerability >= 55
+    ]
+    rows: list[tuple[str, str, str]] = []
+    for item in candidate_items:
+        rows.extend(_tech_stack_table_rows(item))
+    if not rows:
+        for item in candidate_items:
+            rows.extend(_tech_stack_loose_table_rows(item))
+    if not rows:
+        for item in candidate_items:
+            rows.extend(_tech_stack_list_rows(item))
+    if not rows:
+        return None
+
+    seen: set[tuple[str, str]] = set()
+    lines = ["Based on the Technology Stack evidence:"]
+    for component, technology, evidence_id in rows:
+        key = (component.lower(), technology.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(f"- {component}: {technology} [{evidence_id}]")
+        if len(lines) >= 21:
+            break
+    return "\n".join(lines)
+
+
+def _insufficient_degraded_answer(query_text: str) -> str:
+    return (
+        "I could not produce a reliable answer from the available evidence while the chat model was unavailable. "
+        f"The retrieved evidence was insufficient or too noisy for: '{query_text}'."
+    )
 
 
 def compose_deterministic_evidence_answer(
@@ -263,16 +453,27 @@ def compose_deterministic_evidence_answer(
             for item in correction_items[:2]
         )
 
-    normalized_query = _normalized_text(query_text)
-    selected_items = evidence_items[:5 if "bullet" in normalized_query or "list" in normalized_query else 1]
-    if "bullet" in normalized_query or "list" in normalized_query:
-        return "Based on the available evidence:\n" + "\n".join(
-            f"- {_clean_summary_fragment(item.text)} [{item.id}]"
-            for item in selected_items
-        )
+    if classify_answer_intent(query_text) == "technology_stack":
+        stack_answer = _compose_technology_stack_fallback(evidence_items)
+        if stack_answer is not None:
+            return stack_answer
+        return _insufficient_degraded_answer(query_text)
+
+    selected_items = [item for item in evidence_items if item.answerability >= 0][:1]
+    if not selected_items:
+        return _insufficient_degraded_answer(query_text)
     return "Based on the available evidence: " + " ".join(
         f"{_clean_summary_fragment(item.text)} [{item.id}]."
         for item in selected_items
+    )
+
+
+def _answer_declares_insufficient_evidence(answer_text: str) -> bool:
+    normalized = _normalized_text(answer_text)
+    return (
+        "could not produce a reliable answer" in normalized
+        or "insufficient" in normalized
+        or "no scoped evidence was found" in normalized
     )
 
 
@@ -283,6 +484,8 @@ def citations_for_synthesized_answer(answer_text: str, evidence_items: list[Chat
         for item in evidence_items
         if item.id in cited_ids
     ]
+    if not selected_items and _answer_declares_insufficient_evidence(answer_text):
+        return []
     if not selected_items:
         selected_items = evidence_items[:3]
     citations: list[Citation] = []

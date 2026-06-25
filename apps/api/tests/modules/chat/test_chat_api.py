@@ -5,7 +5,8 @@ from uuid import UUID
 
 from ragdoll.api.shared_schemas import Citation, SourceTier
 from ragdoll.modules.chat.application import commands as chat_commands
-from ragdoll.modules.chat.application.service import compose_fallback_answer
+from ragdoll.modules.chat.application.evidence import ChatEvidenceItem
+from ragdoll.modules.chat.application.service import compose_deterministic_evidence_answer, compose_fallback_answer
 from ragdoll.modules.search.api.schemas import SearchEntitySummary, SearchMode, SearchResult, SearchResultDocument
 from ragdoll.platform.db.models import TrackedField, TrackedFieldValue, User
 
@@ -20,6 +21,11 @@ class FakeChatCompletionService:
     def generate(self, messages):
         self.messages = messages
         return self.answer
+
+
+class FailingChatCompletionService:
+    def generate(self, messages):
+        raise TimeoutError("chat model unavailable")
 
 
 def test_chat_routes_require_authentication(api_client):
@@ -93,6 +99,9 @@ def test_chat_synthesis_success_persists_compact_evidence_audit(api_client, db_s
     assert assistant_message["evidence"][0]["id"] == "E1"
     assert assistant_message["evidence"][0]["source_type"] == "document_chunk"
     assert message.json()["session"]["messages"][-1]["evidence"][0]["id"] == "E1"
+    prompt = fake_service.messages[-1].content
+    assert "answerability=" in prompt
+    assert "source=document_chunk" in prompt
 
 
 def test_document_scoped_chat_only_cites_the_selected_document(api_client, db_session):
@@ -191,6 +200,112 @@ def test_document_scoped_chat_uses_technology_stack_chunk_for_stack_questions(ap
     assert "python 3.10+" in assistant_message["content"].lower()
     assert "c:\\program files" not in assistant_message["content"].lower()
     assert [citation["line_number"] for citation in assistant_message["citations"]] == [129]
+
+
+def test_document_scoped_chat_degraded_fallback_extracts_filego_technology_stack(
+    api_client,
+    db_session,
+    monkeypatch,
+):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    architecture_chunk = (
+        "### Architecture Overview\n\n"
+        "│              FileGoGallery Desktop Application              │\n"
+        "│  └─ Svelte Frontend (Web UI) ─ Connects to: http://localhost:8080 │\n"
+        "│          Go Backend Service (filegogallery-fs)              │\n"
+        "│  └─ Tagging Service Client (calls Python service)          │\n"
+    )
+    stack_chunk = (
+        "### Technology Stack\n\n"
+        "| Component | Technology | Justification |\n"
+        "|-----------|------------|---------------|\n"
+        "| **Backend Service** | Go 1.21+ | Fast file I/O, excellent concurrency, single binary deployment |\n"
+        "| **Backend Framework** | Fiber or Echo | High-performance HTTP routing, WebSocket support |\n"
+        "| **Database** | SQLite 3 | Zero-config, embedded, 10k+ images with sub-second queries |\n"
+        "| **AI Service** | Python 3.10+ | Best ML library ecosystem |\n"
+        "| **AI Framework** | FastAPI + Uvicorn | Async HTTP, auto-generated docs, fast |\n"
+        "| **Frontend** | Svelte + SvelteKit | Reactive, small bundle size, excellent DX |\n"
+        "| **Frontend Build** | Vite | Fast HMR, optimized production builds |\n"
+        "| **Desktop App** | Electron | Cross-platform desktop wrapper, native OS integration |\n"
+        "| **Packaging** | electron-builder | Multi-platform installers with service installation |\n"
+    )
+    websocket_chunk = (
+        "### WebSocket Events\n\n"
+        "```json\n"
+        "{ \"type\": \"image_updated\", \"timestamp\": \"2025-11-08T15:30:00Z\", "
+        "\"data\": { \"id\": \"abc123\" } }\n"
+        "```\n"
+    )
+    electron_chunk = (
+        "### Electron IPC\n\n"
+        "```javascript\n"
+        "ipcMain.on('start-drag', (event, { filepath, thumbnailPath }) => {\n"
+        "  event.sender.startDrag({ file: filepath, icon: thumbnailPath });\n"
+        "});\n"
+        "```\n"
+    )
+    deployment_chunk = (
+        "### Platform-Specific Deployment\n\n"
+        "Installation Locations: Services: C:\\Program Files\\FileGoGallery\\services\\. "
+        "User Data: C:\\Users\\{username}\\AppData\\Roaming\\FileGoGallery\\. "
+        "Binds: [ ${userDataPath}/cache:/app/cache, ${photoLibraryPath}:/mnt/images:ro ]. "
+        "const containerInfo = await docker.getContainer(backend.Id);\n"
+    )
+    filego_document = seed_retrieval_document(
+        db_session,
+        space=space,
+        uploader=owner,
+        title="filegogallery-prd.md",
+        text="\n\n".join([architecture_chunk, stack_chunk, websocket_chunk, electron_chunk, deployment_chunk]),
+        file_type="md",
+        mime_type="text/markdown",
+        entity_specs=[("FileGoGallery", "product")],
+        chunks=[
+            (architecture_chunk, 62),
+            (stack_chunk, 124),
+            (websocket_chunk, 920),
+            (electron_chunk, 1130),
+            (deployment_chunk, 1257),
+        ],
+    )
+    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: FailingChatCompletionService())
+
+    created = api_client.post(
+        f"/api/v1/chat/sessions?space_id={space.id}&document_id={filego_document.id}",
+        headers=auth_headers(token),
+    )
+    assert created.status_code == 200, created.text
+    session_id = created.json()["id"]
+
+    message = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "Return the Tech stack in a bulleted list for the FileGo Gallery"},
+    )
+
+    assert message.status_code == 200, message.text
+    assistant_message = message.json()["assistant_message"]
+    answer_text = assistant_message["content"].lower()
+    assert assistant_message["degraded"] is True
+    assert "backend service: go 1.21+" in answer_text
+    assert "ai service: python 3.10+" in answer_text
+    assert "database: sqlite 3" in answer_text
+    assert "ai framework: fastapi + uvicorn" in answer_text
+    assert "frontend: svelte + sveltekit" in answer_text
+    assert "frontend build: vite" in answer_text
+    assert "desktop app: electron" in answer_text
+    assert "packaging: electron-builder" in answer_text
+    assert "localhost:8080" not in answer_text
+    assert "c:\\program files" not in answer_text
+    assert "image_updated" not in answer_text
+    assert "ipcmain" not in answer_text
+    assert "docker.getcontainer" not in answer_text
+    assert "│" not in assistant_message["content"]
+    assert [citation["line_number"] for citation in assistant_message["citations"]] == [124]
+    assert assistant_message["evidence"][0]["source_type"] == "document_chunk"
+    assert "Technology Stack" in assistant_message["evidence"][0]["text"]
 
 
 def test_space_wide_chat_prefers_document_evidence_for_specific_summary_queries(api_client, db_session):
@@ -346,6 +461,62 @@ def test_fallback_answer_uses_document_intro_for_summary_questions():
     assert "c:\\program files" not in answer_text.lower()
     assert "current evidence for" not in answer_text.lower()
     assert "filegogallery-prd.md:" not in answer_text.lower()
+
+
+def test_deterministic_technology_stack_fallback_refuses_noisy_evidence():
+    noisy_item = ChatEvidenceItem(
+        id="E1",
+        source_type="document_chunk",
+        source_tier=SourceTier.DOCUMENT,
+        text=(
+            "Frontend (Web UI) connects to http://localhost:8080. "
+            "{ \"type\": \"image_updated\", \"timestamp\": \"2025-11-08T15:30:00Z\" } "
+            "Services: C:\\Program Files\\FileGoGallery\\services\\."
+        ),
+        citations=[],
+        score=-20.0,
+        title="filegogallery-prd.md",
+        answer_intent="technology_stack",
+        answerability=-50.0,
+    )
+
+    answer_text = compose_deterministic_evidence_answer(
+        query_text="Return the Tech stack in a bulleted list for the FileGo Gallery",
+        evidence_items=[noisy_item],
+    )
+
+    assert "could not produce a reliable answer" in answer_text.lower()
+    assert "localhost:8080" not in answer_text.lower()
+    assert "image_updated" not in answer_text.lower()
+    assert "c:\\program files" not in answer_text.lower()
+
+
+def test_deterministic_technology_stack_fallback_parses_split_table_rows():
+    split_table_item = ChatEvidenceItem(
+        id="E1",
+        source_type="document_chunk",
+        source_tier=SourceTier.DOCUMENT,
+        text=(
+            "I/O, excellent concurrency, single binary deployment |\n"
+            "| **Backend Framework** | Fiber or Echo | High-performance HTTP routing |\n"
+            "| **Database** | SQLite 3 | Zero-config embedded database |\n"
+            "| **AI Service** | Python 3.10+ | Best ML ecosystem |\n"
+        ),
+        citations=[],
+        score=85.0,
+        title="filegogallery-prd.md",
+        answer_intent="technology_stack",
+        answerability=85.0,
+    )
+
+    answer_text = compose_deterministic_evidence_answer(
+        query_text="Return the Tech stack in a bulleted list for the FileGo Gallery",
+        evidence_items=[split_table_item],
+    )
+
+    assert "- Backend Framework: Fiber or Echo [E1]" in answer_text
+    assert "- Database: SQLite 3 [E1]" in answer_text
+    assert "- AI Service: Python 3.10+ [E1]" in answer_text
 
 
 def test_verified_correction_appears_in_later_chat_answer(api_client, db_session):

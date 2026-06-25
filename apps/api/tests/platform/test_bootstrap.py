@@ -46,7 +46,7 @@ def test_runtime_status_json_is_public():
     assert response.headers["content-type"].startswith("application/json")
     payload = response.json()
     assert payload["application"]["name"] == "Ragdoll API"
-    assert set(payload["services"]) == {"database", "storage", "vector", "graph", "llm", "queue"}
+    assert set(payload["services"]) == {"database", "storage", "vector", "graph", "llm", "llm_chat", "queue"}
     assert "supabase" in payload
     assert "ollama" in payload
 

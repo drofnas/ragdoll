@@ -61,10 +61,11 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 1. User sends a question inside a chat session.
 2. `modules/chat` resolves Space scope, session context, and feature flags.
 3. Chat gathers a bounded evidence packet from verified corrections, current tracked-state values, shared search/RAG results, Knowledge Graph relationships, and recent session history.
-4. The configured chat model synthesizes a final answer from the evidence packet, using chat history only to resolve follow-up context and evidence IDs for provenance.
-5. If no answer model is available, the service returns a deterministic evidence-backed fallback answer with explicit citations and optional suggested follow-ups instead of failing the session.
-6. Messages, citations, and a compact evidence audit are persisted to session history.
-7. `apps/web` renders the selected transcript with assistant-ui's external-store runtime over the existing chat session detail query; the backend remains authoritative for messages, citations, evidence audit, suggestions, and corrections.
+4. Chat classifies the answer intent, expands selected document hits from stored chunk text, and ranks evidence by answerability before source quotas are applied.
+5. The configured chat model synthesizes a final answer from the evidence packet, using chat history only to resolve follow-up context and evidence IDs for provenance.
+6. If no answer model is available, the service returns a deterministic evidence-backed fallback only when it can produce a reliable answer shape, such as extracting a Markdown technology-stack table into bullets.
+7. Messages, citations, and a compact evidence audit are persisted to session history.
+8. `apps/web` renders the selected transcript with assistant-ui's external-store runtime over the existing chat session detail query; the backend remains authoritative for messages, citations, evidence audit, suggestions, and corrections.
 
 ### Tracked state
 
@@ -76,8 +77,10 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 ## Failure Modes and Edge Cases
 
 - Chat may receive strong vector evidence but weak graph context, or the reverse.
+- Chat evidence can contain noisy snippets from diagrams, install paths, code blocks, or JSON payloads; answer-intent scoring must prevent those from crowding out direct section/table evidence for conceptual questions.
 - Search graph mode can be disabled while list mode stays available.
-- Citations must survive partial answer generation and degraded retrieval modes.
+- Citations must survive partial answer generation and degraded retrieval modes; if degraded fallback cannot produce a reliable answer, it should say so instead of attaching random citations.
+- The public runtime status distinguishes Ollama catalog reachability from chat generation health because `/api/tags` can be healthy while `/api/chat` times out.
 - Evidence audit records must remain compact; full document chunks and raw prompt payloads should not be exposed as a separate UI contract.
 - Current-state answers can conflict with historical entity versions or pending corrections.
 - Related-result exploration must not leak across Spaces when all-spaces is off.

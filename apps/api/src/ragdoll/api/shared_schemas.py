@@ -167,6 +167,7 @@ class RuntimeOllamaStatus(BaseModel):
     detail: str = Field(default="Ollama is not configured.")
     configured_base_url: bool = Field(default=False)
     catalog_reachable: bool = Field(default=False)
+    chat_generation: DependencyStatus | None = Field(default=None)
     configured_models: list[OllamaConfiguredModelStatus] = Field(default_factory=list)
 
 

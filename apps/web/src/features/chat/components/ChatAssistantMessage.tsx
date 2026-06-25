@@ -69,7 +69,12 @@ export function ChatAssistantMessage({
   return (
     <MessagePrimitive.Root className="rounded-md border bg-background p-4 shadow-sm" data-role="assistant">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <StatusBadge label="assistant" value="active" />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge label="assistant" value="active" />
+          {messageRecord?.degraded ? (
+            <StatusBadge label="degraded" value="degraded" />
+          ) : null}
+        </div>
         {messageRecord ? (
           <p className="text-sm text-muted-foreground">
             {formatDateTime(messageRecord.created_at)}

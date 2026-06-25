@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ragdoll.api.shared_schemas import SpaceScope
 from ragdoll.core.exceptions import ApplicationError
+from ragdoll.core.logging import get_logger
 from ragdoll.modules.documents.infrastructure.repository import DocumentsRepository
 from ragdoll.modules.chat.api.schemas import ChatSendMessageResponse
 from ragdoll.modules.chat.application.evidence import gather_chat_evidence
@@ -24,6 +25,8 @@ from ragdoll.modules.search.api.schemas import SearchMode
 from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids, resolve_single_owned_space
 from ragdoll.platform.db.models import ChatMessage, ChatSession
 from ragdoll.platform.llm import get_chat_completion_service
+
+logger = get_logger("ragdoll.modules.chat.commands")
 
 
 def create_chat_session(
@@ -105,7 +108,15 @@ def send_chat_message(
         answer_text = get_chat_completion_service().generate(synthesis_messages).strip()
         if not answer_text:
             raise ValueError("Chat synthesis returned a blank answer.")
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "chat_synthesis_failed session_id=%s space_id=%s document_id=%s error_type=%s error=%s",
+            chat_session.id,
+            chat_session.space_id,
+            chat_session.document_id,
+            type(exc).__name__,
+            exc,
+        )
         answer_text = compose_deterministic_evidence_answer(
             query_text=query_text,
             evidence_items=evidence_bundle.evidence_items,

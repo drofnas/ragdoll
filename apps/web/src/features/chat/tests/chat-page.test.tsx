@@ -102,6 +102,7 @@ describe("ChatPage", () => {
         ).toBeInTheDocument()
       );
       expect(screen.getByText("assistant")).toBeInTheDocument();
+      expect(screen.getByText("degraded")).toBeInTheDocument();
       expect(screen.queryByText("combined")).not.toBeInTheDocument();
       expect(screen.queryByText("retrieval fallback")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Send suggestion: Follow up" })).not.toBeInTheDocument();

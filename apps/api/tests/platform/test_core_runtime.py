@@ -62,9 +62,19 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    def __init__(self, payload=None, *, error: Exception | None = None, timeout: float = 5.0):
+    def __init__(
+        self,
+        payload=None,
+        *,
+        error: Exception | None = None,
+        post_payload=None,
+        post_error: Exception | None = None,
+        timeout: float = 5.0,
+    ):
         self.payload = payload or {"models": []}
         self.error = error
+        self.post_payload = post_payload or {"message": {"content": "OK"}}
+        self.post_error = post_error
         self.timeout = timeout
 
     async def __aenter__(self):
@@ -77,6 +87,11 @@ class FakeAsyncClient:
         if self.error is not None:
             raise self.error
         return FakeResponse(self.payload)
+
+    async def post(self, url: str, json: dict):
+        if self.post_error is not None:
+            raise self.post_error
+        return FakeResponse(self.post_payload)
 
 
 def test_settings_prefers_main_supabase_database_url():
@@ -344,6 +359,8 @@ async def test_runtime_status_payload_marks_configured_ollama_models_present(mon
     models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
     assert payload.application.version == "0.1.0"
     assert payload.ollama.status == "healthy"
+    assert payload.ollama.chat_generation is not None
+    assert payload.ollama.chat_generation.status == "healthy"
     assert models["qwen3.5:0.8b"].status == "present"
     assert set(models["qwen3.5:0.8b"].roles) == {"primary_chat", "orchestrator", "worker"}
     assert models["nomic-embed-text"].status == "present"
@@ -393,6 +410,34 @@ async def test_runtime_status_payload_accepts_latest_tag_for_configured_ollama_m
 
     models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
     assert models["nomic-embed-text"].status == "present"
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_marks_chat_generation_unhealthy_when_catalog_is_healthy(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(
+            payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]},
+            post_error=health_module.httpx.ReadTimeout("slow chat generation"),
+        ),
+    )
+
+    payload = await build_runtime_status_payload(settings)
+
+    assert payload.status == "degraded"
+    assert payload.services["llm"].status == "healthy"
+    assert payload.services["llm_chat"].status == "unhealthy"
+    assert payload.ollama.status == "degraded"
+    assert payload.ollama.chat_generation is not None
+    assert payload.ollama.chat_generation.status == "unhealthy"
 
 
 @pytest.mark.asyncio
