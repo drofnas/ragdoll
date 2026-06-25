@@ -63,6 +63,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 3. Chat service requests evidence from the shared search retrieval service plus verified corrections in the same Space.
 4. If no answer model is available, the service returns a deterministic retrieval-backed fallback answer with explicit citations and optional suggested follow-ups instead of failing the session.
 5. Messages and metadata are persisted to session history.
+6. `apps/web` renders the selected transcript with assistant-ui's external-store runtime over the existing chat session detail query; the backend remains authoritative for messages, citations, suggestions, and corrections.
 
 ### Tracked state
 

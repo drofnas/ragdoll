@@ -1,17 +1,16 @@
-import type { ChatMessageRecord, Citation } from "@contracts";
-import { useState, type FormEvent } from "react";
+import type { ChatMessageRecord } from "@contracts";
+import type { AppendMessage } from "@assistant-ui/react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Thread } from "@/components/assistant-ui/thread";
 import { Page, PageHeader } from "@/components/app/page";
-import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ApiProblemError } from "@/shared/api/client";
 import { formatDateTime, formatRelativeAgeShort } from "@/shared/lib/formatting";
@@ -23,50 +22,19 @@ import {
   readChatSession,
   sendChatMessage
 } from "../api/chatApi";
-
-function formatDocumentCitationLabel(citation: Citation) {
-  const title = citation.title?.trim() || "Document";
-  const line = citation.line_number ? `line ${citation.line_number}` : "line unavailable";
-  return `${title} (${line})`;
-}
-
-function DocumentCitationsHoverCard({
-  citations,
-  messageId
-}: {
-  citations: Citation[];
-  messageId: string;
-}) {
-  return (
-    <HoverCard openDelay={0}>
-      <HoverCardTrigger asChild>
-        <Button className="h-auto p-0 text-sm font-semibold" type="button" variant="link">
-          Citations
-        </Button>
-      </HoverCardTrigger>
-      <HoverCardContent align="start" className="w-80 p-3">
-        <div className="space-y-1">
-          {citations.map((citation, index) => (
-            <Link
-              className="block rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              key={`${messageId}-${citation.document_id}-${index}`}
-              to={`/documents/${citation.document_id}`}
-            >
-              {formatDocumentCitationLabel(citation)}
-            </Link>
-          ))}
-        </div>
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
+import { ChatAssistantMessage } from "../components/ChatAssistantMessage";
+import {
+  ChatAssistantRuntime,
+  extractAppendMessageText
+} from "../components/ChatAssistantRuntime";
+import { ChatCorrectionDialog } from "../components/ChatCorrectionDialog";
 
 export function ChatPage() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { activeSpace, allSpaces, buildReadScopeParams, isReady, requireConcreteSpace } =
+  const queryClient = useQueryClient();
+  const { allSpaces, buildReadScopeParams, isReady, requireConcreteSpace } =
     useSpaceScope();
-  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -116,34 +84,54 @@ export function ChatPage() {
     }
   }
 
-  async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const sendPrompt = useCallback(
+    async (content: string) => {
+      const trimmedContent = content.trim();
 
-    if (!sessionId) {
-      setErrorMessage("Create or select a session before sending a message.");
-      return;
-    }
-
-    setErrorMessage(null);
-    setFeedbackMessage(null);
-    setIsSendingMessage(true);
-    try {
-      await sendChatMessage(sessionId, { content: message });
-      setMessage("");
-      await Promise.all([detailQuery.refetch(), sessionsQuery.refetch()]);
-    } catch (error) {
-      if (error instanceof ApiProblemError) {
-        setErrorMessage(error.problem.detail);
-      } else {
-        setErrorMessage("Unable to send that message right now.");
+      if (!trimmedContent) {
+        return;
       }
-    } finally {
-      setIsSendingMessage(false);
-    }
-  }
+
+      if (!sessionId) {
+        setErrorMessage("Create or select a session before sending a message.");
+        return;
+      }
+
+      setErrorMessage(null);
+      setFeedbackMessage(null);
+      setIsSendingMessage(true);
+      try {
+        const response = await sendChatMessage(sessionId, { content: trimmedContent });
+        queryClient.setQueryData(["chat-session", sessionId], response.session);
+        await sessionsQuery.refetch();
+      } catch (error) {
+        if (error instanceof ApiProblemError) {
+          setErrorMessage(error.problem.detail);
+        } else {
+          setErrorMessage("Unable to send that message right now.");
+        }
+        throw error;
+      } finally {
+        setIsSendingMessage(false);
+      }
+    },
+    [queryClient, sessionId, sessionsQuery]
+  );
+
+  const handleAssistantNewMessage = useCallback(
+    async (message: AppendMessage) => {
+      await sendPrompt(extractAppendMessageText(message));
+    },
+    [sendPrompt]
+  );
 
   async function handleSubmitCorrection(messageRecord: ChatMessageRecord) {
     if (!detailQuery.data) {
+      return;
+    }
+
+    const trimmedProposedValue = proposedValue.trim();
+    if (!trimmedProposedValue) {
       return;
     }
 
@@ -160,8 +148,8 @@ export function ChatPage() {
           document_id: citation?.document_id ?? null,
           entity_id: citation?.entity_id ?? null,
           locator_text: citation?.locator ?? null,
-          proposed_value: proposedValue,
-          rationale: rationale || null,
+          proposed_value: trimmedProposedValue,
+          rationale: rationale.trim() || null,
           tracked_field_id: null
         },
         { space_id: detailQuery.data.space_id }
@@ -180,6 +168,34 @@ export function ChatPage() {
       setIsSubmittingCorrection(false);
     }
   }
+
+  function handleOpenCorrection(messageRecord: ChatMessageRecord) {
+    setOpenCorrectionMessageId(messageRecord.id);
+    setProposedValue("");
+    setRationale("");
+  }
+
+  function handleCorrectionDialogOpenChange(open: boolean) {
+    if (!open) {
+      setOpenCorrectionMessageId(null);
+      setProposedValue("");
+      setRationale("");
+    }
+  }
+
+  const messageById = useMemo(
+    () =>
+      new Map(
+        (detailQuery.data?.messages ?? []).map((messageRecord) => [
+          messageRecord.id,
+          messageRecord
+        ])
+      ),
+    [detailQuery.data?.messages]
+  );
+  const selectedCorrectionMessage = openCorrectionMessageId
+    ? messageById.get(openCorrectionMessageId) ?? null
+    : null;
 
   return (
     <Page>
@@ -304,119 +320,37 @@ export function ChatPage() {
               <p className="text-sm text-muted-foreground">Loading chat transcript…</p>
             ) : detailQuery.data ? (
               <>
-                <ScrollArea className="h-[32rem] rounded-md border bg-muted/20 p-4">
-                  <div className="space-y-4 pr-3">
-                    {detailQuery.data.messages?.map((messageRecord) => {
-                      const documentCitations =
-                        messageRecord.citations?.filter((citation) => citation.document_id) ?? [];
-
-                      return (
-                        <Card key={messageRecord.id} className="shadow-none">
-                          <CardContent className="space-y-4 p-5">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <StatusBadge
-                                label={messageRecord.role}
-                                value={messageRecord.role === "assistant" ? "active" : "inactive"}
-                              />
-                              <p className="text-sm text-muted-foreground">
-                                {formatDateTime(messageRecord.created_at)}
-                              </p>
-                            </div>
-
-                            <p className="whitespace-pre-wrap leading-7 text-foreground">
-                              {messageRecord.content}
-                            </p>
-
-                            {documentCitations.length > 0 ? (
-                              <DocumentCitationsHoverCard
-                                citations={documentCitations}
-                                messageId={messageRecord.id}
-                              />
-                            ) : null}
-
-                            {messageRecord.role === "assistant" ? (
-                              <div className="space-y-3">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() =>
-                                    setOpenCorrectionMessageId(
-                                      openCorrectionMessageId === messageRecord.id ? null : messageRecord.id
-                                    )
-                                  }
-                                >
-                                  Submit correction
-                                </Button>
-
-                                {openCorrectionMessageId === messageRecord.id ? (
-                                  <Card className="bg-muted/20 shadow-none">
-                                    <CardContent className="space-y-4 p-5">
-                                      <div className="space-y-2">
-                                        <label
-                                          className="text-sm font-medium"
-                                          htmlFor={`proposed-correction-${messageRecord.id}`}
-                                        >
-                                          Proposed correction
-                                        </label>
-                                        <Textarea
-                                          id={`proposed-correction-${messageRecord.id}`}
-                                          rows={3}
-                                          value={proposedValue}
-                                          onChange={(event) => setProposedValue(event.currentTarget.value)}
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <label
-                                          className="text-sm font-medium"
-                                          htmlFor={`correction-rationale-${messageRecord.id}`}
-                                        >
-                                          Rationale
-                                        </label>
-                                        <Textarea
-                                          id={`correction-rationale-${messageRecord.id}`}
-                                          rows={3}
-                                          value={rationale}
-                                          onChange={(event) => setRationale(event.currentTarget.value)}
-                                        />
-                                      </div>
-                                      <div className="flex justify-end">
-                                        <Button
-                                          size="sm"
-                                          onClick={() => void handleSubmitCorrection(messageRecord)}
-                                        >
-                                          {isSubmittingCorrection ? "Submitting…" : "Submit for review"}
-                                        </Button>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-
-                <form className="space-y-3" onSubmit={handleSendMessage}>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="chat-message">
-                      Message
-                    </label>
-                    <Textarea
-                      id="chat-message"
-                      required
-                      rows={4}
-                      placeholder="Ask a question grounded in your uploaded material"
-                      value={message}
-                      onChange={(event) => setMessage(event.currentTarget.value)}
+                <div className="h-[38rem] min-h-[32rem] overflow-hidden rounded-md border bg-background">
+                  <ChatAssistantRuntime
+                    isLoading={detailQuery.isLoading}
+                    isRunning={isSendingMessage}
+                    isSendDisabled={isSendingMessage || !sessionId}
+                    messages={detailQuery.data.messages ?? []}
+                    onNew={handleAssistantNewMessage}
+                  >
+                    <Thread
+                      components={{
+                        AssistantMessage: () => (
+                          <ChatAssistantMessage
+                            messageById={messageById}
+                            onOpenCorrection={handleOpenCorrection}
+                          />
+                        )
+                      }}
                     />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button type="submit">{isSendingMessage ? "Sending…" : "Send message"}</Button>
-                  </div>
-                </form>
+                  </ChatAssistantRuntime>
+                </div>
+
+                <ChatCorrectionDialog
+                  isSubmitting={isSubmittingCorrection}
+                  message={selectedCorrectionMessage}
+                  proposedValue={proposedValue}
+                  rationale={rationale}
+                  onOpenChange={handleCorrectionDialogOpenChange}
+                  onProposedValueChange={setProposedValue}
+                  onRationaleChange={setRationale}
+                  onSubmit={(messageRecord) => void handleSubmitCorrection(messageRecord)}
+                />
               </>
             ) : (
               <p className="text-sm text-muted-foreground">

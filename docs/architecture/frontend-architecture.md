@@ -86,6 +86,7 @@ features/<feature>/
 
 - All API request and response shapes are imported from `packages/contracts/typescript`
 - Feature clients are thin wrappers around shared transport
+- `apps/web` uses Tailwind CSS v4 through the Vite plugin; shared theme tokens live in `src/styles/app.css`
 - Shared frontend state includes:
   - current user
   - current `SpaceScope`

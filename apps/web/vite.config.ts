@@ -1,9 +1,10 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
@@ -26,6 +27,8 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     globals: true,
     css: true,
-    restoreMocks: true
+    restoreMocks: true,
+    hookTimeout: 15_000,
+    testTimeout: 15_000
   }
 });
