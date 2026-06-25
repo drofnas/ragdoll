@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     entity_extraction_mode: Literal["auto", "ollama", "deterministic"] = "auto"
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
     ollama_worker_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
+    ollama_chat_timeout_seconds: float = Field(default=45.0, ge=5.0, le=600.0)
+    ollama_chat_max_tokens: int = Field(default=700, ge=64, le=4096)
+    ollama_chat_context_window: int = Field(default=4096, ge=1024, le=32768)
+    ollama_chat_think: bool = False
 
     instance_limit_documents: int | None = None
     instance_limit_max_file_size_bytes: int | None = Field(default=100 * 1024 * 1024, ge=1)

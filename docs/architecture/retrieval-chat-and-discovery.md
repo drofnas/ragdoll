@@ -81,6 +81,8 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - Search graph mode can be disabled while list mode stays available.
 - Citations must survive partial answer generation and degraded retrieval modes; if degraded fallback cannot produce a reliable answer, it should say so instead of attaching random citations.
 - The public runtime status distinguishes Ollama catalog reachability from chat generation health because `/api/tags` can be healthy while `/api/chat` times out.
+- Foreground chat generation uses a compact prompt budget plus `OLLAMA_CHAT_TIMEOUT_SECONDS`, `OLLAMA_CHAT_MAX_TOKENS`, and `OLLAMA_CHAT_CONTEXT_WINDOW` so local models do not stall the UI for worker-length timeouts.
+- Foreground chat disables Ollama reasoning mode by default with `OLLAMA_CHAT_THINK=false`; Ragdoll prioritizes responsive, visible evidence synthesis and does not surface or treat hidden `message.thinking` content as an answer.
 - Evidence audit records must remain compact; full document chunks and raw prompt payloads should not be exposed as a separate UI contract.
 - Current-state answers can conflict with historical entity versions or pending corrections.
 - Related-result exploration must not leak across Spaces when all-spaces is off.

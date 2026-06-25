@@ -134,6 +134,9 @@ def test_ollama_chat_completion_service_returns_message_content(monkeypatch):
     settings = Settings(
         ollama_base_url="http://ollama.local:11434",
         ollama_model="qwen3.5:0.8b",
+        ollama_chat_timeout_seconds=45,
+        ollama_chat_max_tokens=700,
+        ollama_chat_context_window=4096,
         _env_file=None,
     )
     captured: dict[str, object] = {}
@@ -144,7 +147,11 @@ def test_ollama_chat_completion_service_returns_message_content(monkeypatch):
             captured["json"] = json
             return JsonResponseStub({"message": {"content": "Synthesized answer [E1]"}})
 
-    monkeypatch.setattr(httpx, "Client", lambda *, timeout=None: CapturingClient({}, timeout=timeout))
+    def fake_client(*, timeout=None):
+        captured["timeout"] = timeout
+        return CapturingClient({}, timeout=timeout)
+
+    monkeypatch.setattr(httpx, "Client", fake_client)
 
     service = OllamaChatCompletionService(settings)
     answer = service.generate([ChatCompletionMessage(role="user", content="Answer this")])
@@ -153,6 +160,38 @@ def test_ollama_chat_completion_service_returns_message_content(monkeypatch):
     assert captured["url"] == "http://ollama.local:11434/api/chat"
     assert captured["json"]["model"] == "qwen3.5:0.8b"
     assert captured["json"]["stream"] is False
+    assert captured["json"]["think"] is False
+    assert captured["json"]["options"] == {
+        "temperature": 0,
+        "num_predict": 700,
+        "num_ctx": 4096,
+    }
+    assert isinstance(captured["timeout"], httpx.Timeout)
+    assert captured["timeout"].read == 45.0
+
+
+def test_ollama_chat_completion_service_can_enable_thinking(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_chat_think=True,
+        _env_file=None,
+    )
+    captured: dict[str, object] = {}
+
+    class CapturingClient(JsonClient):
+        def post(self, url: str, json: dict):
+            del url
+            captured["json"] = json
+            return JsonResponseStub({"message": {"content": "Synthesized answer [E1]"}})
+
+    monkeypatch.setattr(httpx, "Client", lambda *, timeout=None: CapturingClient({}, timeout=timeout))
+
+    service = OllamaChatCompletionService(settings)
+    answer = service.generate([ChatCompletionMessage(role="user", content="Answer this")])
+
+    assert answer == "Synthesized answer [E1]"
+    assert captured["json"]["think"] is True
 
 
 def test_ollama_chat_completion_service_rejects_empty_response(monkeypatch):
@@ -165,6 +204,26 @@ def test_ollama_chat_completion_service_rejects_empty_response(monkeypatch):
 
     service = OllamaChatCompletionService(settings)
     with pytest.raises(ConfigurationError, match="answer content"):
+        service.generate([ChatCompletionMessage(role="user", content="Answer this")])
+
+
+def test_ollama_chat_completion_service_rejects_thinking_only_response(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        _env_file=None,
+    )
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda *, timeout=None: JsonClient(
+            {"message": {"content": "", "thinking": "Thinking Process: spend all tokens here."}},
+            timeout=timeout,
+        ),
+    )
+
+    service = OllamaChatCompletionService(settings)
+    with pytest.raises(ConfigurationError, match="only included thinking content"):
         service.generate([ChatCompletionMessage(role="user", content="Answer this")])
 
 

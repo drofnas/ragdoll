@@ -76,6 +76,7 @@ class FakeAsyncClient:
         self.post_payload = post_payload or {"message": {"content": "OK"}}
         self.post_error = post_error
         self.timeout = timeout
+        self.post_requests: list[dict] = []
 
     async def __aenter__(self):
         return self
@@ -91,6 +92,7 @@ class FakeAsyncClient:
     async def post(self, url: str, json: dict):
         if self.post_error is not None:
             raise self.post_error
+        self.post_requests.append({"url": url, "json": json})
         return FakeResponse(self.post_payload)
 
 
@@ -365,6 +367,29 @@ async def test_runtime_status_payload_marks_configured_ollama_models_present(mon
     assert set(models["qwen3.5:0.8b"].roles) == {"primary_chat", "orchestrator", "worker"}
     assert models["nomic-embed-text"].status == "present"
     assert models["nomic-embed-text"].roles == ["embedding"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_chat_probe_uses_chat_thinking_setting(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        ollama_chat_context_window=2048,
+        ollama_chat_think=True,
+        _env_file=None,
+    )
+    client = FakeAsyncClient(payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]})
+
+    monkeypatch.setattr(health_module.httpx, "AsyncClient", lambda *args, **kwargs: client)
+
+    payload = await build_runtime_status_payload(settings)
+
+    assert payload.services["llm_chat"].status == "healthy"
+    assert client.post_requests
+    request_json = client.post_requests[-1]["json"]
+    assert request_json["think"] is True
+    assert request_json["options"]["num_ctx"] == 2048
 
 
 @pytest.mark.asyncio

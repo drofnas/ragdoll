@@ -298,7 +298,12 @@ async def _check_ollama_chat_generation(
                     "model": model_name,
                     "messages": [{"role": "user", "content": "Reply with OK."}],
                     "stream": False,
-                    "options": {"num_predict": 8, "temperature": 0},
+                    "think": settings.ollama_chat_think,
+                    "options": {
+                        "num_predict": 8,
+                        "num_ctx": settings.ollama_chat_context_window,
+                        "temperature": 0,
+                    },
                 },
             )
             response.raise_for_status()

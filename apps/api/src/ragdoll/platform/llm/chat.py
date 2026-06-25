@@ -8,7 +8,6 @@ import httpx
 
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.core.exceptions import ConfigurationError
-from ragdoll.platform.llm.service import _ollama_timeout
 
 
 @dataclass(frozen=True)
@@ -36,7 +35,15 @@ class OllamaChatCompletionService:
     def __init__(self, settings: Settings) -> None:
         self._base_url = (settings.ollama_base_url or "").rstrip("/")
         self._model = settings.ollama_model.strip()
-        self._timeout = _ollama_timeout(settings)
+        self._timeout = httpx.Timeout(
+            connect=10.0,
+            read=settings.ollama_chat_timeout_seconds,
+            write=settings.ollama_chat_timeout_seconds,
+            pool=settings.ollama_chat_timeout_seconds,
+        )
+        self._max_tokens = settings.ollama_chat_max_tokens
+        self._context_window = settings.ollama_chat_context_window
+        self._think = settings.ollama_chat_think
 
     def generate(self, messages: list[ChatCompletionMessage]) -> str:
         if not self._base_url or not self._model:
@@ -52,6 +59,12 @@ class OllamaChatCompletionService:
                             for message in messages
                         ],
                         "stream": False,
+                        "think": self._think,
+                        "options": {
+                            "temperature": 0,
+                            "num_predict": self._max_tokens,
+                            "num_ctx": self._context_window,
+                        },
                     },
                 )
                 response.raise_for_status()
@@ -70,6 +83,12 @@ class OllamaChatCompletionService:
             answer = message["content"].strip()
             if answer:
                 return answer
+            thinking = message.get("thinking")
+            if isinstance(thinking, str) and thinking.strip():
+                raise ConfigurationError(
+                    "Ollama chat response only included thinking content; set OLLAMA_CHAT_THINK=false "
+                    "or increase OLLAMA_CHAT_MAX_TOKENS."
+                )
         response_text = payload.get("response")
         if isinstance(response_text, str) and response_text.strip():
             return response_text.strip()

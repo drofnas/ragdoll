@@ -20,6 +20,10 @@ from ragdoll.platform.llm import ChatCompletionMessage
 from ragdoll.platform.db.models import ChatMessage, ChatSession
 
 
+CHAT_EVIDENCE_PROMPT_BUDGET = 6500
+CHAT_HISTORY_PROMPT_BUDGET = 2000
+
+
 def _truncate_title(value: str) -> str:
     title = " ".join(value.strip().split())
     return title[:80] or "New chat"
@@ -215,10 +219,27 @@ def _answerability_label(value: float) -> str:
 
 def _prompt_fragment_limit(item: ChatEvidenceItem) -> int:
     if item.answerability >= 75:
-        return 2600
+        return 1800
     if item.answerability >= 20:
-        return 1600
-    return 800
+        return 900
+    return 300
+
+
+def _bounded_lines(lines: list[str], *, max_chars: int) -> str:
+    selected: list[str] = []
+    used = 0
+    for line in lines:
+        budget_left = max_chars - used
+        if budget_left <= 0:
+            break
+        if len(line) > budget_left:
+            clipped = line[: max(0, budget_left - 4)].rstrip()
+            if clipped:
+                selected.append(f"{clipped} ...")
+            break
+        selected.append(line)
+        used += len(line) + 1
+    return "\n".join(selected)
 
 
 def build_evidence_records(evidence_items: list[ChatEvidenceItem]) -> list[ChatEvidenceRecord]:
@@ -250,13 +271,14 @@ def build_synthesis_messages(
         "Cite supporting evidence inline with IDs like [E1]. If evidence conflicts, say what conflicts. If the "
         "evidence is insufficient, say what is missing. Prefer high-answerability evidence. Treat low-answerability "
         "evidence as possible noise, especially raw code, JSON events, diagrams, installation paths, Docker snippets, "
-        "and localhost wiring unless the user directly asks for those details."
+        "and localhost wiring unless the user directly asks for those details. Answer directly and concisely."
     )
-    history_block = "\n".join(
-        f"- {item.role}: {_clean_prompt_fragment(item.content, max_chars=500)}"
-        for item in history_items
-    ) or "None"
-    evidence_block = "\n".join(
+    history_lines = [
+        f"- {item.role}: {_clean_prompt_fragment(item.content, max_chars=350)}"
+        for item in history_items[-4:]
+    ]
+    history_block = _bounded_lines(history_lines, max_chars=CHAT_HISTORY_PROMPT_BUDGET) or "None"
+    evidence_lines = [
         (
             f"[{item.id}] source={item.source_type}; tier={item.source_tier.value}; "
             f"intent={item.answer_intent}; answerability={_answerability_label(item.answerability)}; "
@@ -264,7 +286,8 @@ def build_synthesis_messages(
             f"text={_clean_prompt_fragment(item.text, max_chars=_prompt_fragment_limit(item))}"
         )
         for item in evidence_items
-    ) or "None"
+    ]
+    evidence_block = _bounded_lines(evidence_lines, max_chars=CHAT_EVIDENCE_PROMPT_BUDGET) or "None"
     user_prompt = (
         f"Recent chat history:\n{history_block}\n\n"
         f"Evidence packet:\n{evidence_block}\n\n"
