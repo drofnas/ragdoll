@@ -32,18 +32,30 @@ LOW_SIGNAL_QUERY_TERMS = {
     "a",
     "about",
     "an",
+    "and",
+    "any",
     "app",
     "application",
+    "are",
     "can",
     "describe",
+    "detail",
+    "details",
     "do",
     "does",
+    "etc",
     "explain",
     "give",
+    "has",
+    "have",
+    "having",
     "i",
     "is",
+    "it",
     "me",
     "of",
+    "on",
+    "or",
     "overview",
     "please",
     "show",
@@ -55,6 +67,35 @@ LOW_SIGNAL_QUERY_TERMS = {
     "who",
     "you",
 }
+
+QUERY_TERM_ALIASES = {
+    "frameworks": ("framework",),
+    "language": ("languages",),
+    "languages": ("language",),
+    "tech": ("technology",),
+}
+
+TECH_STACK_QUERY_PHRASES = (
+    "programming language",
+    "programming languages",
+    "tech stack",
+    "technical stack",
+    "technology stack",
+)
+
+TECH_STACK_EVIDENCE_PATTERNS = (
+    r"\bai framework\b",
+    r"\bai service\b",
+    r"\bbackend framework\b",
+    r"\bbackend service\b",
+    r"\bdatabase\b",
+    r"\bdesktop app\b",
+    r"\bfrontend\b",
+    r"\bfrontend build\b",
+    r"\bml framework\b",
+    r"\bpackaging\b",
+    r"\btechnology stack\b",
+)
 
 
 @dataclass
@@ -72,7 +113,41 @@ def _owner_user_id(subject: str) -> UUID:
 def _query_terms(query_text: str) -> list[str]:
     terms = [term for term in re.findall(r"[a-z0-9]+", query_text.lower()) if term]
     meaningful_terms = [term for term in terms if term not in LOW_SIGNAL_QUERY_TERMS]
-    return meaningful_terms or terms
+    expanded_terms: list[str] = []
+    for term in meaningful_terms or terms:
+        if term not in expanded_terms:
+            expanded_terms.append(term)
+        for alias in QUERY_TERM_ALIASES.get(term, ()):
+            if alias not in expanded_terms:
+                expanded_terms.append(alias)
+    return expanded_terms
+
+
+def _is_technology_stack_query(query_text: str, terms: list[str]) -> bool:
+    normalized = " ".join(query_text.lower().split())
+    term_set = set(terms)
+    return (
+        any(phrase in normalized for phrase in TECH_STACK_QUERY_PHRASES)
+        or {"tech", "stack"}.issubset(term_set)
+        or {"technology", "stack"}.issubset(term_set)
+        or ("programming" in term_set and {"language", "languages"}.intersection(term_set))
+    )
+
+
+def _technology_stack_bonus(query_text: str, terms: list[str], chunk_haystack: str) -> float:
+    if not _is_technology_stack_query(query_text, terms):
+        return 0.0
+
+    bonus = 0.0
+    if re.search(r"\b(?:tech|technology|technical)\s+stack\b", chunk_haystack):
+        bonus += 12.0
+    if "component" in chunk_haystack and "technology" in chunk_haystack:
+        bonus += 6.0
+
+    evidence_hits = sum(1 for pattern in TECH_STACK_EVIDENCE_PATTERNS if re.search(pattern, chunk_haystack))
+    if evidence_hits >= 2:
+        bonus += min(evidence_hits, 8)
+    return bonus
 
 
 def _chunk_locator(chunk: DocumentChunk) -> str:
@@ -146,8 +221,9 @@ def _boolean_score(record: ChunkSearchRecord, query_text: str, terms: list[str])
     if not terms and exact_phrase_bonus == 0.0:
         return 0.0
     title_hits = sum(1 for term in terms if term in title_haystack)
-    content_hits = sum(chunk_haystack.count(term) for term in terms)
-    return exact_phrase_bonus + (title_hits * 3.0) + float(content_hits)
+    content_hits = sum(min(chunk_haystack.count(term), 3) for term in terms)
+    stack_bonus = _technology_stack_bonus(query_text, terms, chunk_haystack)
+    return exact_phrase_bonus + (title_hits * 3.0) + float(content_hits) + stack_bonus
 
 
 def _graph_score(record: EntitySearchRecord, query_text: str, terms: list[str]) -> float:

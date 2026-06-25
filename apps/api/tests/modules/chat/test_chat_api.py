@@ -4,11 +4,22 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from ragdoll.api.shared_schemas import Citation, SourceTier
+from ragdoll.modules.chat.application import commands as chat_commands
 from ragdoll.modules.chat.application.service import compose_fallback_answer
 from ragdoll.modules.search.api.schemas import SearchEntitySummary, SearchMode, SearchResult, SearchResultDocument
-from ragdoll.platform.db.models import User
+from ragdoll.platform.db.models import TrackedField, TrackedFieldValue, User
 
 from tests.modules._phase10_helpers import auth_headers, default_space, register_and_login, seed_retrieval_document
+
+
+class FakeChatCompletionService:
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.messages = []
+
+    def generate(self, messages):
+        self.messages = messages
+        return self.answer
 
 
 def test_chat_routes_require_authentication(api_client):
@@ -45,9 +56,43 @@ def test_chat_session_message_flow_returns_citations_and_degraded_answer(api_cli
     assert payload["assistant_message"]["degraded"] is True
     assert payload["assistant_message"]["retrieval_mode"] == "combined"
     assert payload["assistant_message"]["citations"]
+    assert payload["assistant_message"]["evidence"]
     assert payload["assistant_message"]["citations"][0]["line_number"] == 4
     assert "Atlas" in payload["assistant_message"]["content"]
     assert payload["session"]["title"].startswith("Tell me about Atlas")
+
+
+def test_chat_synthesis_success_persists_compact_evidence_audit(api_client, db_session, monkeypatch):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    seed_retrieval_document(
+        db_session,
+        space=default_space(db_session, owner),
+        uploader=owner,
+        title="atlas.txt",
+        text="Atlas uses a Go backend and a Svelte frontend.",
+        entity_specs=[("Atlas", "project")],
+        start_line=12,
+    )
+    fake_service = FakeChatCompletionService("Atlas uses Go for backend work and Svelte for frontend work. [E1]")
+    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: fake_service)
+
+    created = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
+    session_id = created.json()["id"]
+    message = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "What is the Atlas stack?"},
+    )
+
+    assert message.status_code == 200, message.text
+    assistant_message = message.json()["assistant_message"]
+    assert assistant_message["degraded"] is False
+    assert assistant_message["content"] == fake_service.answer
+    assert assistant_message["citations"][0]["line_number"] == 12
+    assert assistant_message["evidence"][0]["id"] == "E1"
+    assert assistant_message["evidence"][0]["source_type"] == "document_chunk"
+    assert message.json()["session"]["messages"][-1]["evidence"][0]["id"] == "E1"
 
 
 def test_document_scoped_chat_only_cites_the_selected_document(api_client, db_session):
@@ -92,6 +137,60 @@ def test_document_scoped_chat_only_cites_the_selected_document(api_client, db_se
     assert "filegogallery is an ai-powered desktop gallery application" in payload["assistant_message"]["content"].lower()
     assert "current evidence for" not in payload["assistant_message"]["content"].lower()
     assert "filegogallery-prd.md:" not in payload["assistant_message"]["content"].lower()
+
+
+def test_document_scoped_chat_uses_technology_stack_chunk_for_stack_questions(api_client, db_session):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    stack_chunk = (
+        "### Technology Stack\n\n"
+        "| Component | Technology | Justification |\n"
+        "| **Backend Service** | Go 1.21+ | Fast file I/O and single binary deployment |\n"
+        "| **AI Service** | Python 3.10+ | Best ML library ecosystem |\n"
+        "| **Frontend** | Svelte + SvelteKit | Reactive, small bundle size |\n"
+        "| **Desktop App** | Electron | Cross-platform desktop wrapper |\n"
+    )
+    install_chunk = (
+        "### Platform-Specific Deployment\n\n"
+        "Installation Locations: Application: C:\\Program Files\\FilegoGallery\\. "
+        "Services: C:\\Program Files\\FilegoGallery\\services\\. "
+        "User Data: C:\\Users\\{username}\\AppData\\Roaming\\FilegoGallery\\. "
+        "Cache: C:\\Users\\{username}\\AppData\\Local\\FilegoGallery\\cache\\. "
+        "FilegoGallery services stop and remove FilegoGallery files automatically."
+    )
+    filego_document = seed_retrieval_document(
+        db_session,
+        space=space,
+        uploader=owner,
+        title="filegogallery-prd.md",
+        text=f"{stack_chunk}\n\n{install_chunk}",
+        file_type="md",
+        mime_type="text/markdown",
+        entity_specs=[("FilegoGallery", "product")],
+        chunks=[(stack_chunk, 129), (install_chunk, 1257)],
+    )
+
+    created = api_client.post(
+        f"/api/v1/chat/sessions?space_id={space.id}&document_id={filego_document.id}",
+        headers=auth_headers(token),
+    )
+    assert created.status_code == 200, created.text
+    session_id = created.json()["id"]
+
+    message = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "Does the FileGo Gallery have any details about what tech stack, programming languages, etc?"},
+    )
+
+    assert message.status_code == 200, message.text
+    assistant_message = message.json()["assistant_message"]
+    assert "technology stack" in assistant_message["content"].lower()
+    assert "go 1.21+" in assistant_message["content"].lower()
+    assert "python 3.10+" in assistant_message["content"].lower()
+    assert "c:\\program files" not in assistant_message["content"].lower()
+    assert [citation["line_number"] for citation in assistant_message["citations"]] == [129]
 
 
 def test_space_wide_chat_prefers_document_evidence_for_specific_summary_queries(api_client, db_session):
@@ -289,4 +388,112 @@ def test_verified_correction_appears_in_later_chat_answer(api_client, db_session
         json={"content": "Is Atlas paused?"},
     )
     assert message.status_code == 200, message.text
-    assert "Atlas is paused" in message.json()["assistant_message"]["content"]
+    assistant_message = message.json()["assistant_message"]
+    assert "Atlas is paused" in assistant_message["content"]
+    assert "active" not in assistant_message["content"].lower()
+    assert assistant_message["evidence"][0]["source_type"] == "correction"
+
+
+def test_chat_answer_includes_current_tracked_state_as_pinned_evidence(api_client, db_session):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    field = TrackedField(
+        space_id=space.id,
+        owner_user_id=owner.id,
+        key="release_status",
+        label="Release status",
+        prompt="What is the current release status?",
+        is_active=True,
+    )
+    db_session.add(field)
+    db_session.flush()
+    db_session.add(
+        TrackedFieldValue(
+            tracked_field_id=field.id,
+            space_id=space.id,
+            source_tier=SourceTier.VERIFIED.value,
+            value_text="Atlas is paused for security review.",
+            citations=[],
+            is_current=True,
+        )
+    )
+    db_session.commit()
+
+    session_response = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
+    session_id = session_response.json()["id"]
+    message = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "What is the release status?"},
+    )
+
+    assert message.status_code == 200, message.text
+    assistant_message = message.json()["assistant_message"]
+    assert "Release status: Atlas is paused for security review" in assistant_message["content"]
+    assert any(item["source_type"] == "tracked_state" for item in assistant_message["evidence"])
+
+
+def test_document_scoped_chat_includes_graph_relationship_evidence(api_client, db_session):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    document = seed_retrieval_document(
+        db_session,
+        space=space,
+        uploader=owner,
+        title="atlas-architecture.md",
+        text="Atlas connects the Go API to the Svelte client.",
+        entity_specs=[("Go API", "component"), ("Svelte Client", "component")],
+    )
+
+    session_response = api_client.post(
+        f"/api/v1/chat/sessions?space_id={space.id}&document_id={document.id}",
+        headers=auth_headers(token),
+    )
+    session_id = session_response.json()["id"]
+    message = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "How are the architecture components related?"},
+    )
+
+    assert message.status_code == 200, message.text
+    evidence = message.json()["assistant_message"]["evidence"]
+    assert any(item["source_type"] == "document_chunk" for item in evidence)
+    assert any(item["source_type"] == "graph_relationship" for item in evidence)
+
+
+def test_chat_synthesis_prompt_includes_recent_history(api_client, db_session, monkeypatch):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    seed_retrieval_document(
+        db_session,
+        space=default_space(db_session, owner),
+        uploader=owner,
+        title="atlas.txt",
+        text="Atlas uses Svelte for its frontend.",
+        entity_specs=[("Atlas", "project")],
+    )
+    session_response = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
+    session_id = session_response.json()["id"]
+    first = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "Tell me about Atlas"},
+    )
+    assert first.status_code == 200, first.text
+
+    fake_service = FakeChatCompletionService("It uses Svelte for the frontend. [E1]")
+    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: fake_service)
+    second = api_client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=auth_headers(token),
+        json={"content": "What about the frontend?"},
+    )
+
+    assert second.status_code == 200, second.text
+    prompt = fake_service.messages[-1].content
+    assert "Recent chat history:" in prompt
+    assert "Tell me about Atlas" in prompt
+    assert "What about the frontend?" in prompt

@@ -5,10 +5,18 @@ from typing import Iterable
 from uuid import UUID
 
 from ragdoll.api.shared_schemas import Citation, SourceTier
-from ragdoll.modules.chat.api.schemas import ChatMessageRecord, ChatSessionDetail, ChatSessionSummary, ChatSuggestion
+from ragdoll.modules.chat.api.schemas import (
+    ChatEvidenceRecord,
+    ChatMessageRecord,
+    ChatSessionDetail,
+    ChatSessionSummary,
+    ChatSuggestion,
+)
+from ragdoll.modules.chat.application.evidence import ChatEvidenceItem, ChatHistoryItem
 from ragdoll.modules.corrections.application.service import correction_citation, correction_matches_query
 from ragdoll.modules.corrections.infrastructure.repository import CorrectionsRepository
 from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
+from ragdoll.platform.llm import ChatCompletionMessage
 from ragdoll.platform.db.models import ChatMessage, ChatSession
 
 
@@ -25,6 +33,10 @@ def _message_suggestions(message: ChatMessage) -> list[ChatSuggestion]:
     return [ChatSuggestion.model_validate(item) for item in (message.suggestions or [])]
 
 
+def _message_evidence(message: ChatMessage) -> list[ChatEvidenceRecord]:
+    return [ChatEvidenceRecord.model_validate(item) for item in (message.evidence or [])]
+
+
 def build_chat_message_record(message: ChatMessage) -> ChatMessageRecord:
     return ChatMessageRecord(
         id=message.id,
@@ -32,6 +44,7 @@ def build_chat_message_record(message: ChatMessage) -> ChatMessageRecord:
         content=message.content,
         citations=_message_citations(message),
         suggestions=_message_suggestions(message),
+        evidence=_message_evidence(message),
         retrieval_mode=message.retrieval_mode,
         degraded=message.degraded,
         created_at=message.created_at,
@@ -179,6 +192,105 @@ def _clean_summary_fragment(value: str) -> str:
     return cleaned.strip(" -|:")
 
 
+def _clean_prompt_fragment(value: str, *, max_chars: int = 1200) -> str:
+    return re.sub(r"\s+", " ", value).strip()[:max_chars]
+
+
+def build_evidence_records(evidence_items: list[ChatEvidenceItem]) -> list[ChatEvidenceRecord]:
+    return [
+        ChatEvidenceRecord(
+            id=item.id,
+            source_type=item.source_type,
+            source_tier=item.source_tier,
+            text=item.text,
+            citations=item.citations,
+            score=item.score,
+            title=item.title,
+            created_at=item.created_at,
+        )
+        for item in evidence_items
+    ]
+
+
+def build_synthesis_messages(
+    *,
+    query_text: str,
+    evidence_items: list[ChatEvidenceItem],
+    history_items: list[ChatHistoryItem],
+) -> list[ChatCompletionMessage]:
+    system_prompt = (
+        "You are Ragdoll's evidence-grounded chat assistant. Answer the latest user question using only the "
+        "provided evidence. Use chat history only to resolve references and follow-up context; do not treat "
+        "chat history as authoritative factual evidence. Obey requested formatting such as bullets or tables. "
+        "Cite supporting evidence inline with IDs like [E1]. If evidence conflicts, say what conflicts. If the "
+        "evidence is insufficient, say what is missing."
+    )
+    history_block = "\n".join(
+        f"- {item.role}: {_clean_prompt_fragment(item.content, max_chars=500)}"
+        for item in history_items
+    ) or "None"
+    evidence_block = "\n".join(
+        (
+            f"[{item.id}] source={item.source_type}; tier={item.source_tier.value}; "
+            f"title={item.title or 'untitled'}; text={_clean_prompt_fragment(item.text)}"
+        )
+        for item in evidence_items
+    ) or "None"
+    user_prompt = (
+        f"Recent chat history:\n{history_block}\n\n"
+        f"Evidence packet:\n{evidence_block}\n\n"
+        f"Question:\n{query_text}\n\n"
+        "Write the final answer now. Include evidence IDs next to claims."
+    )
+    return [
+        ChatCompletionMessage(role="system", content=system_prompt),
+        ChatCompletionMessage(role="user", content=user_prompt),
+    ]
+
+
+def compose_deterministic_evidence_answer(
+    *,
+    query_text: str,
+    evidence_items: list[ChatEvidenceItem],
+) -> str:
+    if not evidence_items:
+        return f"No scoped evidence was found for '{query_text}'."
+
+    correction_items = [item for item in evidence_items if item.source_type == "correction"]
+    if correction_items:
+        return " ".join(
+            f"Verified correction: {_clean_summary_fragment(item.text)} [{item.id}]."
+            for item in correction_items[:2]
+        )
+
+    normalized_query = _normalized_text(query_text)
+    selected_items = evidence_items[:5 if "bullet" in normalized_query or "list" in normalized_query else 1]
+    if "bullet" in normalized_query or "list" in normalized_query:
+        return "Based on the available evidence:\n" + "\n".join(
+            f"- {_clean_summary_fragment(item.text)} [{item.id}]"
+            for item in selected_items
+        )
+    return "Based on the available evidence: " + " ".join(
+        f"{_clean_summary_fragment(item.text)} [{item.id}]."
+        for item in selected_items
+    )
+
+
+def citations_for_synthesized_answer(answer_text: str, evidence_items: list[ChatEvidenceItem]) -> list[Citation]:
+    cited_ids = set(re.findall(r"\[(E\d+)\]", answer_text))
+    selected_items = [
+        item
+        for item in evidence_items
+        if item.id in cited_ids
+    ]
+    if not selected_items:
+        selected_items = evidence_items[:3]
+    citations: list[Citation] = []
+    for item in selected_items:
+        citations.extend(item.citations)
+    return _dedupe_citations(citations)[:8]
+
+
 def _extract_document_summary(document_text: str) -> str:
     normalized = document_text.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not normalized:
@@ -223,6 +335,8 @@ def compose_fallback_answer(
     document_bits: list[str] = []
     entity_bits: list[str] = []
     citations: list[Citation] = []
+    document_citations: list[Citation] = []
+    entity_citations: list[Citation] = []
     seen_document_ids: set[UUID] = set()
     summary_bias = _is_summary_question(query_text) and not _is_graph_or_relation_question(query_text)
 
@@ -230,11 +344,11 @@ def compose_fallback_answer(
         citations.append(correction_citation(correction, source_tier=SourceTier.VERIFIED))
 
     for result in prioritized_results[:3]:
-        citations.extend(result.citations)
         if result.result_kind == "document_chunk":
             if result.document is not None:
                 if result.document.id not in seen_document_ids:
                     seen_document_ids.add(result.document.id)
+                    document_citations.extend(result.citations)
                     context_text = (document_context or {}).get(result.document.id, "")
                     if summary_bias and context_text:
                         document_bits.append(
@@ -243,14 +357,18 @@ def compose_fallback_answer(
                     else:
                         document_bits.append(f"{result.document.title}: {_clean_summary_fragment(result.preview_text)}")
             else:
+                document_citations.extend(result.citations)
                 document_bits.append(_clean_summary_fragment(result.preview_text))
             continue
         if result.entity is not None:
+            entity_citations.extend(result.citations)
             entity_bits.append(result.entity.display_name)
         elif result.preview_text:
+            entity_citations.extend(result.citations)
             entity_bits.append(_clean_summary_fragment(result.preview_text))
 
     evidence_bits = document_bits or entity_bits
+    citations.extend(document_citations if document_bits else entity_citations)
 
     if verified_bits and evidence_bits:
         answer = (

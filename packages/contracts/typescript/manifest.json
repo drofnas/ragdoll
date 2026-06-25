@@ -1,13 +1,13 @@
 {
   "entrypoint": "packages/contracts/typescript/index.ts",
-  "generated_at": "2026-06-24T22:52:10.499170Z",
+  "generated_at": "2026-06-25T06:52:15.998586Z",
   "notes": [
     "TypeScript contracts are generated from the exported OpenAPI document.",
     "Feature clients should remain thin wrappers around shared transport rather than generated request helpers."
   ],
   "operation_count": 53,
   "output_directory": "packages/contracts/typescript",
-  "schema_count": 78,
+  "schema_count": 79,
   "source": "packages/contracts/openapi/ragdoll.openapi.json",
   "status": "generated"
 }

@@ -16,6 +16,7 @@ from ragdoll.platform.db import models  # noqa: F401
 from ragdoll.platform.db import session as session_module
 from ragdoll.platform.db.models_base import Base
 from ragdoll.platform.graph import service as graph_service_module
+from ragdoll.platform.llm import chat as llm_chat_module
 from ragdoll.platform.llm import service as llm_service_module
 from ragdoll.platform.queues import service as queue_service_module
 from ragdoll.platform.storage import service as storage_service_module
@@ -29,6 +30,7 @@ def reset_runtime_caches() -> None:
     storage_service_module.get_document_storage.cache_clear()
     vector_service_module.get_vector_cleanup_service.cache_clear()
     graph_service_module.get_graph_cleanup_service.cache_clear()
+    llm_chat_module.get_chat_completion_service.cache_clear()
     llm_service_module.get_embedding_generation_service.cache_clear()
     llm_service_module.get_entity_extraction_service.cache_clear()
     queue_service_module.get_document_processing_queue.cache_clear()
@@ -43,6 +45,8 @@ def configured_database(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("SUPABASE_TEST_DB_URL", "")
     monkeypatch.setenv("RAGDOLL_USE_TEST_DB", "0")
     monkeypatch.setenv("SECRET_KEY", "phase2a-test-secret")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "")
+    monkeypatch.setenv("OLLAMA_WORKER_BASE_URL", "")
 
     reset_runtime_caches()
     engine = engine_module.get_engine()

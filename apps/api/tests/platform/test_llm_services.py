@@ -4,6 +4,8 @@ import httpx
 import pytest
 
 from ragdoll.core.config import Settings, get_settings
+from ragdoll.core.exceptions import ConfigurationError
+from ragdoll.platform.llm.chat import ChatCompletionMessage, OllamaChatCompletionService
 from ragdoll.platform.llm.service import (
     DeterministicEntityExtractionService,
     EntityExtractionError,
@@ -126,6 +128,44 @@ def test_ollama_entity_extraction_service_raises_when_model_returns_unexpected_s
     service = OllamaEntityExtractionService(settings)
     with pytest.raises(EntityExtractionError, match="unexpected schema"):
         service.extract_entities("Project Atlas works with Ragdoll")
+
+
+def test_ollama_chat_completion_service_returns_message_content(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        _env_file=None,
+    )
+    captured: dict[str, object] = {}
+
+    class CapturingClient(JsonClient):
+        def post(self, url: str, json: dict):
+            captured["url"] = url
+            captured["json"] = json
+            return JsonResponseStub({"message": {"content": "Synthesized answer [E1]"}})
+
+    monkeypatch.setattr(httpx, "Client", lambda *, timeout=None: CapturingClient({}, timeout=timeout))
+
+    service = OllamaChatCompletionService(settings)
+    answer = service.generate([ChatCompletionMessage(role="user", content="Answer this")])
+
+    assert answer == "Synthesized answer [E1]"
+    assert captured["url"] == "http://ollama.local:11434/api/chat"
+    assert captured["json"]["model"] == "qwen3.5:0.8b"
+    assert captured["json"]["stream"] is False
+
+
+def test_ollama_chat_completion_service_rejects_empty_response(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        _env_file=None,
+    )
+    monkeypatch.setattr(httpx, "Client", lambda *, timeout=None: JsonClient({"message": {"content": ""}}, timeout=timeout))
+
+    service = OllamaChatCompletionService(settings)
+    with pytest.raises(ConfigurationError, match="answer content"):
+        service.generate([ChatCompletionMessage(role="user", content="Answer this")])
 
 
 def test_get_entity_extraction_service_uses_deterministic_mode(monkeypatch):

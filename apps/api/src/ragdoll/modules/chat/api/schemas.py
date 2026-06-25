@@ -5,12 +5,23 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from ragdoll.api.shared_schemas import Citation
+from ragdoll.api.shared_schemas import Citation, SourceTier
 
 
 class ChatSuggestion(BaseModel):
     label: str
     prompt: str
+
+
+class ChatEvidenceRecord(BaseModel):
+    id: str
+    source_type: str
+    source_tier: SourceTier
+    text: str
+    citations: list[Citation] = Field(default_factory=list)
+    score: float | None = None
+    title: str | None = None
+    created_at: datetime | None = None
 
 
 class ChatMessageRecord(BaseModel):
@@ -19,6 +30,7 @@ class ChatMessageRecord(BaseModel):
     content: str
     citations: list[Citation] = Field(default_factory=list)
     suggestions: list[ChatSuggestion] = Field(default_factory=list)
+    evidence: list[ChatEvidenceRecord] = Field(default_factory=list)
     retrieval_mode: str | None = None
     degraded: bool = False
     created_at: datetime

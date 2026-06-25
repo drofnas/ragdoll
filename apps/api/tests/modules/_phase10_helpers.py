@@ -73,7 +73,9 @@ def seed_retrieval_document(
     mime_type: str = "text/plain",
     entity_specs: list[tuple[str, str]] | None = None,
     start_line: int = 1,
+    chunks: list[tuple[str, int]] | None = None,
 ):
+    chunk_specs = chunks or [(text, start_line)]
     document = Document(
         space_id=space.id,
         uploaded_by=uploader.id,
@@ -87,37 +89,41 @@ def seed_retrieval_document(
         preview_text=text[:280],
         original_text_content=text,
         processing_status=completed_processing_status(),
-        chunk_count=1,
-        indexed_chunk_count=1,
+        chunk_count=len(chunk_specs),
+        indexed_chunk_count=len(chunk_specs),
         deleted_at=None,
     )
     db_session.add(document)
     db_session.flush()
 
-    chunk = DocumentChunk.from_text(
-        document_id=document.id,
-        space_id=space.id,
-        chunk_index=0,
-        start_line=start_line,
-        text_content=text,
-    )
-    db_session.add(chunk)
-
-    embedding = DeterministicEmbeddingService().generate_embeddings([chunk.text_content])[0]
-    db_session.add(
-        DocumentChunkVector(
-            chunk_id=chunk.id,
+    chunks_by_index: list[DocumentChunk] = []
+    for chunk_index, (chunk_text, chunk_start_line) in enumerate(chunk_specs):
+        chunk = DocumentChunk.from_text(
             document_id=document.id,
             space_id=space.id,
-            chunk_index=chunk.chunk_index,
-            checksum=chunk.checksum,
-            embedding_model="deterministic",
-            embedding_dimensions=len(embedding),
-            embedding=embedding,
+            chunk_index=chunk_index,
+            start_line=chunk_start_line,
+            text_content=chunk_text,
         )
-    )
+        db_session.add(chunk)
+        chunks_by_index.append(chunk)
+
+        embedding = DeterministicEmbeddingService().generate_embeddings([chunk.text_content])[0]
+        db_session.add(
+            DocumentChunkVector(
+                chunk_id=chunk.id,
+                document_id=document.id,
+                space_id=space.id,
+                chunk_index=chunk.chunk_index,
+                checksum=chunk.checksum,
+                embedding_model="deterministic",
+                embedding_dimensions=len(embedding),
+                embedding=embedding,
+            )
+        )
 
     canonical_entities: list[CanonicalEntity] = []
+    entity_chunk = chunks_by_index[0]
     for display_name, entity_type in entity_specs or []:
         normalized_name = normalize_entity_name(display_name)
         canonical = (
@@ -143,7 +149,7 @@ def seed_retrieval_document(
             Entity(
                 space_id=space.id,
                 document_id=document.id,
-                chunk_id=chunk.id,
+                chunk_id=entity_chunk.id,
                 canonical_entity_id=canonical.id,
                 entity_type=entity_type,
                 surface_text=display_name,
@@ -175,11 +181,11 @@ def seed_retrieval_document(
             GraphEdge(
                 space_id=space.id,
                 document_id=document.id,
-                chunk_id=chunk.id,
+                chunk_id=entity_chunk.id,
                 source_node_id=source_node.id,
                 target_node_id=target_node.id,
                 relation_type="co_occurs",
-                provenance_locator=f"chunk:{chunk.id}",
+                provenance_locator=f"chunk:{entity_chunk.id}",
                 weight=1.0,
             )
         )

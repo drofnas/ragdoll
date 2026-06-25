@@ -94,6 +94,7 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     suggestions: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     retrieval_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(

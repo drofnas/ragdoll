@@ -95,12 +95,24 @@ export interface ChangeListResponse {
   page_size: number;
 }
 
+export interface ChatEvidenceRecord {
+  id: string;
+  source_type: string;
+  source_tier: SourceTier;
+  text: string;
+  citations?: Array<Citation>;
+  score?: number | null;
+  title?: string | null;
+  created_at?: string | null;
+}
+
 export interface ChatMessageRecord {
   id: string;
   role: string;
   content: string;
   citations?: Array<Citation>;
   suggestions?: Array<ChatSuggestion>;
+  evidence?: Array<ChatEvidenceRecord>;
   retrieval_mode?: string | null;
   degraded?: boolean;
   created_at: string;

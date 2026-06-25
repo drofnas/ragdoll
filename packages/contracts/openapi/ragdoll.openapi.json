@@ -534,6 +534,74 @@
         "title": "ChangeListResponse",
         "type": "object"
       },
+      "ChatEvidenceRecord": {
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "source_tier": {
+            "$ref": "#/components/schemas/SourceTier"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "source_tier",
+          "text"
+        ],
+        "title": "ChatEvidenceRecord",
+        "type": "object"
+      },
       "ChatMessageRecord": {
         "properties": {
           "citations": {
@@ -556,6 +624,13 @@
             "default": false,
             "title": "Degraded",
             "type": "boolean"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ChatEvidenceRecord"
+            },
+            "title": "Evidence",
+            "type": "array"
           },
           "id": {
             "format": "uuid",
