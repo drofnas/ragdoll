@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Thread } from "@/components/assistant-ui/thread";
-import { Page, PageHeader } from "@/components/app/page";
+import { Page } from "@/components/app/page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -198,13 +198,7 @@ export function ChatPage() {
     : null;
 
   return (
-    <Page>
-      <PageHeader
-        eyebrow="Retrieval chat"
-        title="Chat"
-        description="Ask retrieval-backed questions, review citations, and submit targeted corrections from assistant answers."
-      />
-
+    <Page className="flex flex-col gap-4 space-y-0 lg:min-h-0 lg:flex-1">
       {allSpaces ? (
         <Alert variant="info">
           <AlertTitle>All-spaces mode is on</AlertTitle>
@@ -228,8 +222,8 @@ export function ChatPage() {
         </Alert>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <Card>
+      <section className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+        <Card className="flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4">
             <CardTitle className="text-lg">Sessions</CardTitle>
             <Button
@@ -242,7 +236,7 @@ export function ChatPage() {
               {isCreatingSession ? "Creating…" : "New session"}
             </Button>
           </CardHeader>
-          <CardContent className="px-3 pb-4 pt-0">
+          <CardContent className="flex flex-col px-3 pb-4 pt-0 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             {sessionsQuery.error instanceof ApiProblemError ? (
               <Alert variant="destructive">
                 <AlertTitle>Unable to load sessions</AlertTitle>
@@ -251,7 +245,7 @@ export function ChatPage() {
             ) : sessionsQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading sessions…</p>
             ) : sessionsQuery.data && sessionsQuery.data.items.length > 0 ? (
-              <ScrollArea className="h-[35rem] min-w-0 pr-2">
+              <ScrollArea className="min-w-0 pr-2 lg:min-h-0 lg:flex-1">
                 <div className="min-w-0 space-y-1">
                   {sessionsQuery.data.items.map((session) => {
                     const isSelected = session.id === sessionId;
@@ -293,7 +287,7 @@ export function ChatPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div className="space-y-2">
               <CardTitle>{detailQuery.data?.title ?? "Chat transcript"}</CardTitle>
@@ -310,7 +304,7 @@ export function ChatPage() {
               </div>
             ) : null}
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             {detailQuery.error instanceof ApiProblemError ? (
               <Alert variant="destructive">
                 <AlertTitle>Unable to load the selected session</AlertTitle>
@@ -320,7 +314,7 @@ export function ChatPage() {
               <p className="text-sm text-muted-foreground">Loading chat transcript…</p>
             ) : detailQuery.data ? (
               <>
-                <div className="h-[38rem] min-h-[32rem] overflow-hidden rounded-md border bg-background">
+                <div className="overflow-hidden rounded-md border bg-background lg:min-h-0 lg:flex-1">
                   <ChatAssistantRuntime
                     isLoading={detailQuery.isLoading}
                     isRunning={isSendingMessage}

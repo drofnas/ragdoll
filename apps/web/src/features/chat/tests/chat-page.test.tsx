@@ -101,6 +101,9 @@ describe("ChatPage", () => {
           screen.getByText(chatSessionDetail.messages?.[1].content ?? "")
         ).toBeInTheDocument()
       );
+      expect(screen.queryByText("Retrieval chat")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Chat", level: 1 })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Ask retrieval-backed questions/)).not.toBeInTheDocument();
       expect(screen.getByText("assistant")).toBeInTheDocument();
       expect(screen.getByText("degraded")).toBeInTheDocument();
       expect(screen.queryByText("combined")).not.toBeInTheDocument();

@@ -102,6 +102,7 @@ export function AuthenticatedShell() {
   const { activeSpace, allSpaces, isReady, setActiveSpace, setAllSpaces, spaces } = useSpaceScope();
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isChatRoute = isActivePath(pathname, "/chat");
 
   const spaceOptions = spaces.map((space) => ({ label: space.name, value: space.id }));
 
@@ -116,8 +117,13 @@ export function AuthenticatedShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col bg-background",
+        isChatRoute && "lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden"
+      )}
+    >
+      <header className="sticky top-0 z-40 shrink-0 border-b bg-background">
         <div className="container flex min-h-14 items-center justify-between gap-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -173,9 +179,19 @@ export function AuthenticatedShell() {
         </div>
       </header>
 
-      <div className="container grid gap-6 py-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-8">
+      <div
+        className={cn(
+          "container grid min-h-0 flex-1 gap-6 py-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-8",
+          isChatRoute && "lg:overflow-hidden"
+        )}
+      >
         <aside className="hidden lg:block">
-          <div className="sticky top-20 rounded-lg border bg-card p-4 shadow-sm">
+          <div
+            className={cn(
+              "sticky rounded-lg border bg-card p-4 shadow-sm",
+              isChatRoute ? "top-0" : "top-[6.5rem]"
+            )}
+          >
             <div className="mb-4">
               <ScopeSelect
                 activeSpaceId={activeSpace?.id ?? null}
@@ -189,7 +205,12 @@ export function AuthenticatedShell() {
           </div>
         </aside>
 
-        <main className="min-w-0">
+        <main
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col",
+            isChatRoute && "lg:overflow-hidden"
+          )}
+        >
           <Outlet />
         </main>
       </div>
