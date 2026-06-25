@@ -8,7 +8,7 @@ from ragdoll.api.dependencies import CurrentUserDep, DatabaseSessionDep
 from ragdoll.api.shared_schemas import ProblemResponse
 from ragdoll.modules.spaces.api.schemas import SpaceCreateRequest, SpaceListResponse, SpaceResponse, SpaceUpdateRequest
 from ragdoll.modules.spaces.application.commands import archive_space, create_space, update_space
-from ragdoll.modules.spaces.application.queries import build_space_response, get_owned_space_or_404, list_spaces
+from ragdoll.modules.spaces.application.queries import build_space_response_with_counts, get_owned_space_or_404, list_spaces
 
 router = APIRouter(prefix="/spaces", tags=["spaces"])
 
@@ -35,13 +35,13 @@ def post_space(
     db: DatabaseSessionDep,
 ) -> SpaceResponse:
     space = create_space(db, UUID(current_user.subject), payload)
-    return build_space_response(space)
+    return build_space_response_with_counts(db, space)
 
 
 @router.get("/{space_id}", response_model=SpaceResponse, responses=COMMON_RESPONSES)
 def read_space(space_id: UUID, current_user: CurrentUserDep, db: DatabaseSessionDep) -> SpaceResponse:
     space = get_owned_space_or_404(db, UUID(current_user.subject), space_id)
-    return build_space_response(space)
+    return build_space_response_with_counts(db, space)
 
 
 @router.patch("/{space_id}", response_model=SpaceResponse, responses=COMMON_RESPONSES)
@@ -53,11 +53,11 @@ def patch_space(
 ) -> SpaceResponse:
     space = get_owned_space_or_404(db, UUID(current_user.subject), space_id)
     updated_space = update_space(db, UUID(current_user.subject), space, payload)
-    return build_space_response(updated_space)
+    return build_space_response_with_counts(db, updated_space)
 
 
 @router.delete("/{space_id}", response_model=SpaceResponse, responses=COMMON_RESPONSES)
 def delete_space(space_id: UUID, current_user: CurrentUserDep, db: DatabaseSessionDep) -> SpaceResponse:
     space = get_owned_space_or_404(db, UUID(current_user.subject), space_id)
     archived_space = archive_space(db, space)
-    return build_space_response(archived_space)
+    return build_space_response_with_counts(db, archived_space)

@@ -45,20 +45,24 @@ export const spaces: SpaceResponse[] = [
     archived_at: null,
     created_at: "2026-06-22T17:00:00Z",
     description: "Primary workspace",
+    document_count: 1,
     id: "33333333-3333-3333-3333-333333333333",
     is_default: true,
     name: "Core Space",
     owner_user_id: userProfile.id,
+    tracked_field_count: 2,
     updated_at: "2026-06-22T17:00:00Z"
   },
   {
     archived_at: null,
     created_at: "2026-06-22T17:00:00Z",
     description: "Secondary workspace",
+    document_count: 0,
     id: "44444444-4444-4444-4444-444444444444",
     is_default: false,
     name: "Archive Prep",
     owner_user_id: userProfile.id,
+    tracked_field_count: 1,
     updated_at: "2026-06-22T17:00:00Z"
   }
 ];

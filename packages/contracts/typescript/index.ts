@@ -475,6 +475,8 @@ export interface SpaceResponse {
   name: string;
   description?: string | null;
   is_default: boolean;
+  document_count: number;
+  tracked_field_count: number;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;

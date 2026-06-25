@@ -2686,6 +2686,11 @@
             ],
             "title": "Description"
           },
+          "document_count": {
+            "minimum": 0.0,
+            "title": "Document Count",
+            "type": "integer"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2704,6 +2709,11 @@
             "title": "Owner User Id",
             "type": "string"
           },
+          "tracked_field_count": {
+            "minimum": 0.0,
+            "title": "Tracked Field Count",
+            "type": "integer"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2715,6 +2725,8 @@
           "owner_user_id",
           "name",
           "is_default",
+          "document_count",
+          "tracked_field_count",
           "created_at",
           "updated_at"
         ],
