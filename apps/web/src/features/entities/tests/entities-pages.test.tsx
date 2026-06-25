@@ -53,8 +53,11 @@ describe("entity pages", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText("FastAPI")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Open entity detail" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument());
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Latest Mention" })).toBeInTheDocument();
+    expect(screen.getByText("FastAPI")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Details" })).toHaveAttribute(
       "href",
       `/entities/${entityDetail.id}`
     );

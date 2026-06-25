@@ -1,3 +1,4 @@
+import { Eye } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { ApiProblemError } from "@/shared/api/client";
 import { formatDateTime } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
@@ -125,30 +134,45 @@ export function EntitiesPage() {
             <h2 className="text-2xl font-semibold tracking-tight">Results</h2>
             <Badge variant="outline">{entitiesQuery.data.total} entities</Badge>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {entitiesQuery.data.items.map((entity) => (
-              <Card key={entity.id}>
-                <CardContent className="space-y-5 p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-semibold">{entity.display_name}</h3>
-                      <p className="text-sm text-muted-foreground">{entity.entity_type}</p>
-                    </div>
-                    <Badge variant="outline">{entity.document_count} documents</Badge>
-                  </div>
-
-                  <p className="text-sm text-muted-foreground">
-                    {entity.mention_count} mentions · latest mention{" "}
-                    {formatDateTime(entity.latest_mentioned_at)}
-                  </p>
-
-                  <Button asChild variant="outline">
-                    <Link to={`/entities/${entity.id}`}>Open entity detail</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="w-28">Documents</TableHead>
+                    <TableHead className="w-28">Mentions</TableHead>
+                    <TableHead className="w-44">Latest Mention</TableHead>
+                    <TableHead className="w-40 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entitiesQuery.data.items.map((entity) => (
+                    <TableRow key={entity.id}>
+                      <TableCell className="min-w-40 font-medium">{entity.display_name}</TableCell>
+                      <TableCell className="min-w-32 text-muted-foreground">{entity.entity_type}</TableCell>
+                      <TableCell>{entity.document_count}</TableCell>
+                      <TableCell>{entity.mention_count}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateTime(entity.latest_mentioned_at)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/entities/${entity.id}`}>
+                              <Eye aria-hidden="true" />
+                              View Details
+                            </Link>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
           <Pagination
             currentPage={page}
             totalPages={Math.max(1, Math.ceil(entitiesQuery.data.total / entitiesQuery.data.page_size))}

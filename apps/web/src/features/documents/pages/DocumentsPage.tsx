@@ -1,4 +1,5 @@
 import type { ProcessingStageStatus } from "@contracts";
+import { Eye } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { ApiProblemError } from "@/shared/api/client";
 import {
   formatDateTime,
@@ -178,35 +187,56 @@ export function DocumentsPage() {
           </Alert>
         ) : documentsQuery.data && documentsQuery.data.items.length > 0 ? (
           <>
-            <div className="grid gap-4 md:grid-cols-2">
-              {documentsQuery.data.items.map((document) => (
-                <Card key={document.id}>
-                  <CardContent className="space-y-5 p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <h3 className="text-lg font-semibold">{document.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {document.original_filename}
-                        </p>
-                      </div>
-                      <StatusBadge value={document.processing_status.overall} label={humanizeStageStatus(document.processing_status.overall)} />
-                    </div>
-
-                    <p className="text-sm text-muted-foreground">
-                      {formatFileSize(document.file_size)} · {document.file_type.toUpperCase()} ·{" "}
-                      {document.chunk_count} chunks
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Updated {formatDateTime(document.updated_at)}
-                    </p>
-
-                    <Button asChild variant="outline">
-                      <Link to={`/documents/${document.id}`}>Open detail</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Filename</TableHead>
+                      <TableHead className="w-20">Type</TableHead>
+                      <TableHead className="w-24">Size</TableHead>
+                      <TableHead className="w-20">Chunks</TableHead>
+                      <TableHead className="w-32">Status</TableHead>
+                      <TableHead className="w-36">Updated</TableHead>
+                      <TableHead className="w-36 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documentsQuery.data.items.map((document) => (
+                      <TableRow key={document.id}>
+                        <TableCell className="max-w-0">
+                          <span className="block truncate font-medium" title={document.original_filename}>
+                            {document.original_filename}
+                          </span>
+                        </TableCell>
+                        <TableCell>{document.file_type.toUpperCase()}</TableCell>
+                        <TableCell>{formatFileSize(document.file_size)}</TableCell>
+                        <TableCell>{document.chunk_count}</TableCell>
+                        <TableCell>
+                          <StatusBadge
+                            value={document.processing_status.overall}
+                            label={humanizeStageStatus(document.processing_status.overall)}
+                          />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDateTime(document.updated_at)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <Button asChild size="sm" variant="outline">
+                              <Link to={`/documents/${document.id}`}>
+                                <Eye aria-hidden="true" />
+                                View Details
+                              </Link>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
             <Pagination
               currentPage={page}
               totalPages={Math.max(

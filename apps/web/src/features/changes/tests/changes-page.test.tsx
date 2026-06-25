@@ -86,7 +86,12 @@ describe("ChangesPage", () => {
   it("filters corrections and verifies a correction from the review panel", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
 
-    let currentCorrection = correctionDetail;
+    const longProposedValue =
+      "FilegoGallery is a high-performance, AI-powered desktop image gallery application designed to handle medium-scale image libraries stored on local filesystems or network-attached storage.";
+    let currentCorrection = {
+      ...correctionDetail,
+      proposed_value: longProposedValue
+    };
 
     vi.stubGlobal(
       "fetch",
@@ -133,7 +138,11 @@ describe("ChangesPage", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText(correctionDetail.proposed_value)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: longProposedValue })).toBeInTheDocument()
+    );
+    expect(screen.getByRole("button", { name: longProposedValue })).toHaveClass(
+      "whitespace-normal",
+      "break-words"
     );
 
     const user = userEvent.setup();

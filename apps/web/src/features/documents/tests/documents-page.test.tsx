@@ -75,13 +75,23 @@ describe("DocumentsPage", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText("Documents")).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.getByRole("columnheader", { name: "Filename" })).toBeInTheDocument(),
+      { timeout: 5000 }
+    );
+    expect(screen.queryByRole("columnheader", { name: "Title" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Details" })).toHaveAttribute(
+      "href",
+      `/documents/${documentDetail.id}`
+    );
+
     const user = userEvent.setup();
     const fileInput = container.querySelector("input[type='file']") as HTMLInputElement;
     await user.upload(fileInput, new File(["hello"], "plan.pdf", { type: "application/pdf" }));
     await user.click(screen.getByRole("button", { name: "Upload" }));
 
-    await waitFor(() => expect(screen.getByText(documentDetail.title)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Metadata" })).toBeInTheDocument());
   });
 
   it("reprocesses a failed document from the detail page", async () => {

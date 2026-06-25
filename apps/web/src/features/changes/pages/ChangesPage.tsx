@@ -182,8 +182,8 @@ export function ChangesPage() {
         </TabsList>
 
         <TabsContent value="activity">
-          <section className="grid gap-4 lg:grid-cols-2">
-            <Card>
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Card className="min-w-0">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <CardTitle>Activity feed</CardTitle>
                 <Badge variant="outline">{changesQuery.data?.total ?? 0} events</Badge>
@@ -202,22 +202,24 @@ export function ChangesPage() {
                       {changesQuery.data.items.map((item) => (
                         <Card
                           key={item.id}
-                          className={item.id === changeId ? "border-primary/40 bg-muted/20" : "shadow-none"}
+                          className={`min-w-0 ${item.id === changeId ? "border-primary/40 bg-muted/20" : "shadow-none"}`}
                         >
-                          <CardContent className="space-y-3 p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="space-y-2">
+                          <CardContent className="min-w-0 space-y-3 p-4">
+                            <div className="flex min-w-0 items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1 space-y-2">
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-auto px-0 py-0 text-left"
+                                  className="h-auto max-w-full justify-start whitespace-normal break-words px-0 py-0 text-left leading-snug"
                                   onClick={() => updateParams({ change_id: item.id, tab: "activity" })}
                                 >
                                   {item.title}
                                 </Button>
-                                <p className="text-sm text-muted-foreground">{item.summary}</p>
+                                <p className="break-words text-sm text-muted-foreground">{item.summary}</p>
                               </div>
-                              <StatusBadge value={item.is_read ? "read" : "unread"} />
+                              <div className="shrink-0">
+                                <StatusBadge value={item.is_read ? "read" : "unread"} />
+                              </div>
                             </div>
                             <p className="text-sm text-muted-foreground">
                               {formatDateTime(item.created_at)}
@@ -240,7 +242,7 @@ export function ChangesPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <CardTitle>Change detail</CardTitle>
                 {changeDetailQuery.data ? (
@@ -258,14 +260,14 @@ export function ChangesPage() {
                 ) : changeDetailQuery.data ? (
                   <>
                     <div className="space-y-3">
-                      <h3 className="text-lg font-semibold">{changeDetailQuery.data.title}</h3>
-                      <p>{changeDetailQuery.data.summary}</p>
+                      <h3 className="break-words text-lg font-semibold">{changeDetailQuery.data.title}</h3>
+                      <p className="break-words">{changeDetailQuery.data.summary}</p>
                       <p className="text-sm text-muted-foreground">
                         Event type: {changeDetailQuery.data.event_type} ·{" "}
                         {formatDateTime(changeDetailQuery.data.created_at)}
                       </p>
                       {changeDetailQuery.data.payload ? (
-                        <pre className="overflow-x-auto rounded-md border bg-slate-950 p-4 text-sm text-slate-100">
+                        <pre className="max-w-full overflow-x-auto rounded-md border bg-slate-950 p-4 text-sm text-slate-100">
                           {JSON.stringify(changeDetailQuery.data.payload, null, 2)}
                         </pre>
                       ) : null}
@@ -287,8 +289,8 @@ export function ChangesPage() {
         </TabsContent>
 
         <TabsContent value="corrections">
-          <section className="grid gap-4 lg:grid-cols-2">
-            <Card>
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Card className="min-w-0">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <CardTitle>Corrections</CardTitle>
                 <Badge variant="outline">{correctionsQuery.data?.total ?? 0} records</Badge>
@@ -322,24 +324,26 @@ export function ChangesPage() {
                       {correctionsQuery.data.items.map((item) => (
                         <Card
                           key={item.id}
-                          className={item.id === correctionId ? "border-primary/40 bg-muted/20" : "shadow-none"}
+                          className={`min-w-0 ${item.id === correctionId ? "border-primary/40 bg-muted/20" : "shadow-none"}`}
                         >
-                          <CardContent className="space-y-3 p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="space-y-2">
+                          <CardContent className="min-w-0 space-y-3 p-4">
+                            <div className="flex min-w-0 items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1 space-y-2">
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-auto px-0 py-0 text-left"
+                                  className="h-auto max-w-full justify-start whitespace-normal break-words px-0 py-0 text-left leading-snug"
                                   onClick={() => updateParams({ correction_id: item.id, tab: "corrections" })}
                                 >
                                   {item.proposed_value}
                                 </Button>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="break-words text-sm text-muted-foreground">
                                   {item.rationale ?? "No rationale provided"}
                                 </p>
                               </div>
-                              <StatusBadge value={item.status} />
+                              <div className="shrink-0">
+                                <StatusBadge value={item.status} />
+                              </div>
                             </div>
                             <p className="text-sm text-muted-foreground">
                               {formatDateTime(item.created_at)}
@@ -365,7 +369,7 @@ export function ChangesPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle>Correction detail</CardTitle>
               </CardHeader>
@@ -380,17 +384,19 @@ export function ChangesPage() {
                 ) : correctionDetailQuery.data ? (
                   <>
                     <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <h3 className="text-lg font-semibold">
+                      <div className="flex min-w-0 items-start justify-between gap-4">
+                        <h3 className="min-w-0 flex-1 break-words text-lg font-semibold">
                           {correctionDetailQuery.data.proposed_value}
                         </h3>
-                        <StatusBadge value={correctionDetailQuery.data.status} />
+                        <div className="shrink-0">
+                          <StatusBadge value={correctionDetailQuery.data.status} />
+                        </div>
                       </div>
-                      <p>{correctionDetailQuery.data.rationale ?? "No rationale provided."}</p>
+                      <p className="break-words">{correctionDetailQuery.data.rationale ?? "No rationale provided."}</p>
                       <p className="text-sm text-muted-foreground">
                         Submitted {formatDateTime(correctionDetailQuery.data.created_at)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="break-words text-sm text-muted-foreground">
                         Citation: {formatCitationLabel(correctionDetailQuery.data.citation)} ·{" "}
                         {formatSourceTier(correctionDetailQuery.data.citation.source_tier)}
                       </p>
