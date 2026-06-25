@@ -290,8 +290,11 @@ async def _check_ollama_chat_generation(
     if available_models and not _model_is_available(model_name, available_models):
         return _service("unhealthy", "Configured chat model is not present in the Ollama catalog.")
 
+    timeout_seconds = settings.ollama_status_chat_timeout_seconds
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3.0, read=8.0, write=8.0, pool=8.0)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=3.0, read=timeout_seconds, write=timeout_seconds, pool=timeout_seconds)
+        ) as client:
             response = await client.post(
                 f"{base_url}/api/chat",
                 json={
@@ -309,7 +312,7 @@ async def _check_ollama_chat_generation(
             response.raise_for_status()
             payload = response.json()
     except httpx.TimeoutException:
-        return _service("unhealthy", "Ollama chat generation probe timed out.")
+        return _service("unhealthy", f"Ollama chat generation probe timed out after {timeout_seconds:g} seconds.")
     except Exception:
         return _service("unhealthy", _redact_exception("Ollama chat generation"))
 

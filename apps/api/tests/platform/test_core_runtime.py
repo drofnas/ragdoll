@@ -376,12 +376,17 @@ async def test_runtime_status_chat_probe_uses_chat_thinking_setting(monkeypatch)
         ollama_model="qwen3.5:0.8b",
         ollama_embedding_model="nomic-embed-text",
         ollama_chat_context_window=2048,
+        ollama_status_chat_timeout_seconds=21,
         ollama_chat_think=True,
         _env_file=None,
     )
     client = FakeAsyncClient(payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]})
 
-    monkeypatch.setattr(health_module.httpx, "AsyncClient", lambda *args, **kwargs: client)
+    def build_client(*args, **kwargs):
+        client.timeout = kwargs["timeout"]
+        return client
+
+    monkeypatch.setattr(health_module.httpx, "AsyncClient", build_client)
 
     payload = await build_runtime_status_payload(settings)
 
@@ -390,6 +395,10 @@ async def test_runtime_status_chat_probe_uses_chat_thinking_setting(monkeypatch)
     request_json = client.post_requests[-1]["json"]
     assert request_json["think"] is True
     assert request_json["options"]["num_ctx"] == 2048
+    assert client.timeout.connect == 3.0
+    assert client.timeout.read == 21
+    assert client.timeout.write == 21
+    assert client.timeout.pool == 21
 
 
 @pytest.mark.asyncio
@@ -443,6 +452,7 @@ async def test_runtime_status_payload_marks_chat_generation_unhealthy_when_catal
         ollama_base_url="http://ollama.local:11434",
         ollama_model="qwen3.5:0.8b",
         ollama_embedding_model="nomic-embed-text",
+        ollama_status_chat_timeout_seconds=17,
         _env_file=None,
     )
 
@@ -463,6 +473,7 @@ async def test_runtime_status_payload_marks_chat_generation_unhealthy_when_catal
     assert payload.ollama.status == "degraded"
     assert payload.ollama.chat_generation is not None
     assert payload.ollama.chat_generation.status == "unhealthy"
+    assert payload.ollama.chat_generation.detail == "Ollama chat generation probe timed out after 17 seconds."
 
 
 @pytest.mark.asyncio
