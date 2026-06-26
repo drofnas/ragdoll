@@ -15,7 +15,9 @@ from ragdoll.core.logging import get_logger
 
 
 ENTITY_EXTRACTION_PROMPT = """Extract named entities from the provided chunk.
-Return strict JSON with the shape {"entities":[{"surface_text":"...","normalized_name":"...","entity_type":"...","confidence_score":0.0}]}.
+Return strict JSON matching the supplied schema.
+Echo every input chunk_index exactly once.
+Each chunk result must include the same chunk_index and an entities array.
 Use concise lowercase snake_case values for entity_type when possible.
 Skip duplicates that refer to the same entity mention in the same chunk.
 Chunk:
@@ -32,12 +34,26 @@ class ExtractedEntityCandidate:
     confidence_score: float | None = None
 
 
+@dataclass(frozen=True)
+class ChunkExtractionRequest:
+    chunk_index: int
+    text: str
+
+
+@dataclass(frozen=True)
+class ChunkExtractionResult:
+    chunk_index: int
+    entities: list[ExtractedEntityCandidate]
+
+
 class EmbeddingGenerationService(Protocol):
     def generate_embeddings(self, texts: list[str]) -> list[list[float]]: ...
 
 
 class EntityExtractionService(Protocol):
-    def extract_entities(self, text: str) -> list[ExtractedEntityCandidate]: ...
+    def extract_entities_batch(
+        self, chunks: list[ChunkExtractionRequest]
+    ) -> list[ChunkExtractionResult]: ...
 
 
 class EntityExtractionError(RuntimeError):
@@ -82,6 +98,105 @@ def _parse_ollama_json_body(raw_response: str) -> dict[str, object] | None:
     return None
 
 
+def _entity_extraction_response_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "chunks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "chunk_index": {"type": "integer"},
+                        "entities": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "surface_text": {"type": "string"},
+                                    "normalized_name": {"type": "string"},
+                                    "entity_type": {"type": "string"},
+                                    "confidence_score": {"type": ["number", "null"]},
+                                },
+                                "required": ["surface_text", "normalized_name", "entity_type"],
+                            },
+                        },
+                    },
+                    "required": ["chunk_index", "entities"],
+                },
+            }
+        },
+        "required": ["chunks"],
+    }
+
+
+def _normalize_extracted_entities(entries: object) -> list[ExtractedEntityCandidate]:
+    if not isinstance(entries, list):
+        raise EntityExtractionError("Ollama entity extraction response used an unexpected schema.")
+
+    candidates: list[ExtractedEntityCandidate] = []
+    seen: dict[tuple[str, str], None] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        surface_text = str(entry.get("surface_text") or "").strip()
+        normalized_name = normalize_entity_name(str(entry.get("normalized_name") or surface_text))
+        entity_type = str(entry.get("entity_type") or "unknown").strip().lower() or "unknown"
+        if not surface_text or not normalized_name:
+            continue
+        key = (entity_type, normalized_name)
+        if key in seen:
+            continue
+        seen[key] = None
+        confidence = entry.get("confidence_score")
+        try:
+            normalized_confidence = float(confidence) if confidence is not None else None
+        except (TypeError, ValueError):
+            normalized_confidence = None
+        candidates.append(
+            ExtractedEntityCandidate(
+                surface_text=surface_text[:255],
+                normalized_name=normalized_name[:255],
+                entity_type=entity_type[:80],
+                confidence_score=normalized_confidence,
+            )
+        )
+    return candidates
+
+
+def _validate_chunk_results(
+    results: list[ChunkExtractionResult],
+    *,
+    requested_indexes: list[int],
+) -> list[ChunkExtractionResult]:
+    requested_index_set = set(requested_indexes)
+    seen_indexes: set[int] = set()
+
+    for result in results:
+        if result.chunk_index not in requested_index_set:
+            raise EntityExtractionError(
+                f"Ollama entity extraction response returned an unexpected chunk_index: {result.chunk_index}."
+            )
+        if result.chunk_index in seen_indexes:
+            raise EntityExtractionError(
+                f"Ollama entity extraction response returned a duplicate chunk_index: {result.chunk_index}."
+            )
+        seen_indexes.add(result.chunk_index)
+
+    missing_indexes = [index for index in requested_indexes if index not in seen_indexes]
+    if missing_indexes:
+        raise EntityExtractionError(
+            "Ollama entity extraction response omitted requested chunk indexes: "
+            + ", ".join(str(index) for index in missing_indexes)
+            + "."
+        )
+
+    return sorted(results, key=lambda result: result.chunk_index)
+
+
 class DeterministicEmbeddingService:
     def __init__(self, *, dimensions: int = 8) -> None:
         self.dimensions = dimensions
@@ -124,6 +239,18 @@ class DeterministicEntityExtractionService:
                 )
             )
         return candidates
+
+    def extract_entities_batch(
+        self,
+        chunks: list[ChunkExtractionRequest],
+    ) -> list[ChunkExtractionResult]:
+        return [
+            ChunkExtractionResult(
+                chunk_index=chunk.chunk_index,
+                entities=self.extract_entities(chunk.text),
+            )
+            for chunk in chunks
+        ]
 
 
 class OllamaEmbeddingService:
@@ -173,18 +300,27 @@ class OllamaEntityExtractionService:
         self._timeout = _ollama_timeout(settings)
 
     def extract_entities(self, text: str) -> list[ExtractedEntityCandidate]:
+        return self.extract_entities_batch([ChunkExtractionRequest(chunk_index=0, text=text)])[0].entities
+
+    def extract_entities_batch(
+        self,
+        chunks: list[ChunkExtractionRequest],
+    ) -> list[ChunkExtractionResult]:
+        if not chunks:
+            return []
         if not self._base_url or not self._model:
             raise ConfigurationError("Ollama worker configuration is incomplete.")
 
+        chunk_payload = {"chunks": [{"chunk_index": chunk.chunk_index, "text": chunk.text} for chunk in chunks]}
         try:
             with httpx.Client(timeout=self._timeout) as client:
                 response = client.post(
                     f"{self._base_url}/api/generate",
                     json={
                         "model": self._model,
-                        "prompt": f"{ENTITY_EXTRACTION_PROMPT}{text}",
+                        "prompt": f"{ENTITY_EXTRACTION_PROMPT}{json.dumps(chunk_payload, ensure_ascii=True)}",
                         "stream": False,
-                        "format": "json",
+                        "format": _entity_extraction_response_schema(),
                     },
                 )
                 response.raise_for_status()
@@ -212,38 +348,27 @@ class OllamaEntityExtractionService:
         decoded = _parse_ollama_json_body(raw_response)
         if decoded is None:
             raise EntityExtractionError("Ollama entity extraction returned malformed JSON.")
-        entries = decoded.get("entities")
+        entries = decoded.get("chunks")
         if not isinstance(entries, list):
             raise EntityExtractionError("Ollama entity extraction response used an unexpected schema.")
 
-        candidates: list[ExtractedEntityCandidate] = []
-        seen: dict[tuple[str, str], None] = {}
+        results: list[ChunkExtractionResult] = []
         for entry in entries:
             if not isinstance(entry, dict):
-                continue
-            surface_text = str(entry.get("surface_text") or "").strip()
-            normalized_name = normalize_entity_name(str(entry.get("normalized_name") or surface_text))
-            entity_type = str(entry.get("entity_type") or "unknown").strip().lower() or "unknown"
-            if not surface_text or not normalized_name:
-                continue
-            key = (entity_type, normalized_name)
-            if key in seen:
-                continue
-            seen[key] = None
-            confidence = entry.get("confidence_score")
-            try:
-                normalized_confidence = float(confidence) if confidence is not None else None
-            except (TypeError, ValueError):
-                normalized_confidence = None
-            candidates.append(
-                ExtractedEntityCandidate(
-                    surface_text=surface_text[:255],
-                    normalized_name=normalized_name[:255],
-                    entity_type=entity_type[:80],
-                    confidence_score=normalized_confidence,
+                raise EntityExtractionError("Ollama entity extraction response used an unexpected schema.")
+            chunk_index = entry.get("chunk_index")
+            if not isinstance(chunk_index, int) or isinstance(chunk_index, bool):
+                raise EntityExtractionError("Ollama entity extraction response used an unexpected schema.")
+            results.append(
+                ChunkExtractionResult(
+                    chunk_index=chunk_index,
+                    entities=_normalize_extracted_entities(entry.get("entities")),
                 )
             )
-        return candidates
+        return _validate_chunk_results(
+            results,
+            requested_indexes=[chunk.chunk_index for chunk in chunks],
+        )
 
 
 @lru_cache(maxsize=1)

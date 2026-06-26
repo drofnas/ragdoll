@@ -8,6 +8,8 @@ from ragdoll.platform.llm.chat import (
     get_chat_completion_service,
 )
 from ragdoll.platform.llm.service import (
+    ChunkExtractionRequest,
+    ChunkExtractionResult,
     DeterministicEmbeddingService,
     DeterministicEntityExtractionService,
     EmbeddingGenerationService,
@@ -24,6 +26,8 @@ from ragdoll.platform.llm.service import (
 __all__ = [
     "ChatCompletionMessage",
     "ChatCompletionService",
+    "ChunkExtractionRequest",
+    "ChunkExtractionResult",
     "DeterministicEmbeddingService",
     "DeterministicChatCompletionService",
     "DeterministicEntityExtractionService",

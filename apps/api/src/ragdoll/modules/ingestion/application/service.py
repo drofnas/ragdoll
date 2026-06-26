@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -24,6 +25,8 @@ from ragdoll.platform.db.models import Document, DocumentChunk, Entity
 from ragdoll.platform.db.session import get_session_factory
 from ragdoll.platform.graph import GraphCleanupService, get_graph_cleanup_service
 from ragdoll.platform.llm import (
+    ChunkExtractionRequest,
+    ChunkExtractionResult,
     DeterministicEntityExtractionService,
     EmbeddingGenerationService,
     EntityExtractionError,
@@ -60,6 +63,17 @@ def _load_document(session: Session, document_id: UUID) -> Document:
     if document is None:
         raise FileNotFoundError(f"Document {document_id} was not found.")
     return document
+
+
+def _chunk_batch(items: list[ChunkExtractionRequest], batch_size: int) -> list[list[ChunkExtractionRequest]]:
+    return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
+
+
+def _run_deterministic_extraction_batch(
+    extractor: DeterministicEntityExtractionService,
+    batch: list[ChunkExtractionRequest],
+) -> list[ChunkExtractionResult]:
+    return extractor.extract_entities_batch(batch)
 
 
 def _prepare_document_for_job(
@@ -112,61 +126,113 @@ def _extract_entities(
     document: Document,
     extractor: EntityExtractionService,
     extraction_mode: str,
+    extraction_batch_size: int,
+    max_parallel_batches: int,
 ) -> list[Entity]:
     repo = IngestionRepository(session)
     rows: list[Entity] = []
-    chunk_count = len(document.chunks)
+    chunks = list(document.chunks)
+    chunk_count = len(chunks)
     consecutive_failures = 0
     fallback_mode_active = extraction_mode == "deterministic"
     deterministic_extractor = DeterministicEntityExtractionService()
+    chunk_requests = [
+        ChunkExtractionRequest(chunk_index=chunk.chunk_index, text=chunk.text_content)
+        for chunk in chunks
+    ]
+    chunk_by_index = {chunk.chunk_index: chunk for chunk in chunks}
+    extraction_results: dict[int, ChunkExtractionResult] = {}
+    extraction_metadata_by_index: dict[int, dict[str, object]] = {}
+    chunk_batches = _chunk_batch(chunk_requests, extraction_batch_size)
 
     logger.info(
-        "document_id=%s job_id=%s stage=extraction chunk_count=%s mode=%s status=start",
+        "document_id=%s job_id=%s stage=extraction chunk_count=%s mode=%s batch_size=%s max_parallel_batches=%s status=start",
         document.id,
         job_id,
         chunk_count,
         extraction_mode,
+        extraction_batch_size,
+        max_parallel_batches,
     )
 
-    for index, chunk in enumerate(document.chunks, start=1):
+    for offset in range(0, len(chunk_batches), max_parallel_batches):
+        batch_window = chunk_batches[offset : offset + max_parallel_batches]
         if fallback_mode_active:
-            candidates = deterministic_extractor.extract_entities(chunk.text_content)
-        else:
-            try:
-                candidates = extractor.extract_entities(chunk.text_content)
-                consecutive_failures = 0
-            except (EntityExtractionError, TimeoutError, RuntimeError) as exc:
-                if extraction_mode != "auto":
+            for batch in batch_window:
+                batch_results = _run_deterministic_extraction_batch(deterministic_extractor, batch)
+                for result in batch_results:
+                    extraction_results[result.chunk_index] = result
+                    extraction_metadata_by_index[result.chunk_index] = {
+                        "source": "worker_pipeline",
+                        "chunk_index": result.chunk_index,
+                        "extraction_mode": "deterministic",
+                        "batch_size": len(batch),
+                    }
+            continue
+
+        with ThreadPoolExecutor(max_workers=max_parallel_batches) as executor:
+            future_by_batch: list[tuple[list[ChunkExtractionRequest], Future[list[ChunkExtractionResult]]]] = [
+                (batch, executor.submit(extractor.extract_entities_batch, batch))
+                for batch in batch_window
+            ]
+
+            for batch, future in future_by_batch:
+                chunk_indexes = [chunk.chunk_index for chunk in batch]
+                try:
+                    batch_results = future.result()
+                    consecutive_failures = 0
+                    for result in batch_results:
+                        extraction_results[result.chunk_index] = result
+                        extraction_metadata_by_index[result.chunk_index] = {
+                            "source": "worker_pipeline",
+                            "chunk_index": result.chunk_index,
+                            "extraction_mode": extraction_mode,
+                            "batch_size": len(batch),
+                        }
+                except (EntityExtractionError, TimeoutError, RuntimeError) as exc:
+                    if extraction_mode != "auto":
+                        logger.warning(
+                            "document_id=%s job_id=%s stage=extraction chunk_indexes=%s mode=%s status=failed error=%s",
+                            document.id,
+                            job_id,
+                            chunk_indexes,
+                            extraction_mode,
+                            exc,
+                        )
+                        raise
+
+                    consecutive_failures += 1
                     logger.warning(
-                        "document_id=%s job_id=%s stage=extraction chunk_index=%s mode=%s status=failed error=%s",
+                        "document_id=%s job_id=%s stage=extraction chunk_indexes=%s mode=auto status=fallback_batch failure_count=%s error=%s",
                         document.id,
                         job_id,
-                        index,
-                        extraction_mode,
+                        chunk_indexes,
+                        consecutive_failures,
                         exc,
                     )
-                    raise
+                    batch_results = _run_deterministic_extraction_batch(deterministic_extractor, batch)
+                    for result in batch_results:
+                        extraction_results[result.chunk_index] = result
+                        extraction_metadata_by_index[result.chunk_index] = {
+                            "source": "worker_pipeline",
+                            "chunk_index": result.chunk_index,
+                            "extraction_mode": "deterministic",
+                            "batch_size": len(batch),
+                        }
+                    if consecutive_failures >= AUTO_EXTRACTION_FAILURE_THRESHOLD and not fallback_mode_active:
+                        fallback_mode_active = True
+                        logger.warning(
+                            "document_id=%s job_id=%s stage=extraction mode=auto status=deterministic_fallback_activated failure_count=%s chunk_count=%s",
+                            document.id,
+                            job_id,
+                            consecutive_failures,
+                            chunk_count,
+                        )
 
-                consecutive_failures += 1
-                logger.warning(
-                    "document_id=%s job_id=%s stage=extraction chunk_index=%s mode=auto status=fallback_chunk failure_count=%s error=%s",
-                    document.id,
-                    job_id,
-                    index,
-                    consecutive_failures,
-                    exc,
-                )
-                candidates = deterministic_extractor.extract_entities(chunk.text_content)
-                if consecutive_failures >= AUTO_EXTRACTION_FAILURE_THRESHOLD and not fallback_mode_active:
-                    fallback_mode_active = True
-                    logger.warning(
-                        "document_id=%s job_id=%s stage=extraction mode=auto status=deterministic_fallback_activated failure_count=%s chunk_count=%s",
-                        document.id,
-                        job_id,
-                        consecutive_failures,
-                        chunk_count,
-                    )
-
+    for chunk_index in sorted(extraction_results):
+        chunk = chunk_by_index[chunk_index]
+        candidates = extraction_results[chunk_index].entities
+        extraction_metadata = extraction_metadata_by_index[chunk_index]
         for candidate in candidates:
             canonical = repo.get_or_create_canonical_entity(
                 space_id=document.space_id,
@@ -185,7 +251,7 @@ def _extract_entities(
                     normalized_name=candidate.normalized_name[:255],
                     confidence_score=candidate.confidence_score,
                     extraction_model=None,
-                    extraction_metadata={"source": "worker_pipeline"},
+                    extraction_metadata=extraction_metadata,
                 )
             )
     logger.info(
@@ -214,6 +280,8 @@ def process_job_payload(
     active_entity_extractor = entity_extraction_service or get_entity_extraction_service()
     settings = get_settings()
     extraction_mode = settings.entity_extraction_mode
+    extraction_batch_size = settings.entity_extraction_batch_size
+    max_parallel_batches = settings.entity_extraction_max_parallel_batches
     if extraction_mode == "deterministic":
         active_entity_extractor = get_entity_extraction_service()
     active_vector_cleanup = vector_cleanup or get_vector_cleanup_service()
@@ -270,6 +338,8 @@ def process_job_payload(
                     document=document,
                     extractor=active_entity_extractor,
                     extraction_mode=extraction_mode,
+                    extraction_batch_size=extraction_batch_size,
+                    max_parallel_batches=max_parallel_batches,
                 )
                 repo.replace_entities(document, entities)
                 session.flush()

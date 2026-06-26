@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     ollama_worker_model: str | None = None
     ollama_embedding_model: str = "nomic-embed-text"
     entity_extraction_mode: Literal["auto", "ollama", "deterministic"] = "auto"
+    entity_extraction_batch_size: int = Field(default=4, ge=1, le=5)
+    entity_extraction_max_parallel_batches: int = Field(default=2, ge=1, le=4)
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
     ollama_worker_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
     ollama_chat_timeout_seconds: float = Field(default=45.0, ge=5.0, le=600.0)

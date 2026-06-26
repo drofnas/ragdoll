@@ -5,7 +5,13 @@ import pytest
 from ragdoll.core.config import get_settings
 from ragdoll.modules.ingestion.domain.policies import build_processing_status_for_upload
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, DocumentChunkVector, Entity, GraphEdge, Space, User
-from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService, get_entity_extraction_service
+from ragdoll.platform.llm import (
+    ChunkExtractionRequest,
+    ChunkExtractionResult,
+    DeterministicEmbeddingService,
+    DeterministicEntityExtractionService,
+    get_entity_extraction_service,
+)
 from ragdoll.platform.queues import InMemoryDocumentProcessingQueue, ProcessingJobPayload, SqlDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.workers.document_pipeline import drain_document_jobs
@@ -165,8 +171,8 @@ class FailingEmbeddingService:
 
 
 class FailingEntityExtractionService:
-    def extract_entities(self, text: str):
-        del text
+    def extract_entities_batch(self, chunks: list[ChunkExtractionRequest]):
+        del chunks
         raise RuntimeError("entity extraction outage")
 
 
@@ -175,17 +181,76 @@ class CountingEntityExtractionService:
         self.failure_count = failure_count
         self.call_count = 0
 
-    def extract_entities(self, text: str):
+    def extract_entities_batch(self, chunks: list[ChunkExtractionRequest]):
         self.call_count += 1
         if self.call_count <= self.failure_count:
             raise RuntimeError("entity extraction outage")
-        return DeterministicEntityExtractionService().extract_entities(text)
+        return DeterministicEntityExtractionService().extract_entities_batch(chunks)
+
+
+class ReverseBatchEntityExtractionService:
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def extract_entities_batch(self, chunks: list[ChunkExtractionRequest]):
+        self.call_count += 1
+        results = []
+        for chunk in chunks:
+            results.append(
+                ChunkExtractionResult(
+                    chunk_index=chunk.chunk_index,
+                    entities=[
+                        DeterministicEntityExtractionService().extract_entities(
+                            f"Project Atlas Chunk {chunk.chunk_index}"
+                        )[0]
+                    ],
+                )
+            )
+        return list(reversed(results))
 
 
 def _set_entity_extraction_mode(monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
     monkeypatch.setenv("ENTITY_EXTRACTION_MODE", mode)
     get_settings.cache_clear()
     get_entity_extraction_service.cache_clear()
+
+
+def _set_entity_extraction_batch_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    batch_size: int,
+    max_parallel_batches: int,
+) -> None:
+    monkeypatch.setenv("ENTITY_EXTRACTION_BATCH_SIZE", str(batch_size))
+    monkeypatch.setenv("ENTITY_EXTRACTION_MAX_PARALLEL_BATCHES", str(max_parallel_batches))
+    get_settings.cache_clear()
+    get_entity_extraction_service.cache_clear()
+
+
+def _seed_document_chunks(db_session, document: Document, *, chunk_count: int) -> None:
+    db_session.add_all(
+        [
+            DocumentChunk.from_text(
+                document_id=document.id,
+                space_id=document.space_id,
+                chunk_index=index,
+                text_content=f"Project Atlas chunk {index}",
+            )
+            for index in range(chunk_count)
+        ]
+    )
+    document.chunk_count = chunk_count
+    document.indexed_chunk_count = chunk_count
+    document.processing_status = {
+        "overall": "processing",
+        "upload": "completed",
+        "parsing": "completed",
+        "vector": "completed",
+        "extraction": "pending",
+        "graph": "pending",
+        "detail": None,
+    }
+    db_session.commit()
 
 
 @pytest.mark.parametrize(
@@ -303,20 +368,20 @@ def test_worker_deterministic_mode_skips_primary_entity_extractor(db_session, mo
 
 def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_session, monkeypatch):
     _set_entity_extraction_mode(monkeypatch, "auto")
+    _set_entity_extraction_batch_settings(monkeypatch, batch_size=2, max_parallel_batches=1)
     user, space, document = _seed_user_space_document(db_session)
     job = DocumentProcessingJob(
         document_id=document.id,
         space_id=space.id,
         uploaded_by=user.id,
-        requested_stage="parsing",
+        requested_stage="extraction",
         status="queued",
         attempt=1,
     )
     db_session.add(job)
-    db_session.commit()
+    db_session.flush()
+    _seed_document_chunks(db_session, document, chunk_count=8)
 
-    storage = InMemoryDocumentStorage()
-    storage.store_original_file(document.storage_key, ("Project Atlas works with Ragdoll " * 800).encode("utf-8"))
     queue = InMemoryDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
@@ -324,7 +389,7 @@ def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_sess
             document_id=document.id,
             space_id=space.id,
             uploaded_by=user.id,
-            requested_stage="parsing",
+            requested_stage="extraction",
             attempt=1,
         )
     )
@@ -333,7 +398,7 @@ def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_sess
     assert (
         drain_document_jobs(
             queue=queue,
-            storage=storage,
+            storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
             entity_extraction_service=primary_extractor,
         )
@@ -346,9 +411,156 @@ def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_sess
     assert primary_extractor.call_count == 3
     assert refreshed_document is not None
     assert refreshed_document.processing_status["overall"] == "completed"
-    assert refreshed_document.chunk_count > 3
+    assert refreshed_document.chunk_count == 8
     assert refreshed_job is not None
     assert refreshed_job.status == "completed"
+    assert db_session.query(Entity).filter(Entity.document_id == document.id).count() >= 8
+
+
+def test_worker_processes_multiple_extraction_batches_and_persists_batch_metadata(db_session, monkeypatch):
+    _set_entity_extraction_mode(monkeypatch, "ollama")
+    _set_entity_extraction_batch_settings(monkeypatch, batch_size=4, max_parallel_batches=2)
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="extraction",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.flush()
+    _seed_document_chunks(db_session, document, chunk_count=6)
+
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="extraction",
+            attempt=1,
+        )
+    )
+    extractor = CountingEntityExtractionService()
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=InMemoryDocumentStorage(),
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=extractor,
+        )
+        == 1
+    )
+
+    entities = (
+        db_session.query(Entity)
+        .filter(Entity.document_id == document.id)
+        .order_by(Entity.chunk_id.asc(), Entity.normalized_name.asc())
+        .all()
+    )
+    assert extractor.call_count == 2
+    assert entities
+    assert {entity.extraction_metadata["batch_size"] for entity in entities} == {2, 4}
+    assert {entity.extraction_metadata["extraction_mode"] for entity in entities} == {"ollama"}
+    assert {entity.extraction_metadata["chunk_index"] for entity in entities} == set(range(6))
+
+
+def test_worker_maps_out_of_order_batch_results_back_to_chunk_indexes(db_session, monkeypatch):
+    _set_entity_extraction_mode(monkeypatch, "ollama")
+    _set_entity_extraction_batch_settings(monkeypatch, batch_size=4, max_parallel_batches=2)
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="extraction",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.flush()
+    _seed_document_chunks(db_session, document, chunk_count=6)
+
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="extraction",
+            attempt=1,
+        )
+    )
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=InMemoryDocumentStorage(),
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=ReverseBatchEntityExtractionService(),
+        )
+        == 1
+    )
+
+    chunk_id_by_index = {
+        chunk.chunk_index: chunk.id
+        for chunk in db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).all()
+    }
+    entities = db_session.query(Entity).filter(Entity.document_id == document.id).all()
+    assert entities
+    for entity in entities:
+        chunk_index = entity.extraction_metadata["chunk_index"]
+        assert entity.chunk_id == chunk_id_by_index[chunk_index]
+
+
+def test_worker_batch_size_one_behaves_like_single_chunk_calls(db_session, monkeypatch):
+    _set_entity_extraction_mode(monkeypatch, "ollama")
+    _set_entity_extraction_batch_settings(monkeypatch, batch_size=1, max_parallel_batches=1)
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="extraction",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.flush()
+    _seed_document_chunks(db_session, document, chunk_count=3)
+
+    queue = InMemoryDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="extraction",
+            attempt=1,
+        )
+    )
+    extractor = CountingEntityExtractionService()
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=InMemoryDocumentStorage(),
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=extractor,
+        )
+        == 1
+    )
+
+    entities = db_session.query(Entity).filter(Entity.document_id == document.id).all()
+    assert extractor.call_count == 3
+    assert entities
+    assert {entity.extraction_metadata["batch_size"] for entity in entities} == {1}
 
 
 def test_worker_graph_stage_persists_entities_vectors_and_edges(db_session):
