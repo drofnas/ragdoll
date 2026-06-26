@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     upload_rate_limit_requests: int = 10
     upload_rate_limit_window_seconds: int = 60
     document_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
+    document_processing_timeout_seconds_default: float = Field(default=600.0, ge=30.0, le=86400.0)
+    document_processing_timeout_seconds_extraction: float = Field(default=2700.0, ge=30.0, le=86400.0)
 
     e2e_shared_backends: bool = False
     e2e_memory_backends: bool = False

@@ -1653,6 +1653,16 @@
       },
       "DocumentProcessingStatusResponse": {
         "properties": {
+          "active_job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentProcessingJobResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "chunk_count": {
             "minimum": 0.0,
             "title": "Chunk Count",
@@ -1662,6 +1672,11 @@
             "format": "uuid",
             "title": "Document Id",
             "type": "string"
+          },
+          "has_queued_reprocess": {
+            "default": false,
+            "title": "Has Queued Reprocess",
+            "type": "boolean"
           },
           "indexed_chunk_count": {
             "minimum": 0.0,
@@ -1680,6 +1695,12 @@
           },
           "processing_status": {
             "$ref": "#/components/schemas/ProcessingStatus"
+          },
+          "queued_job_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Queued Job Count",
+            "type": "integer"
           },
           "space_id": {
             "format": "uuid",

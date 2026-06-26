@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.orm import Session
 
 from ragdoll.platform.db.models import (
@@ -21,6 +21,9 @@ from ragdoll.platform.db.models import (
 class VisibleStatusRecord:
     document: Document
     latest_job: DocumentProcessingJob | None
+    active_job: DocumentProcessingJob | None
+    queued_job_count: int
+    has_queued_reprocess: bool
 
 
 class IngestionRepository:
@@ -41,6 +44,56 @@ class IngestionRepository:
             .limit(1)
         )
 
+    def active_job_for_document(self, document_id: UUID) -> DocumentProcessingJob | None:
+        return self.session.scalar(
+            select(DocumentProcessingJob)
+            .where(
+                DocumentProcessingJob.document_id == document_id,
+                DocumentProcessingJob.status == "processing",
+            )
+            .order_by(DocumentProcessingJob.started_at.desc(), DocumentProcessingJob.queued_at.desc())
+            .limit(1)
+        )
+
+    def queued_job_count_for_document(self, document_id: UUID) -> int:
+        return int(
+            self.session.scalar(
+                select(func.count())
+                .select_from(DocumentProcessingJob)
+                .where(
+                    DocumentProcessingJob.document_id == document_id,
+                    DocumentProcessingJob.status == "queued",
+                )
+            )
+            or 0
+        )
+
+    def has_queued_reprocess_for_document(self, document_id: UUID) -> bool:
+        return bool(
+            self.session.scalar(
+                select(func.count())
+                .select_from(DocumentProcessingJob)
+                .where(
+                    DocumentProcessingJob.document_id == document_id,
+                    DocumentProcessingJob.status == "queued",
+                    DocumentProcessingJob.job_kind == "reprocess",
+                )
+            )
+            or 0
+        )
+
+    def queued_reprocess_for_document(self, document_id: UUID) -> DocumentProcessingJob | None:
+        return self.session.scalar(
+            select(DocumentProcessingJob)
+            .where(
+                DocumentProcessingJob.document_id == document_id,
+                DocumentProcessingJob.status == "queued",
+                DocumentProcessingJob.job_kind == "reprocess",
+            )
+            .order_by(DocumentProcessingJob.queued_at.asc())
+            .limit(1)
+        )
+
     def list_visible_statuses(self, owner_user_id: UUID, document_ids: list[UUID]) -> list[VisibleStatusRecord]:
         if not document_ids:
             return []
@@ -57,13 +110,22 @@ class IngestionRepository:
         )
         if not documents:
             return []
-        latest_jobs = {
-            document.id: self.latest_job_for_document(document.id)
+        latest_jobs = {document.id: self.latest_job_for_document(document.id) for document in documents}
+        active_jobs = {document.id: self.active_job_for_document(document.id) for document in documents}
+        queued_counts = {document.id: self.queued_job_count_for_document(document.id) for document in documents}
+        queued_reprocess_flags = {
+            document.id: self.has_queued_reprocess_for_document(document.id)
             for document in documents
         }
         by_id = {document.id: document for document in documents}
         return [
-            VisibleStatusRecord(document=by_id[document_id], latest_job=latest_jobs[document_id])
+            VisibleStatusRecord(
+                document=by_id[document_id],
+                latest_job=latest_jobs[document_id],
+                active_job=active_jobs[document_id],
+                queued_job_count=queued_counts[document_id],
+                has_queued_reprocess=queued_reprocess_flags[document_id],
+            )
             for document_id in document_ids
             if document_id in by_id
         ]

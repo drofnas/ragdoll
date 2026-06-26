@@ -27,7 +27,11 @@ from ragdoll.modules.spaces.infrastructure.repository import SpacesRepository
 from ragdoll.modules.usage.infrastructure.repository import UsageRepository
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob
 from ragdoll.platform.graph import GraphCleanupService
-from ragdoll.platform.queues import DocumentProcessingQueueService, ProcessingJobPayload
+from ragdoll.platform.queues import (
+    DocumentProcessingQueueService,
+    ProcessingJobPayload,
+    reconcile_stale_processing_jobs,
+)
 from ragdoll.platform.storage import DocumentStorageService
 from ragdoll.platform.vector import VectorCleanupService
 
@@ -41,27 +45,49 @@ def resolve_target_space(session: Session, owner_user_id: UUID, space_id: UUID |
     return space
 
 
-def _build_job(document: Document, *, attempt: int, requested_stage: str) -> DocumentProcessingJob:
+def _build_job(
+    document: Document,
+    *,
+    attempt: int,
+    requested_stage: str,
+    job_kind: str,
+    cleanup_derived_artifacts: bool = False,
+    reset_document_content: bool = False,
+    clear_existing_chunks: bool = False,
+    clear_existing_entities: bool = False,
+    cleanup_vectors: bool = False,
+    cleanup_graph: bool = False,
+) -> DocumentProcessingJob:
     return DocumentProcessingJob(
         document_id=document.id,
         space_id=document.space_id,
         uploaded_by=document.uploaded_by,
         requested_stage=validate_requested_stage(requested_stage),
+        job_kind=job_kind,
         status="queued",
         attempt=attempt,
+        cleanup_derived_artifacts=cleanup_derived_artifacts,
+        reset_document_content=reset_document_content,
+        clear_existing_chunks=clear_existing_chunks,
+        clear_existing_entities=clear_existing_entities,
+        cleanup_vectors=cleanup_vectors,
+        cleanup_graph=cleanup_graph,
     )
 
 
-def _ensure_document_is_requeueable(job: DocumentProcessingJob | None) -> int:
-    if job is not None and job.status in {"queued", "processing"}:
+def _ensure_document_is_requeueable(active_job: DocumentProcessingJob | None, queued_job_count: int) -> None:
+    if active_job is not None or queued_job_count > 0:
         raise ApplicationError(
-            "This document already has an active processing job.",
+            "This document already has active or queued processing work.",
             status_code=409,
             title="Conflict",
             type_uri="https://ragdoll.dev/problems/conflict",
             code="document_job_already_active",
         )
-    return 1 if job is None else job.attempt + 1
+
+
+def _next_attempt(latest_job: DocumentProcessingJob | None) -> int:
+    return 1 if latest_job is None else latest_job.attempt + 1
 
 
 def upload_document(
@@ -126,7 +152,7 @@ def upload_document(
     repo.add_document(document)
     session.flush()
 
-    job = _build_job(document, attempt=1, requested_stage="parsing")
+    job = _build_job(document, attempt=1, requested_stage="parsing", job_kind="upload")
     repo.add_processing_job(job)
     session.commit()
     session.refresh(document)
@@ -140,6 +166,13 @@ def upload_document(
             uploaded_by=document.uploaded_by,
             requested_stage=job.requested_stage,
             attempt=job.attempt,
+            job_kind=job.job_kind,
+            cleanup_derived_artifacts=job.cleanup_derived_artifacts,
+            reset_document_content=job.reset_document_content,
+            clear_existing_chunks=job.clear_existing_chunks,
+            clear_existing_entities=job.clear_existing_entities,
+            cleanup_vectors=job.cleanup_vectors,
+            cleanup_graph=job.cleanup_graph,
         )
     )
     return UploadDocumentResponse(
@@ -162,31 +195,53 @@ def requeue_document_processing(
     clear_existing_entities: bool,
     vector_cleanup: VectorCleanupService | None = None,
     graph_cleanup: GraphCleanupService | None = None,
-) -> DocumentProcessingJob:
+) -> DocumentProcessingJob | None:
     owner_user_id = UUID(subject)
     document = DocumentsRepository(session).get_visible_or_404(owner_user_id, document_id)
+    reconcile_stale_processing_jobs(session, document_ids=[document.id])
     repo = IngestionRepository(session)
     latest_job = repo.latest_job_for_document(document_id)
-    attempt = _ensure_document_is_requeueable(latest_job)
+    active_job = repo.active_job_for_document(document_id)
+    queued_job_count = repo.queued_job_count_for_document(document_id)
     stage = validate_requested_stage(requested_stage)
+    job_kind = "reprocess" if reset_document_content and clear_existing_chunks else "retry"
 
-    document.processing_status = reset_processing_status_for_stage(document.processing_status, requested_stage=stage)
-    if reset_document_content:
-        document.preview_text = None
-        document.original_text_content = None
-        document.chunk_count = 0
-        document.indexed_chunk_count = 0
-    if clear_existing_chunks:
-        session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
-    if vector_cleanup is not None and stage == "vector":
-        vector_cleanup.cleanup_document(document.id)
-    if graph_cleanup is not None and stage in {"extraction", "graph"}:
-        graph_cleanup.cleanup_document(document.id)
-    if clear_existing_entities:
-        repo.clear_entities_for_document(document.id)
-        repo.prune_orphan_canonical_entities()
+    if job_kind == "reprocess":
+        queued_reprocess = repo.queued_reprocess_for_document(document_id)
+        if queued_reprocess is not None:
+            return queued_reprocess
+        if active_job is None and queued_job_count > 0:
+            return None
+    else:
+        _ensure_document_is_requeueable(active_job, queued_job_count)
+        document.processing_status = reset_processing_status_for_stage(document.processing_status, requested_stage=stage)
+        if reset_document_content:
+            document.preview_text = None
+            document.original_text_content = None
+            document.chunk_count = 0
+            document.indexed_chunk_count = 0
+        if clear_existing_chunks:
+            session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
+        if vector_cleanup is not None and stage == "vector":
+            vector_cleanup.cleanup_document(document.id)
+        if graph_cleanup is not None and stage in {"extraction", "graph"}:
+            graph_cleanup.cleanup_document(document.id)
+        if clear_existing_entities:
+            repo.clear_entities_for_document(document.id)
+            repo.prune_orphan_canonical_entities()
 
-    job = _build_job(document, attempt=attempt, requested_stage=stage)
+    job = _build_job(
+        document,
+        attempt=_next_attempt(latest_job),
+        requested_stage=stage,
+        job_kind=job_kind,
+        cleanup_derived_artifacts=job_kind == "reprocess",
+        reset_document_content=job_kind == "reprocess" and reset_document_content,
+        clear_existing_chunks=job_kind == "reprocess" and clear_existing_chunks,
+        clear_existing_entities=job_kind == "reprocess" and clear_existing_entities,
+        cleanup_vectors=job_kind == "reprocess",
+        cleanup_graph=job_kind == "reprocess",
+    )
     repo.add_processing_job(job)
     session.commit()
     session.refresh(job)
@@ -199,6 +254,13 @@ def requeue_document_processing(
             uploaded_by=job.uploaded_by,
             requested_stage=job.requested_stage,
             attempt=job.attempt,
+            job_kind=job.job_kind,
+            cleanup_derived_artifacts=job.cleanup_derived_artifacts,
+            reset_document_content=job.reset_document_content,
+            clear_existing_chunks=job.clear_existing_chunks,
+            clear_existing_entities=job.clear_existing_entities,
+            cleanup_vectors=job.cleanup_vectors,
+            cleanup_graph=job.cleanup_graph,
         )
     )
     return job

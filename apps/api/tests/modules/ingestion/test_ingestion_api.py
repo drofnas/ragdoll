@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from io import BytesIO
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
@@ -15,6 +16,7 @@ from ragdoll.platform.db.models import (
     Document,
     DocumentChunk,
     DocumentChunkVector,
+    DocumentProcessingJob,
     Entity,
     GraphEdge,
     GraphNode,
@@ -26,6 +28,8 @@ from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEnt
 from ragdoll.platform.queues import InMemoryDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.platform.vector import InMemoryVectorCleanupService
+from ragdoll.modules.ingestion.application.service import process_job_payload
+from ragdoll.platform.queues.service import utc_now
 from ragdoll.workers.document_pipeline import drain_document_jobs
 
 
@@ -72,6 +76,53 @@ def default_space(db_session, user: User) -> Space:
         .filter(Space.owner_user_id == user.id, Space.is_default.is_(True))
         .one()
     )
+
+
+def seed_stale_processing_state(
+    db_session,
+    *,
+    document_id: UUID,
+    stage: str,
+    age: timedelta,
+    started_at_missing: bool = False,
+) -> DocumentProcessingJob:
+    document = db_session.get(Document, document_id)
+    assert document is not None
+    job = (
+        db_session.query(DocumentProcessingJob)
+        .filter(DocumentProcessingJob.document_id == document_id)
+        .filter(DocumentProcessingJob.status == "processing")
+        .order_by(DocumentProcessingJob.queued_at.asc())
+        .first()
+    )
+    if job is None:
+        job = (
+            db_session.query(DocumentProcessingJob)
+            .filter(DocumentProcessingJob.document_id == document_id)
+            .order_by(DocumentProcessingJob.queued_at.desc())
+            .first()
+        )
+    assert job is not None
+
+    stale_at = utc_now() - age
+    document.processing_status = {
+        "overall": "processing",
+        "upload": "completed",
+        "parsing": "completed" if stage != "parsing" else "processing",
+        "vector": "completed" if stage not in {"parsing", "vector"} else ("processing" if stage == "vector" else "pending"),
+        "extraction": (
+            "completed" if stage == "graph" else ("processing" if stage == "extraction" else "pending")
+        ),
+        "graph": "processing" if stage == "graph" else "pending",
+        "detail": None,
+    }
+    job.status = "processing"
+    job.started_at = None if started_at_missing else stale_at
+    job.queued_at = stale_at
+    job.completed_at = None
+    job.visible_error_detail = None
+    db_session.commit()
+    return job
 
 
 @pytest.fixture
@@ -271,7 +322,97 @@ def test_batch_status_dedupes_and_filters_visibility(api_client, db_session, ing
     statuses = response.json()["statuses"]
     assert len(statuses) == 1
     assert statuses[0]["document_id"] == visible_id
+    assert statuses[0]["active_job"] is None
+    assert statuses[0]["queued_job_count"] == 0
+    assert statuses[0]["has_queued_reprocess"] is False
     assert statuses[0]["processing_status"]["overall"] == "completed"
+
+
+def test_document_status_reconciles_stale_processing_jobs_without_started_at(api_client, db_session, ingestion_runtime):
+    _, queue, _, _, _, _ = ingestion_runtime
+    token = register_and_login(api_client, email="stale-single@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("stale.txt", BytesIO(b"stale"), "text/plain")},
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    active_payload = queue.claim_next_job()
+    assert active_payload is not None
+    stale_job = seed_stale_processing_state(
+        db_session,
+        document_id=document_id,
+        stage="parsing",
+        age=timedelta(minutes=11),
+        started_at_missing=True,
+    )
+
+    response = api_client.get(
+        f"/api/v1/ingestion/documents/{document_id}/status",
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["active_job"] is None
+    assert payload["queued_job_count"] == 0
+    assert payload["processing_status"]["overall"] == "failed"
+    assert payload["processing_status"]["parsing"] == "failed"
+    assert "timed out" in payload["processing_status"]["detail"].lower()
+
+    db_session.expire_all()
+    refreshed_job = db_session.get(DocumentProcessingJob, stale_job.id)
+    refreshed_document = db_session.get(Document, document_id)
+    assert refreshed_job is not None
+    assert refreshed_document is not None
+    assert refreshed_job.status == "failed"
+    assert refreshed_job.completed_at is not None
+    assert refreshed_job.visible_error_detail is not None
+    assert "timed out" in refreshed_job.visible_error_detail.lower()
+    assert refreshed_document.processing_status["overall"] == "failed"
+    assert refreshed_document.processing_status["detail"] == refreshed_job.visible_error_detail[:500]
+
+
+def test_batch_status_reconciles_stale_processing_jobs_for_visible_rows(api_client, db_session, ingestion_runtime):
+    _, queue, _, _, _, _ = ingestion_runtime
+    token = register_and_login(api_client, email="stale-batch@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("stale-extract.txt", BytesIO(b"stale"), "text/plain")},
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    active_payload = queue.claim_next_job()
+    assert active_payload is not None
+    stale_job = seed_stale_processing_state(
+        db_session,
+        document_id=document_id,
+        stage="extraction",
+        age=timedelta(hours=2),
+    )
+
+    response = api_client.post(
+        "/api/v1/ingestion/documents/status/batch",
+        headers=auth_headers(token),
+        json={"document_ids": [str(document_id)]},
+    )
+    assert response.status_code == 200, response.text
+    statuses = response.json()["statuses"]
+    assert len(statuses) == 1
+    assert statuses[0]["document_id"] == str(document_id)
+    assert statuses[0]["active_job"] is None
+    assert statuses[0]["processing_status"]["overall"] == "failed"
+    assert statuses[0]["processing_status"]["extraction"] == "failed"
+
+    db_session.expire_all()
+    refreshed_job = db_session.get(DocumentProcessingJob, stale_job.id)
+    assert refreshed_job is not None
+    assert refreshed_job.status == "failed"
 
 
 def test_batch_status_rejects_more_than_100_ids(api_client, ingestion_runtime):
@@ -286,7 +427,7 @@ def test_batch_status_rejects_more_than_100_ids(api_client, ingestion_runtime):
 
 
 def test_worker_processing_updates_document_reads(api_client, db_session, ingestion_runtime):
-    storage, queue, _, _, embedding_service, entity_extraction_service = ingestion_runtime
+    storage, queue, vector_cleanup, graph_cleanup, embedding_service, entity_extraction_service = ingestion_runtime
     token = register_and_login(api_client, email="owner@example.com")
     line_one = " ".join(["Atlas", *(["a"] * 149)])
     line_three = " ".join(["b"] * 300)
@@ -372,11 +513,12 @@ def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_se
         headers=auth_headers(token),
     )
     assert response.status_code == 200, response.text
-    assert response.json()["processing_status"]["parsing"] == "pending"
+    assert response.json()["queued_job_count"] == 1
+    assert response.json()["has_queued_reprocess"] is True
     assert len(queue.queued_job_ids()) == 1
-    assert document_id in vector_cleanup.cleaned_document_ids
-    assert document_id in graph_cleanup.cleaned_document_ids
-    assert f"derived/{document_id}" not in storage.derived_prefixes
+    assert document_id not in vector_cleanup.cleaned_document_ids
+    assert document_id not in graph_cleanup.cleaned_document_ids
+    assert f"derived/{document_id}" in storage.derived_prefixes
 
     assert (
         drain_document_jobs(
@@ -384,6 +526,8 @@ def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_se
             storage=storage,
             embedding_service=embedding_service,
             entity_extraction_service=entity_extraction_service,
+            vector_cleanup=vector_cleanup,
+            graph_cleanup=graph_cleanup,
         )
         == 1
     )
@@ -392,8 +536,159 @@ def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_se
     assert refreshed is not None
     assert refreshed.processing_status["overall"] == "completed"
     assert refreshed.original_text_content == "updated text content for reprocess"
+    assert document_id in vector_cleanup.cleaned_document_ids
+    assert document_id in graph_cleanup.cleaned_document_ids
+    assert f"derived/{document_id}" not in storage.derived_prefixes
     assert db_session.query(DocumentChunkVector).filter(DocumentChunkVector.document_id == document_id).count() >= 1
     assert db_session.query(GraphEdge).filter(GraphEdge.document_id == document_id).count() >= 0
+
+
+def test_reprocess_queues_one_follow_up_behind_an_active_job(api_client, db_session, ingestion_runtime):
+    storage, queue, vector_cleanup, graph_cleanup, embedding_service, entity_extraction_service = ingestion_runtime
+    token = register_and_login(api_client, email="follow-up@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("notes.txt", BytesIO(b"original"), "text/plain")},
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    active_payload = queue.claim_next_job()
+    assert active_payload is not None
+
+    first_reprocess = api_client.post(
+        f"/api/v1/ingestion/documents/{document_id}/reprocess",
+        headers=auth_headers(token),
+    )
+    assert first_reprocess.status_code == 200, first_reprocess.text
+    first_payload = first_reprocess.json()
+    assert first_payload["active_job"]["status"] == "processing"
+    assert first_payload["queued_job_count"] == 1
+    assert first_payload["has_queued_reprocess"] is True
+    assert len(queue.queued_job_ids()) == 1
+
+    second_reprocess = api_client.post(
+        f"/api/v1/ingestion/documents/{document_id}/reprocess",
+        headers=auth_headers(token),
+    )
+    assert second_reprocess.status_code == 200, second_reprocess.text
+    assert second_reprocess.json()["queued_job_count"] == 1
+    assert len(queue.queued_job_ids()) == 1
+
+    document = db_session.get(Document, document_id)
+    assert document is not None
+    storage.derived_prefixes.add(f"derived/{document_id}")
+    storage.store_original_file(document.storage_key, b"updated text content for reprocess")
+
+    process_job_payload(
+        active_payload,
+        queue=queue,
+        storage=storage,
+        embedding_service=embedding_service,
+        entity_extraction_service=entity_extraction_service,
+        vector_cleanup=vector_cleanup,
+        graph_cleanup=graph_cleanup,
+    )
+
+    assert f"derived/{document_id}" in storage.derived_prefixes
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=embedding_service,
+            entity_extraction_service=entity_extraction_service,
+            vector_cleanup=vector_cleanup,
+            graph_cleanup=graph_cleanup,
+        )
+        == 1
+    )
+
+    assert document_id in vector_cleanup.cleaned_document_ids
+    assert document_id in graph_cleanup.cleaned_document_ids
+    assert f"derived/{document_id}" not in storage.derived_prefixes
+
+
+def test_reprocess_reconciles_stale_processing_before_enqueuing_fresh_job(api_client, db_session, ingestion_runtime):
+    _, queue, _, _, _, _ = ingestion_runtime
+    token = register_and_login(api_client, email="stale-reprocess@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("retry.txt", BytesIO(b"retry"), "text/plain")},
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    active_payload = queue.claim_next_job()
+    assert active_payload is not None
+    stale_job = seed_stale_processing_state(
+        db_session,
+        document_id=document_id,
+        stage="extraction",
+        age=timedelta(hours=2),
+    )
+
+    response = api_client.post(
+        f"/api/v1/ingestion/documents/{document_id}/reprocess",
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["active_job"] is None
+    assert payload["queued_job_count"] == 1
+    assert payload["has_queued_reprocess"] is True
+    assert len(queue.queued_job_ids()) == 1
+
+    db_session.expire_all()
+    refreshed_job = db_session.get(DocumentProcessingJob, stale_job.id)
+    assert refreshed_job is not None
+    assert refreshed_job.status == "failed"
+
+
+def test_queue_claim_fails_stale_processing_before_claiming_follow_up_job(api_client, db_session, ingestion_runtime):
+    _, queue, _, _, _, _ = ingestion_runtime
+    token = register_and_login(api_client, email="stale-follow-up@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("follow-up.txt", BytesIO(b"follow-up"), "text/plain")},
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    active_payload = queue.claim_next_job()
+    assert active_payload is not None
+
+    reprocess = api_client.post(
+        f"/api/v1/ingestion/documents/{document_id}/reprocess",
+        headers=auth_headers(token),
+    )
+    assert reprocess.status_code == 200, reprocess.text
+    queued_follow_up_id = queue.queued_job_ids()[0]
+
+    stale_job = seed_stale_processing_state(
+        db_session,
+        document_id=document_id,
+        stage="extraction",
+        age=timedelta(hours=2),
+    )
+
+    next_payload = queue.claim_next_job()
+    assert next_payload is not None
+    assert next_payload.job_id == queued_follow_up_id
+
+    db_session.expire_all()
+    refreshed_stale_job = db_session.get(DocumentProcessingJob, stale_job.id)
+    claimed_job = db_session.get(DocumentProcessingJob, queued_follow_up_id)
+    assert refreshed_stale_job is not None
+    assert claimed_job is not None
+    assert refreshed_stale_job.status == "failed"
+    assert claimed_job.status == "processing"
 
 
 @pytest.mark.parametrize(

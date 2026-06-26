@@ -14,6 +14,7 @@ from ragdoll.modules.ingestion.domain.policies import (
     mark_processing_stage_completed,
     mark_processing_stage_failed,
     mark_processing_stage_started,
+    reset_processing_status_for_stage,
     validate_requested_stage,
 )
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
@@ -59,6 +60,49 @@ def _load_document(session: Session, document_id: UUID) -> Document:
     if document is None:
         raise FileNotFoundError(f"Document {document_id} was not found.")
     return document
+
+
+def _prepare_document_for_job(
+    session: Session,
+    *,
+    document: Document,
+    payload: ProcessingJobPayload,
+    storage: DocumentStorageService,
+    repo: IngestionRepository,
+    vector_cleanup: VectorCleanupService,
+    graph_cleanup: GraphCleanupService,
+) -> None:
+    if not (
+        payload.cleanup_derived_artifacts
+        or payload.reset_document_content
+        or payload.clear_existing_chunks
+        or payload.clear_existing_entities
+        or payload.cleanup_vectors
+        or payload.cleanup_graph
+    ):
+        return
+
+    document.processing_status = reset_processing_status_for_stage(
+        document.processing_status,
+        requested_stage=payload.requested_stage,
+    )
+    if payload.cleanup_derived_artifacts:
+        storage.delete_derived_artifacts(document.id)
+    if payload.reset_document_content:
+        document.preview_text = None
+        document.original_text_content = None
+        document.chunk_count = 0
+        document.indexed_chunk_count = 0
+    if payload.clear_existing_chunks:
+        repo.replace_chunks(document, [])
+    if payload.cleanup_vectors:
+        vector_cleanup.cleanup_document(document.id)
+    if payload.cleanup_graph:
+        graph_cleanup.cleanup_document(document.id)
+    if payload.clear_existing_entities:
+        repo.clear_entities_for_document(document.id)
+        repo.prune_orphan_canonical_entities()
+    session.commit()
 
 
 def _extract_entities(
@@ -180,6 +224,15 @@ def process_job_payload(
     try:
         document = _load_document(session, payload.document_id)
         repo = IngestionRepository(session)
+        _prepare_document_for_job(
+            session,
+            document=document,
+            payload=payload,
+            storage=active_storage,
+            repo=repo,
+            vector_cleanup=active_vector_cleanup,
+            graph_cleanup=active_graph_cleanup,
+        )
         for stage in stage_order:
             if stage_order.index(stage) < stage_order.index(current_stage):
                 continue
@@ -228,7 +281,7 @@ def process_job_payload(
             session.commit()
 
         queue.mark_job_completed(payload.job_id)
-        event_type = "document_processed" if payload.attempt == 1 and payload.requested_stage == "parsing" else "document_reprocessed"
+        event_type = "document_processed" if payload.job_kind == "upload" else "document_reprocessed"
         record_change_event(
             session,
             space_id=document.space_id,

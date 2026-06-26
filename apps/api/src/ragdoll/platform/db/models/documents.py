@@ -206,8 +206,15 @@ class DocumentProcessingJob(Base):
         nullable=False,
     )
     requested_stage: Mapped[str] = mapped_column(String(32), nullable=False, default="parsing")
+    job_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="upload")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    cleanup_derived_artifacts: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
+    reset_document_content: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
+    clear_existing_chunks: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
+    clear_existing_entities: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
+    cleanup_vectors: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
+    cleanup_graph: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
     visible_error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     queued_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

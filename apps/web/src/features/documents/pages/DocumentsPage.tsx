@@ -1,18 +1,30 @@
 import type { ProcessingStageStatus } from "@contracts";
-import { Eye } from "lucide-react";
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { Eye, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Page, PageHeader } from "@/components/app/page";
-import { SelectField } from "@/components/app/select-field";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -22,31 +34,56 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { ApiProblemError } from "@/shared/api/client";
-import {
-  formatDateTime,
-  formatFileSize,
-  humanizeStageStatus
-} from "@/shared/lib/formatting";
+import { formatDateTime, formatFileSize } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
-import { listDocuments, uploadDocument, type ListDocumentsQuery } from "../api/documentsApi";
+import {
+  listDocuments,
+  readBatchDocumentStatuses,
+  reprocessDocument,
+  uploadDocument,
+  type ListDocumentsQuery
+} from "../api/documentsApi";
+import {
+  DocumentUploadDropzone,
+  type DocumentUploadQueueItem
+} from "../components/DocumentUploadDropzone";
+import {
+  buildStatusMap,
+  getDocumentStatusPresentation,
+  hasInFlightDocumentWork,
+  isRefreshLocked
+} from "../lib/documentStatus";
 
 const TERMINAL_STATUSES: ProcessingStageStatus[] = ["completed", "deferred", "failed"];
 
 const fileTypeOptions = [
+  { label: "All file types", value: "__all__" },
   { label: "PDF", value: "pdf" },
   { label: "DOCX", value: "docx" },
   { label: "Markdown", value: "md" },
   { label: "Text", value: "txt" }
 ];
 
+function createUploadQueueItem(file: File, spaceId: string): DocumentUploadQueueItem {
+  return {
+    file,
+    id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+    spaceId,
+    status: "queued"
+  };
+}
+
 export function DocumentsPage() {
-  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { activeSpace, allSpaces, buildReadScopeParams, isReady, requireConcreteSpace } = useSpaceScope();
   const [page, setPage] = useState(1);
   const [fileTypeFilter, setFileTypeFilter] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [forceLibraryPolling, setForceLibraryPolling] = useState(false);
+  const [uploadItems, setUploadItems] = useState<DocumentUploadQueueItem[]>([]);
+  const [refreshingDocumentIds, setRefreshingDocumentIds] = useState<string[]>([]);
 
   const scopeQuery = buildReadScopeParams();
   const documentQuery: ListDocumentsQuery = {
@@ -62,21 +99,96 @@ export function DocumentsPage() {
     queryKey: ["documents", documentQuery],
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
-      return items.some((item) => !TERMINAL_STATUSES.includes(item.processing_status.overall))
+      return forceLibraryPolling ||
+        items.some((item) => !TERMINAL_STATUSES.includes(item.processing_status.overall))
         ? 3000
         : false;
     }
   });
 
-  async function handleUpload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrorMessage(null);
+  const visibleDocumentIds = documentsQuery.data?.items.map((document) => document.id) ?? [];
+  const documentStatusesQuery = useQuery({
+    enabled: isReady && visibleDocumentIds.length > 0,
+    queryFn: () => readBatchDocumentStatuses({ document_ids: visibleDocumentIds }),
+    queryKey: ["document-statuses", visibleDocumentIds],
+    refetchInterval: (query) => {
+      const statuses = query.state.data?.statuses ?? [];
+      return forceLibraryPolling || statuses.some((status) => hasInFlightDocumentWork(status))
+        ? 3000
+        : false;
+    }
+  });
 
-    if (!file) {
-      setErrorMessage("Choose a file before uploading.");
+  const liveStatusById = buildStatusMap(documentStatusesQuery.data?.statuses);
+
+  useEffect(() => {
+    if (!forceLibraryPolling) {
       return;
     }
 
+    const documentsNeedPolling = (documentsQuery.data?.items ?? []).some(
+      (item) => !TERMINAL_STATUSES.includes(item.processing_status.overall)
+    );
+    const statusesNeedPolling = (documentStatusesQuery.data?.statuses ?? []).some((status) =>
+      hasInFlightDocumentWork(status)
+    );
+
+    if (!documentsNeedPolling && !statusesNeedPolling && !isUploading) {
+      setForceLibraryPolling(false);
+    }
+  }, [
+    documentStatusesQuery.data?.statuses,
+    documentsQuery.data?.items,
+    forceLibraryPolling,
+    isUploading
+  ]);
+
+  useEffect(() => {
+    if (isUploading) {
+      return;
+    }
+
+    const nextItem = uploadItems.find((item) => item.status === "queued");
+    if (!nextItem) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadItems((items) =>
+      items.map((item) => (item.id === nextItem.id ? { ...item, status: "uploading" } : item))
+    );
+
+    void (async () => {
+      try {
+        await uploadDocument(nextItem.file, { space_id: nextItem.spaceId });
+        setForceLibraryPolling(true);
+        setUploadItems((items) =>
+          items.map((item) =>
+            item.id === nextItem.id
+              ? { ...item, errorMessage: undefined, status: "completed" }
+              : item
+          )
+        );
+        await queryClient.invalidateQueries({ queryKey: ["documents"] });
+        await queryClient.invalidateQueries({ queryKey: ["document-statuses"] });
+      } catch (error) {
+        const message =
+          error instanceof ApiProblemError
+            ? error.problem.detail
+            : "Unable to upload the document right now.";
+        setErrorMessage(message);
+        setUploadItems((items) =>
+          items.map((item) =>
+            item.id === nextItem.id ? { ...item, errorMessage: message, status: "failed" } : item
+          )
+        );
+      } finally {
+        setIsUploading(false);
+      }
+    })();
+  }, [isUploading, queryClient, uploadItems]);
+
+  function handleFilesSelected(files: File[]) {
     let concreteSpaceId: string;
     try {
       concreteSpaceId = requireConcreteSpace().id;
@@ -87,18 +199,40 @@ export function DocumentsPage() {
       return;
     }
 
-    setIsUploading(true);
+    setErrorMessage(null);
+    setPage(1);
+    setForceLibraryPolling(true);
+    setUploadItems((items) => [
+      ...items,
+      ...files.map((file) => createUploadQueueItem(file, concreteSpaceId))
+    ]);
+  }
+
+  function handleRemoveUploadItem(itemId: string) {
+    setUploadItems((items) => items.filter((item) => item.id !== itemId));
+  }
+
+  async function handleRefreshDocument(documentId: string) {
+    setErrorMessage(null);
+    setForceLibraryPolling(true);
+    setRefreshingDocumentIds((documentIds) => [...documentIds, documentId]);
+
     try {
-      const response = await uploadDocument(file, { space_id: concreteSpaceId });
-      navigate(`/documents/${response.document_id}`);
+      await reprocessDocument(documentId);
+      await Promise.all([
+        documentsQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ["document-statuses"] })
+      ]);
     } catch (error) {
       if (error instanceof ApiProblemError) {
         setErrorMessage(error.problem.detail);
       } else {
-        setErrorMessage("Unable to upload the document right now.");
+        setErrorMessage("Unable to refresh the document right now.");
       }
     } finally {
-      setIsUploading(false);
+      setRefreshingDocumentIds((documentIds) =>
+        documentIds.filter((currentDocumentId) => currentDocumentId !== documentId)
+      );
     }
   }
 
@@ -126,56 +260,59 @@ export function DocumentsPage() {
         </Alert>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload a document</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <p className="text-sm text-muted-foreground">
-              Current target: {activeSpace?.name ?? "Choose a Space first"}
-            </p>
-            <form className="space-y-4" onSubmit={handleUpload}>
-              <Input
-                accept=".pdf,.docx,.txt,.md,.markdown"
-                disabled={isUploading || allSpaces}
-                type="file"
-                onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
-              />
-              <Button disabled={allSpaces} type="submit">
-                {isUploading ? "Uploading…" : "Upload"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Filter the library</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <SelectField
-              emptyLabel="All file types"
-              label="File type"
-              options={fileTypeOptions}
-              placeholder="All file types"
-              value={fileTypeFilter}
-              onValueChange={(value) => {
-                setPage(1);
-                setFileTypeFilter(value === "__all__" ? null : value);
-              }}
-            />
-            <p className="text-sm text-muted-foreground">
-              Scope-aware reads respect the active Space unless the all-spaces toggle is enabled.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
+      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload documents</DialogTitle>
+            <DialogDescription>
+              Upload files, track processing progress, and move between Spaces without leaving the
+              workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DocumentUploadDropzone
+            disabled={Boolean(allSpaces)}
+            disabledCopy="Choose one active Space in the shell selector to enable uploads."
+            isUploading={isUploading}
+            items={uploadItems}
+            targetLabel={activeSpace?.name ?? "Choose a Space first"}
+            onFilesSelected={handleFilesSelected}
+            onRemoveItem={handleRemoveUploadItem}
+          />
+        </DialogContent>
+      </Dialog>
 
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Library</h2>
-          <Badge variant="outline">{documentsQuery.data?.total ?? 0} documents</Badge>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight">Library</h2>
+            <Badge variant="outline">{documentsQuery.data?.total ?? 0} documents</Badge>
+          </div>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Filter</span>
+              <Select
+                value={fileTypeFilter ?? "__all__"}
+                onValueChange={(value) => {
+                  setPage(1);
+                  setFileTypeFilter(value === "__all__" ? null : value);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All file types" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fileTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="button" onClick={() => setIsUploadDialogOpen(true)}>
+              Upload
+            </Button>
+          </div>
         </div>
 
         {documentsQuery.isLoading ? (
@@ -198,41 +335,63 @@ export function DocumentsPage() {
                       <TableHead className="w-20">Chunks</TableHead>
                       <TableHead className="w-32">Status</TableHead>
                       <TableHead className="w-36">Updated</TableHead>
-                      <TableHead className="w-36 text-right">Actions</TableHead>
+                      <TableHead className="w-52 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documentsQuery.data.items.map((document) => (
-                      <TableRow key={document.id}>
-                        <TableCell className="max-w-0">
-                          <span className="block truncate font-medium" title={document.original_filename}>
-                            {document.original_filename}
-                          </span>
-                        </TableCell>
-                        <TableCell>{document.file_type.toUpperCase()}</TableCell>
-                        <TableCell>{formatFileSize(document.file_size)}</TableCell>
-                        <TableCell>{document.chunk_count}</TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            value={document.processing_status.overall}
-                            label={humanizeStageStatus(document.processing_status.overall)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDateTime(document.updated_at)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end">
-                            <Button asChild size="sm" variant="outline">
-                              <Link to={`/documents/${document.id}`}>
-                                <Eye aria-hidden="true" />
-                                View Details
-                              </Link>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {documentsQuery.data.items.map((document) => {
+                      const liveStatus = liveStatusById.get(document.id);
+                      const fallbackStatus = {
+                        processing_status: document.processing_status,
+                        queued_job_count: document.processing_status.overall === "pending" ? 1 : 0
+                      };
+                      const statusPresentation = getDocumentStatusPresentation(liveStatus ?? fallbackStatus);
+                      const refreshDisabled = Boolean(
+                        refreshingDocumentIds.includes(document.id) ||
+                          isRefreshLocked(liveStatus ?? fallbackStatus)
+                      );
+
+                      return (
+                        <TableRow key={document.id}>
+                          <TableCell className="max-w-0">
+                            <span className="block truncate font-medium" title={document.original_filename}>
+                              {document.original_filename}
+                            </span>
+                          </TableCell>
+                          <TableCell>{document.file_type.toUpperCase()}</TableCell>
+                          <TableCell>{formatFileSize(document.file_size)}</TableCell>
+                          <TableCell>{document.chunk_count}</TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              value={statusPresentation.badgeValue}
+                              label={statusPresentation.label}
+                            />
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDateTime(document.updated_at)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={refreshDisabled}
+                                onClick={() => void handleRefreshDocument(document.id)}
+                              >
+                                <RefreshCw aria-hidden="true" />
+                                {refreshingDocumentIds.includes(document.id) ? "Refreshing…" : "Refresh"}
+                              </Button>
+                              <Button asChild size="sm" variant="outline">
+                                <Link to={`/documents/${document.id}`}>
+                                  <Eye aria-hidden="true" />
+                                  View
+                                </Link>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

@@ -97,14 +97,10 @@ def reprocess_document(
     current_user: CurrentUserDep,
     db: DatabaseSessionDep,
     queue: DocumentProcessingQueueDep,
-    storage: DocumentStorageDep,
     vector_cleanup: VectorCleanupDep,
     graph_cleanup: GraphCleanupDep,
 ) -> DocumentProcessingStatusResponse:
     get_document_status(db, current_user.subject, document_id)
-    storage.delete_derived_artifacts(document_id)
-    vector_cleanup.cleanup_document(document_id)
-    graph_cleanup.cleanup_document(document_id)
     requeue_document_processing(
         db,
         subject=current_user.subject,

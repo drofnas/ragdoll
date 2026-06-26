@@ -109,8 +109,10 @@ export const documentListResponse: DocumentListResponse = {
 };
 
 export const documentStatusResponse: DocumentProcessingStatusResponse = {
+  active_job: null,
   chunk_count: 6,
   document_id: documentDetail.id,
+  has_queued_reprocess: false,
   indexed_chunk_count: 6,
   latest_job: {
     attempt: 1,
@@ -123,6 +125,7 @@ export const documentStatusResponse: DocumentProcessingStatusResponse = {
     visible_error_detail: null
   },
   processing_status: processingStatus,
+  queued_job_count: 0,
   space_id: spaces[0].id,
   updated_at: "2026-06-22T17:05:00Z",
   uploaded_by: userProfile.id

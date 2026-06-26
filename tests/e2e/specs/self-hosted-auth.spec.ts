@@ -51,20 +51,23 @@ test.describe("self-hosted public and auth flows", () => {
     await expect(page.getByText("Workspace dashboard")).toBeVisible();
 
     await page.goto("/documents");
-    await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
 
-    await page.locator("input[type='file']").setInputFiles({
+    await page.getByRole("button", { name: "Upload" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    await page.getByRole("dialog").locator("input[type='file']").setInputFiles({
       buffer: Buffer.from("hello from playwright"),
       mimeType: "text/plain",
       name: "e2e-upload.txt"
     });
-    await page.getByRole("button", { name: "Upload" }).click();
+    await page.getByRole("button", { name: "Close" }).click();
 
-    await expect(page).toHaveURL(/\/documents\/.+/);
-    await expect(page.getByRole("heading", { name: "e2e-upload.txt" })).toBeVisible();
-    await expect.poll(async () => (await page.locator("body").textContent()) ?? "", {
+    await expect(page).toHaveURL(/\/documents$/);
+    await expect(page.locator("table")).toContainText("e2e-upload.txt");
+    await expect.poll(async () => (await page.locator("table").textContent()) ?? "", {
       message: "document processing should complete in the dedicated worker"
-    }).toContain("Overall: completed");
-    await expect(page.locator("body")).toContainText("hello from playwright");
+    }).toContain("Completed");
+    await expect(page.getByRole("link", { name: "View" }).first()).toBeVisible();
   });
 });

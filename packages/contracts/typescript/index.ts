@@ -286,6 +286,9 @@ export interface DocumentProcessingStatusResponse {
   chunk_count: number;
   indexed_chunk_count: number;
   latest_job?: DocumentProcessingJobResponse | null;
+  active_job?: DocumentProcessingJobResponse | null;
+  queued_job_count?: number;
+  has_queued_reprocess?: boolean;
   updated_at: string;
 }
 

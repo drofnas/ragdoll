@@ -36,6 +36,9 @@ class DocumentProcessingStatusResponse(BaseModel):
     chunk_count: int = Field(ge=0)
     indexed_chunk_count: int = Field(ge=0)
     latest_job: DocumentProcessingJobResponse | None = None
+    active_job: DocumentProcessingJobResponse | None = None
+    queued_job_count: int = Field(default=0, ge=0)
+    has_queued_reprocess: bool = False
     updated_at: datetime
 
 

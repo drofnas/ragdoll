@@ -21,6 +21,12 @@ import {
 import { useSpaceScope } from "@/shared/state/spaceScope";
 import { createChatSession } from "../../chat/api/chatApi";
 import {
+  getDocumentStatusPresentation,
+  hasInFlightDocumentWork,
+  hasQueuedDocumentReprocess,
+  isRefreshLocked
+} from "../lib/documentStatus";
+import {
   deleteDocument,
   downloadDocument,
   moveDocument,
@@ -58,21 +64,23 @@ export function DocumentDetailPage() {
     enabled: Boolean(documentId),
     queryFn: () => readDocumentStatus(documentId!),
     queryKey: ["document-status", documentId],
-    refetchInterval: (query) => {
-      const overall = query.state.data?.processing_status.overall;
-      return overall && !TERMINAL_STATUSES.includes(overall) ? 3000 : false;
-    }
+    refetchInterval: (query) => (query.state.data && hasInFlightDocumentWork(query.state.data) ? 3000 : false)
   });
 
+  const statusPresentation = statusQuery.data ? getDocumentStatusPresentation(statusQuery.data) : null;
   const latestJob = statusQuery.data?.latest_job;
   const extractionIsActive = statusQuery.data?.processing_status.extraction === "processing";
-  const isProcessing = Boolean(
-    statusQuery.data && !TERMINAL_STATUSES.includes(statusQuery.data.processing_status.overall)
+  const isProcessing = Boolean(statusQuery.data && hasInFlightDocumentWork(statusQuery.data));
+  const hasQueuedReprocess = Boolean(
+    statusQuery.data && hasQueuedDocumentReprocess(statusQuery.data)
   );
   const extractionHint = statusQuery.data?.chunk_count
     ? `Large documents are processed chunk-by-chunk locally and may take tens of minutes. This document currently has ${statusQuery.data.chunk_count} chunks.`
     : "Large documents are processed chunk-by-chunk locally and may take tens of minutes.";
-  const processingErrorDetail = statusQuery.data?.processing_status.detail?.trim() || null;
+  const processingErrorDetail =
+    hasQueuedReprocess
+      ? null
+      : statusQuery.data?.processing_status.detail?.trim() || null;
 
   useEffect(() => {
     if (!detailQuery.data) {
@@ -186,7 +194,11 @@ export function DocumentDetailPage() {
         eyebrow="Document detail"
         title={detailQuery.data?.title ?? "Document detail"}
         description={detailQuery.data?.original_filename}
-        actions={statusQuery.data ? <StatusBadge value={statusQuery.data.processing_status.overall} label={humanizeStageStatus(statusQuery.data.processing_status.overall)} /> : undefined}
+        actions={
+          statusPresentation ? (
+            <StatusBadge value={statusPresentation.badgeValue} label={statusPresentation.label} />
+          ) : undefined
+        }
       >
         <div>
           <Button asChild variant="ghost">
@@ -232,7 +244,7 @@ export function DocumentDetailPage() {
                 {statusQuery.data ? (
                   <>
                     <p>
-                      Overall: {humanizeStageStatus(statusQuery.data.processing_status.overall)}
+                      Overall: {statusPresentation?.label ?? humanizeStageStatus(statusQuery.data.processing_status.overall)}
                     </p>
                     <p>Chunks: {statusQuery.data.chunk_count}</p>
                     <p>Indexed chunks: {statusQuery.data.indexed_chunk_count}</p>
@@ -247,8 +259,16 @@ export function DocumentDetailPage() {
                         <AlertDescription>{extractionHint}</AlertDescription>
                       </Alert>
                     ) : null}
-                    <Button variant="outline" onClick={() => void handleReprocessDocument()}>
-                      {isReprocessing ? "Reprocessing…" : "Reprocess document"}
+                    <Button
+                      variant="outline"
+                      disabled={Boolean(statusQuery.data && isRefreshLocked(statusQuery.data))}
+                      onClick={() => void handleReprocessDocument()}
+                    >
+                      {isReprocessing
+                        ? "Reprocessing…"
+                        : hasQueuedReprocess
+                          ? "Reprocess queued"
+                          : "Reprocess document"}
                     </Button>
                   </>
                 ) : (
