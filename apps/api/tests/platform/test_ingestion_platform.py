@@ -61,7 +61,7 @@ class FakeRedisClient:
 
 
 class FakeRqJob:
-    def __init__(self, job_id: str, *, status: str = "queued", origin: str = "document-processing") -> None:
+    def __init__(self, job_id: str, *, status: str = "queued", origin: object = "document-processing") -> None:
         self.id = job_id
         self.origin = origin
         self._status = status
@@ -158,14 +158,15 @@ def test_redis_queue_enqueues_rq_job_with_expected_metadata(monkeypatch, db_sess
 def test_redis_queue_reads_runtime_from_rq_job_meta(monkeypatch):
     fake_queue = FakeRqQueue("document-processing")
     job_id = "00000000-0000-0000-0000-000000000001"
-    fake_job = FakeRqJob(job_id, status="queued", origin="document-processing")
+    fake_job = FakeRqJob(job_id, status="queued", origin=b"document-processing")
     fake_job.meta = {
-        "stage": "extraction",
-        "detail": None,
-        "chunk_progress_current": 2,
-        "chunk_progress_total": 5,
+        "stage": b"extraction",
+        "detail": b"",
+        "chunk_progress_current": b"2",
+        "chunk_progress_total": b"5",
     }
-    fake_queue.job_ids = [job_id]
+    fake_job.worker_name = b"rq:worker-1"
+    fake_queue.job_ids = [job_id.encode("utf-8")]
 
     def fake_queue_factory(name, *, connection=None):
         del connection
@@ -187,6 +188,25 @@ def test_redis_queue_reads_runtime_from_rq_job_meta(monkeypatch):
     assert runtime.chunk_progress_current == 2
     assert runtime.chunk_progress_total == 5
     assert runtime.queue_position == 1
+    assert runtime.worker_name == "rq:worker-1"
+
+
+def test_redis_queue_uses_binary_safe_redis_client(monkeypatch):
+    captured_kwargs: dict[str, object] = {}
+
+    class FakeRedisFactory:
+        @staticmethod
+        def from_url(url: str, **kwargs):
+            captured_kwargs["url"] = url
+            captured_kwargs.update(kwargs)
+            return FakeRedisClient()
+
+    monkeypatch.setattr(queue_service_module, "_redis_dependency_module", lambda: type("FakeRedisModule", (), {"Redis": FakeRedisFactory}))
+
+    client = queue_service_module._build_redis_client(_redis_queue_settings())
+    assert isinstance(client, FakeRedisClient)
+    assert captured_kwargs["url"] == "redis://redis:6379/0"
+    assert captured_kwargs["decode_responses"] is False
 
 
 def test_redis_queue_raises_when_enqueue_fails(monkeypatch):
@@ -299,6 +319,72 @@ def test_worker_replaces_existing_chunks_idempotently(db_session):
     chunks = db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).all()
     assert len(chunks) == 1
     assert chunks[0].text_content == "fresh content for parsing"
+
+
+def test_worker_reports_item_progress_for_each_stage(db_session):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    class RecordingCurrentJob:
+        def __init__(self) -> None:
+            self.meta: dict[str, object] = {}
+            self.snapshots: list[dict[str, object]] = []
+
+        def save_meta(self) -> None:
+            self.snapshots.append(dict(self.meta))
+
+    storage = InMemoryDocumentStorage()
+    storage.store_original_file(document.storage_key, b"fresh content for parsing")
+    queue = FakeDocumentProcessingQueue()
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+    current_job = RecordingCurrentJob()
+
+    assert (
+        drain_test_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=DeterministicEmbeddingService(),
+            entity_extraction_service=DeterministicEntityExtractionService(),
+            current_job=current_job,
+        )
+        == 1
+    )
+
+    stage_progress = {
+        stage: [
+            (int(snapshot["chunk_progress_current"]), int(snapshot["chunk_progress_total"]))
+            for snapshot in current_job.snapshots
+            if snapshot.get("stage") == stage
+        ]
+        for stage in ("parsing", "vector", "extraction", "graph")
+    }
+
+    assert stage_progress["parsing"][0] == (0, 0)
+    assert stage_progress["parsing"][-1] == (1, 1)
+    assert stage_progress["vector"][0] == (0, 1)
+    assert stage_progress["vector"][-1] == (1, 1)
+    assert stage_progress["extraction"][0] == (0, 1)
+    assert stage_progress["extraction"][-1] == (1, 1)
+    assert stage_progress["graph"][0] == (0, 1)
+    assert stage_progress["graph"][-1] == (1, 1)
 
 
 class FailingEmbeddingService:

@@ -359,6 +359,14 @@ export function DocumentsPage() {
                         ? {
                             ...statusSource,
                             indexed_chunk_count: 0,
+                            queue_runtime: {
+                              ...statusSource.queue_runtime,
+                              chunk_progress_current: 0,
+                              chunk_progress_total: statusSource.chunk_count,
+                              queue_position: null,
+                              stage: "parsing",
+                              status: "started"
+                            },
                             processing_status: {
                               ...statusSource.processing_status,
                               extraction: "pending" as const,

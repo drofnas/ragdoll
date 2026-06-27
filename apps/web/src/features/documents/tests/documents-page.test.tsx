@@ -236,10 +236,49 @@ describe("DocumentsPage", () => {
         vector: "pending" as const
       }
     };
+    const parsingProgressDocument = {
+      ...buildDocumentListItem("parsing-progress-document", "parsing-progress.pdf"),
+      chunk_count: 12,
+      indexed_chunk_count: 12,
+      processing_status: {
+        ...documentDetail.processing_status,
+        extraction: "pending" as const,
+        graph: "pending" as const,
+        overall: "processing" as const,
+        parsing: "processing" as const,
+        vector: "pending" as const
+      }
+    };
     const processingDocument = {
       ...buildDocumentListItem("processing-document", "processing.pdf"),
       chunk_count: 12,
       indexed_chunk_count: 6,
+      processing_status: {
+        ...documentDetail.processing_status,
+        overall: "processing" as const,
+        parsing: "completed" as const,
+        vector: "processing" as const,
+        extraction: "pending" as const,
+        graph: "pending" as const
+      }
+    };
+    const extractionProgressDocument = {
+      ...buildDocumentListItem("extraction-progress-document", "extraction-progress.pdf"),
+      chunk_count: 12,
+      indexed_chunk_count: 12,
+      processing_status: {
+        ...documentDetail.processing_status,
+        extraction: "processing" as const,
+        graph: "pending" as const,
+        overall: "processing" as const,
+        parsing: "completed" as const,
+        vector: "completed" as const
+      }
+    };
+    const vectorStartDocument = {
+      ...buildDocumentListItem("vector-start-document", "vector-start.pdf"),
+      chunk_count: 12,
+      indexed_chunk_count: 12,
       processing_status: {
         ...documentDetail.processing_status,
         overall: "processing" as const,
@@ -351,6 +390,66 @@ describe("DocumentsPage", () => {
           ...documentStatusResponse.latest_job!,
           completed_at: null,
           requested_stage: "parsing",
+          started_at: "2026-06-22T17:01:15Z",
+          status: "processing" as const
+        },
+        chunk_count: 12,
+        document_id: parsingProgressDocument.id,
+        indexed_chunk_count: 12,
+        latest_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:01:15Z",
+          status: "processing" as const
+        },
+        queue_runtime: {
+          chunk_progress_current: 6,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:01:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: null,
+          stage: "parsing",
+          started_at: "2026-06-22T17:01:15Z",
+          status: "started",
+          updated_at: "2026-06-22T17:01:20Z",
+          worker_name: "rq:worker-1"
+        },
+        processing_status: parsingProgressDocument.processing_status,
+        queued_job_count: 0
+      },
+      {
+        ...documentStatusResponse,
+        active_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:01:30Z",
+          status: "processing" as const
+        },
+        chunk_count: 12,
+        document_id: vectorStartDocument.id,
+        indexed_chunk_count: 12,
+        latest_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:01:30Z",
+          status: "processing" as const
+        },
+        processing_status: vectorStartDocument.processing_status,
+        queued_job_count: 0
+      },
+      {
+        ...documentStatusResponse,
+        active_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
           started_at: "2026-06-22T17:02:00Z",
           status: "processing" as const
         },
@@ -381,6 +480,44 @@ describe("DocumentsPage", () => {
           worker_name: "rq:worker-1"
         },
         processing_status: processingDocument.processing_status,
+        queued_job_count: 0
+      },
+      {
+        ...documentStatusResponse,
+        active_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:05:00Z",
+          status: "processing" as const
+        },
+        chunk_count: 12,
+        document_id: extractionProgressDocument.id,
+        indexed_chunk_count: 12,
+        latest_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:05:00Z",
+          status: "processing" as const
+        },
+        queue_runtime: {
+          chunk_progress_current: 3,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:04:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: null,
+          stage: "extraction",
+          started_at: "2026-06-22T17:05:00Z",
+          status: "started",
+          updated_at: "2026-06-22T17:05:20Z",
+          worker_name: "rq:worker-2"
+        },
+        processing_status: extractionProgressDocument.processing_status,
         queued_job_count: 0
       },
       {
@@ -519,14 +656,17 @@ describe("DocumentsPage", () => {
             items: [
               queuedDocument,
               refreshStartDocument,
+              parsingProgressDocument,
+              vectorStartDocument,
               processingDocument,
+              extractionProgressDocument,
               graphingDocument,
               staleRuntimeDocument,
               completedDocument,
               failedDocument,
               failedQueuedDocument
             ],
-            total: 8
+            total: 11
           });
         }
         return jsonResponse({}, { status: 404 });
@@ -547,7 +687,10 @@ describe("DocumentsPage", () => {
 
     const queuedRow = screen.getByText("queued.pdf").closest("tr")!;
     const refreshStartRow = screen.getByText("refresh-start.pdf").closest("tr")!;
+    const parsingProgressRow = screen.getByText("parsing-progress.pdf").closest("tr")!;
+    const vectorStartRow = screen.getByText("vector-start.pdf").closest("tr")!;
     const processingRow = screen.getByText("processing.pdf").closest("tr")!;
+    const extractionProgressRow = screen.getByText("extraction-progress.pdf").closest("tr")!;
     const graphingRow = screen.getByText("graphing.pdf").closest("tr")!;
     const staleRuntimeRow = screen.getByText("stale-runtime.pdf").closest("tr")!;
     const completedRow = screen.getByText("completed.pdf").closest("tr")!;
@@ -562,25 +705,37 @@ describe("DocumentsPage", () => {
     expect(within(refreshStartRow).getByText("Parsing")).toBeInTheDocument();
     expectProgressState(refreshStartRow, "Parsing chunk progress", "0", "bg-sky-600");
 
+    await waitFor(() => expect(within(parsingProgressRow).getByText("Parsing")).toBeInTheDocument());
+    expect(within(parsingProgressRow).getByText("13%")).toBeInTheDocument();
+    expectProgressState(parsingProgressRow, "Parsing chunk progress", "13", "bg-sky-600");
+
+    await waitFor(() => expect(within(vectorStartRow).getByText("Vectorizing")).toBeInTheDocument());
+    expect(within(vectorStartRow).getByText("25%")).toBeInTheDocument();
+    expectProgressState(vectorStartRow, "Vectorizing chunk progress", "25", "bg-sky-600");
+
     await waitFor(() => expect(within(processingRow).getByText("Vectorizing")).toBeInTheDocument());
     expect(within(processingRow).getByText("38%")).toBeInTheDocument();
     expectProgressState(processingRow, "Vectorizing chunk progress", "38", "bg-sky-600");
 
+    await waitFor(() => expect(within(extractionProgressRow).getByText("Extracting")).toBeInTheDocument());
+    expect(within(extractionProgressRow).getByText("56%")).toBeInTheDocument();
+    expectProgressState(extractionProgressRow, "Extracting chunk progress", "56", "bg-sky-600");
+
     await waitFor(() => expect(within(graphingRow).getByText("Graphing")).toBeInTheDocument());
-    expect(within(graphingRow).getByText("99%")).toBeInTheDocument();
-    expectProgressState(graphingRow, "Graphing chunk progress", "99", "bg-sky-600");
+    expect(within(graphingRow).getByText("94%")).toBeInTheDocument();
+    expectProgressState(graphingRow, "Graphing chunk progress", "94", "bg-sky-600");
 
     await waitFor(() => expect(within(staleRuntimeRow).getByText("Extracting")).toBeInTheDocument());
-    expect(within(staleRuntimeRow).getByText("75%")).toBeInTheDocument();
-    expectProgressState(staleRuntimeRow, "Extracting chunk progress", "75", "bg-sky-600");
+    expect(within(staleRuntimeRow).getByText("50%")).toBeInTheDocument();
+    expectProgressState(staleRuntimeRow, "Extracting chunk progress", "50", "bg-sky-600");
 
     expect(within(completedRow).getByText("Completed")).toBeInTheDocument();
     expect(within(completedRow).getByText("12")).toBeInTheDocument();
     expectProgressState(completedRow, "Completed chunk progress", "100", "bg-primary");
 
     expect(within(failedRow).getByText("Failed")).toBeInTheDocument();
-    expect(within(failedRow).getByText("56%")).toBeInTheDocument();
-    expectProgressState(failedRow, "Failed chunk progress", "56", "bg-destructive");
+    expect(within(failedRow).getByText("12")).toBeInTheDocument();
+    expectProgressState(failedRow, "Failed chunk progress", "50", "bg-destructive");
 
     await waitFor(() => expect(within(failedQueuedRow).getByText("Queued")).toBeInTheDocument());
     expect(within(failedQueuedRow).getByText("0%")).toBeInTheDocument();
@@ -588,7 +743,10 @@ describe("DocumentsPage", () => {
 
     expect(within(queuedRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(refreshStartRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(within(parsingProgressRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(within(vectorStartRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(processingRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(within(extractionProgressRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(graphingRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(staleRuntimeRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(completedRow).getByRole("button", { name: "Refresh" })).toBeEnabled();
@@ -803,5 +961,136 @@ describe("DocumentsPage", () => {
     expect(screen.queryByText("Processing error")).not.toBeInTheDocument();
     expect(screen.queryByText(/^Detail$/i)).not.toBeInTheDocument();
     expect(screen.queryByText("null")).not.toBeInTheDocument();
+  });
+
+  it("shows percent text immediately while a library refresh is starting", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    const refreshDocument = {
+      ...buildDocumentListItem("refreshing-document", "refreshing.pdf"),
+      chunk_count: 12,
+      indexed_chunk_count: 12
+    };
+
+    const completedStatus = {
+      ...documentStatusResponse,
+      chunk_count: 12,
+      document_id: refreshDocument.id,
+      indexed_chunk_count: 12,
+      processing_status: refreshDocument.processing_status,
+      queued_job_count: 0,
+      queue_runtime: null
+    };
+
+    const queuedStatus = {
+      ...completedStatus,
+      has_queued_reprocess: true,
+      latest_job: {
+        ...documentStatusResponse.latest_job!,
+        completed_at: null,
+        requested_stage: "parsing",
+        started_at: null,
+        status: "queued" as const,
+        visible_error_detail: null
+      },
+      processing_status: {
+        ...documentDetail.processing_status,
+        extraction: "pending" as const,
+        graph: "pending" as const,
+        overall: "pending" as const,
+        parsing: "pending" as const,
+        vector: "pending" as const
+      },
+      queued_job_count: 1,
+      queue_runtime: {
+        chunk_progress_current: 0,
+        chunk_progress_total: 12,
+        detail: null,
+        enqueued_at: "2026-06-22T17:01:00Z",
+        ended_at: null,
+        job_id: documentStatusResponse.latest_job!.id,
+        queue_job_id: documentStatusResponse.latest_job!.id,
+        queue_name: "document-processing",
+        queue_position: 1,
+        stage: "parsing",
+        started_at: null,
+        status: "queued",
+        updated_at: "2026-06-22T17:01:00Z",
+        worker_name: null
+      }
+    };
+
+    let currentStatus = completedStatus;
+    let holdDocumentsRefetch: (() => void) | null = null;
+    let shouldDelayNextDocumentsFetch = false;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/ingestion/documents/status/batch") && init?.method === "POST") {
+          return jsonResponse({
+            statuses: [currentStatus]
+          });
+        }
+        if (url.includes(`/api/v1/ingestion/documents/${refreshDocument.id}/reprocess`) && init?.method === "POST") {
+          currentStatus = queuedStatus;
+          shouldDelayNextDocumentsFetch = true;
+          return jsonResponse(currentStatus);
+        }
+        if (url.includes("/api/v1/documents") && (!init?.method || init.method === "GET")) {
+          if (shouldDelayNextDocumentsFetch) {
+            shouldDelayNextDocumentsFetch = false;
+            return new Promise<Response>((resolve) => {
+              holdDocumentsRefetch = () =>
+                resolve(
+                  jsonResponse({
+                    ...documentListResponse,
+                    items: [refreshDocument],
+                    total: 1
+                  })
+                );
+            });
+          }
+          return jsonResponse({
+            ...documentListResponse,
+            items: [refreshDocument],
+            total: 1
+          });
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/documents"]}>
+        <AppProviders>
+          <Routes>
+            <Route path="/documents" element={<DocumentsPage />} />
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText("refreshing.pdf")).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    const refreshRow = screen.getByText("refreshing.pdf").closest("tr")!;
+    await waitFor(() => expect(within(refreshRow).getByText("Refreshing…")).toBeInTheDocument());
+    expect(within(refreshRow).getByText("Parsing")).toBeInTheDocument();
+    expect(within(refreshRow).getByText("0%")).toBeInTheDocument();
+    expect(within(refreshRow).queryByText("0/48 items")).not.toBeInTheDocument();
+    expectProgressState(refreshRow, "Parsing chunk progress", "0", "bg-sky-600");
+
+    holdDocumentsRefetch?.();
+    await waitFor(() => expect(within(refreshRow).getByText("Refresh")).toBeInTheDocument());
   });
 });

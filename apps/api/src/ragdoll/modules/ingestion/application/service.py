@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -87,19 +87,45 @@ def _set_sql_job_failed(session: Session, job_id: UUID, detail: str) -> None:
     session.commit()
 
 
-def _build_document_chunks(document: Document, *, text: str) -> tuple[int, list[DocumentChunk]]:
+def _update_stage_progress(
+    current_job: Any | None,
+    *,
+    stage: str,
+    current: int,
+    total: int,
+    detail: str | None = None,
+) -> None:
+    _save_job_meta(
+        current_job,
+        stage=stage,
+        detail=detail,
+        chunk_progress_current=current,
+        chunk_progress_total=total,
+    )
+
+
+def _build_document_chunks(
+    document: Document,
+    *,
+    text: str,
+    on_chunk_built: Callable[[int, int], None] | None = None,
+) -> tuple[int, list[DocumentChunk]]:
     raw_chunks = chunk_text_with_lines(text)
     limited_chunks = limit_chunks_for_instance(raw_chunks)
-    rows = [
-        DocumentChunk.from_text(
-            document_id=document.id,
-            space_id=document.space_id,
-            chunk_index=index,
-            start_line=chunk.start_line,
-            text_content=chunk.text,
+    rows: list[DocumentChunk] = []
+    total_chunks = len(limited_chunks)
+    for index, chunk in enumerate(limited_chunks):
+        rows.append(
+            DocumentChunk.from_text(
+                document_id=document.id,
+                space_id=document.space_id,
+                chunk_index=index,
+                start_line=chunk.start_line,
+                text_content=chunk.text,
+            )
         )
-        for index, chunk in enumerate(limited_chunks)
-    ]
+        if on_chunk_built is not None:
+            on_chunk_built(index + 1, total_chunks)
     return len(raw_chunks), rows
 
 
@@ -111,6 +137,10 @@ def _load_document(session: Session, document_id: UUID) -> Document:
 
 
 def _chunk_batch(items: list[ChunkExtractionRequest], batch_size: int) -> list[list[ChunkExtractionRequest]]:
+    return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
+
+
+def _chunk_rows_batch(items: list[DocumentChunk], batch_size: int) -> list[list[DocumentChunk]]:
     return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
 
 
@@ -200,13 +230,7 @@ def _extract_entities(
         extraction_batch_size,
         max_parallel_batches,
     )
-    _save_job_meta(
-        current_job,
-        stage="extraction",
-        detail=None,
-        chunk_progress_current=0,
-        chunk_progress_total=chunk_count,
-    )
+    _update_stage_progress(current_job, stage="extraction", current=0, total=chunk_count)
 
     processed_chunk_count = 0
 
@@ -224,12 +248,11 @@ def _extract_entities(
                         "batch_size": len(batch),
                     }
                 processed_chunk_count += len(batch)
-                _save_job_meta(
+                _update_stage_progress(
                     current_job,
                     stage="extraction",
-                    detail=None,
-                    chunk_progress_current=processed_chunk_count,
-                    chunk_progress_total=chunk_count,
+                    current=processed_chunk_count,
+                    total=chunk_count,
                 )
             continue
 
@@ -253,12 +276,11 @@ def _extract_entities(
                             "batch_size": len(batch),
                         }
                     processed_chunk_count += len(batch)
-                    _save_job_meta(
+                    _update_stage_progress(
                         current_job,
                         stage="extraction",
-                        detail=None,
-                        chunk_progress_current=processed_chunk_count,
-                        chunk_progress_total=chunk_count,
+                        current=processed_chunk_count,
+                        total=chunk_count,
                     )
                 except (EntityExtractionError, TimeoutError, RuntimeError) as exc:
                     if extraction_mode != "auto":
@@ -291,12 +313,11 @@ def _extract_entities(
                             "batch_size": len(batch),
                         }
                     processed_chunk_count += len(batch)
-                    _save_job_meta(
+                    _update_stage_progress(
                         current_job,
                         stage="extraction",
-                        detail=None,
-                        chunk_progress_current=processed_chunk_count,
-                        chunk_progress_total=chunk_count,
+                        current=processed_chunk_count,
+                        total=chunk_count,
                     )
                     if consecutive_failures >= AUTO_EXTRACTION_FAILURE_THRESHOLD and not fallback_mode_active:
                         fallback_mode_active = True
@@ -340,13 +361,7 @@ def _extract_entities(
         chunk_count,
         str(fallback_mode_active).lower(),
     )
-    _save_job_meta(
-        current_job,
-        stage="extraction",
-        detail=None,
-        chunk_progress_current=chunk_count,
-        chunk_progress_total=chunk_count,
-    )
+    _update_stage_progress(current_job, stage="extraction", current=chunk_count, total=chunk_count)
     return rows
 
 
@@ -379,13 +394,7 @@ def process_job_payload(
         _set_sql_job_processing(session, payload.job_id)
         document = _load_document(session, payload.document_id)
         repo = IngestionRepository(session)
-        _save_job_meta(
-            current_job,
-            stage=current_stage,
-            detail=None,
-            chunk_progress_current=0,
-            chunk_progress_total=document.chunk_count,
-        )
+        _update_stage_progress(current_job, stage=current_stage, current=0, total=document.chunk_count)
         _prepare_document_for_job(
             session,
             document=document,
@@ -401,44 +410,58 @@ def process_job_payload(
             current_stage = stage
             document.processing_status = mark_processing_stage_started(document.processing_status, requested_stage=stage)
             session.commit()
-            _save_job_meta(
-                current_job,
-                stage=stage,
-                detail=None,
-                chunk_progress_current=0 if stage == "parsing" else document.indexed_chunk_count,
-                chunk_progress_total=document.chunk_count,
-            )
+            stage_total = 0 if stage == "parsing" else len(list(document.chunks))
+            _update_stage_progress(current_job, stage=stage, current=0, total=stage_total)
 
             if stage == "parsing":
                 blob = active_storage.download_original_file(document.storage_key)
                 extracted_text = extract_text_content(file_type=document.file_type, content=blob)
                 get_user_by_subject(session, str(document.uploaded_by))
-                total_chunks, chunk_rows = _build_document_chunks(document, text=extracted_text)
+                total_chunks, chunk_rows = _build_document_chunks(
+                    document,
+                    text=extracted_text,
+                    on_chunk_built=(
+                        lambda current, total: _update_stage_progress(
+                            current_job,
+                            stage="parsing",
+                            current=current,
+                            total=total,
+                        )
+                    ),
+                )
                 repo.replace_chunks(document, chunk_rows)
                 session.flush()
                 document.preview_text = build_preview_text(extracted_text)
                 document.original_text_content = extracted_text
                 document.chunk_count = total_chunks
                 document.indexed_chunk_count = len(chunk_rows)
-                _save_job_meta(
+                _update_stage_progress(
                     current_job,
                     stage="parsing",
-                    detail=None,
-                    chunk_progress_current=len(chunk_rows),
-                    chunk_progress_total=total_chunks,
+                    current=len(chunk_rows),
+                    total=len(chunk_rows),
                 )
             elif stage == "vector":
                 chunks = list(document.chunks)
                 if not chunks:
                     raise ValueError("Vector projection requires parsed document chunks.")
-                _save_job_meta(
-                    current_job,
-                    stage="vector",
-                    detail=None,
-                    chunk_progress_current=0,
-                    chunk_progress_total=len(chunks),
-                )
-                embeddings = active_embedding_service.generate_embeddings([chunk.text_content for chunk in chunks])
+                vector_total = len(chunks)
+                _update_stage_progress(current_job, stage="vector", current=0, total=vector_total)
+                embeddings: list[list[float]] = []
+                processed_vector_chunks = 0
+                for chunk_batch in _chunk_rows_batch(chunks, extraction_batch_size):
+                    embeddings.extend(
+                        active_embedding_service.generate_embeddings(
+                            [chunk.text_content for chunk in chunk_batch]
+                        )
+                    )
+                    processed_vector_chunks += len(chunk_batch)
+                    _update_stage_progress(
+                        current_job,
+                        stage="vector",
+                        current=processed_vector_chunks,
+                        total=vector_total,
+                    )
                 active_vector_cleanup.replace_document_embeddings(
                     session,
                     document=document,
@@ -446,13 +469,7 @@ def process_job_payload(
                     embeddings=embeddings,
                     embedding_model=getattr(active_embedding_service, "_model", "deterministic"),
                 )
-                _save_job_meta(
-                    current_job,
-                    stage="vector",
-                    detail=None,
-                    chunk_progress_current=len(chunks),
-                    chunk_progress_total=len(chunks),
-                )
+                _update_stage_progress(current_job, stage="vector", current=vector_total, total=vector_total)
             elif stage == "extraction":
                 entities = _extract_entities(
                     session,
@@ -468,25 +485,30 @@ def process_job_payload(
                 session.flush()
                 repo.prune_orphan_canonical_entities()
             elif stage == "graph":
-                _save_job_meta(
-                    current_job,
-                    stage="graph",
-                    detail=None,
-                    chunk_progress_current=document.indexed_chunk_count,
-                    chunk_progress_total=document.chunk_count,
+                graph_total = len(list(document.chunks))
+                _update_stage_progress(current_job, stage="graph", current=0, total=graph_total)
+                active_graph_cleanup.project_document_relationships(
+                    session,
+                    document=document,
+                    on_chunk_processed=(
+                        lambda current, total: _update_stage_progress(
+                            current_job,
+                            stage="graph",
+                            current=current,
+                            total=total,
+                        )
+                    ),
                 )
-                active_graph_cleanup.project_document_relationships(session, document=document)
 
             document.processing_status = mark_processing_stage_completed(document.processing_status, completed_stage=stage)
             session.commit()
 
         _set_sql_job_completed(session, payload.job_id)
-        _save_job_meta(
+        _update_stage_progress(
             current_job,
             stage=current_stage,
-            detail=None,
-            chunk_progress_current=document.indexed_chunk_count,
-            chunk_progress_total=document.chunk_count,
+            current=document.indexed_chunk_count,
+            total=document.indexed_chunk_count,
         )
         event_type = "document_processed" if payload.job_kind == "upload" else "document_reprocessed"
         record_change_event(
@@ -515,12 +537,12 @@ def process_job_payload(
             session.rollback()
         finally:
             _set_sql_job_failed(session, payload.job_id, str(exc))
-            _save_job_meta(
+            _update_stage_progress(
                 current_job,
                 stage=current_stage,
+                current=0,
+                total=getattr(document, "indexed_chunk_count", 0) if "document" in locals() else 0,
                 detail=str(exc),
-                chunk_progress_current=0,
-                chunk_progress_total=getattr(document, "chunk_count", 0) if "document" in locals() else 0,
             )
     finally:
         session.close()

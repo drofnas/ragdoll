@@ -159,7 +159,26 @@ def _build_redis_client(settings: Settings) -> Any:
     if not redis_url:
         raise ConfigurationError("Redis queue backend requires REDIS_URL.")
     redis_module = _redis_dependency_module()
-    return redis_module.Redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=5, socket_timeout=5)
+    return redis_module.Redis.from_url(
+        redis_url,
+        decode_responses=False,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )
+
+
+def _coerce_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return str(value).strip() or None
 
 
 def ping_redis_queue(settings: Settings | None = None, *, client: Any | None = None) -> None:
@@ -202,6 +221,11 @@ def _mark_sql_job_failed(job_id: UUID, detail: str) -> None:
 def _coerce_int(value: object, *, default: int = 0) -> int:
     if isinstance(value, bool):
         return int(value)
+    if isinstance(value, bytes):
+        try:
+            return int(value.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            return default
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -217,6 +241,11 @@ def _coerce_int(value: object, *, default: int = 0) -> int:
 def _coerce_datetime(value: object) -> datetime | None:
     if isinstance(value, datetime):
         return _as_utc(value)
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
     if isinstance(value, str):
         try:
             return _as_utc(datetime.fromisoformat(value))
@@ -289,10 +318,11 @@ class RedisDocumentProcessingQueue:
 
         try:
             status = str(job.get_status(refresh=True))
-            queue = Queue(job.origin or self.queue_name, connection=self._client)
+            queue_name = _coerce_text(getattr(job, "origin", None)) or self.queue_name
+            queue = Queue(queue_name, connection=self._client)
             queue_position: int | None = None
             if status == "queued":
-                job_ids = list(queue.job_ids)
+                job_ids = [_coerce_text(value) for value in queue.job_ids]
                 try:
                     queue_position = job_ids.index(str(job.id)) + 1
                 except ValueError:
@@ -301,11 +331,11 @@ class RedisDocumentProcessingQueue:
             return DocumentQueueRuntime(
                 job_id=job_id,
                 queue_job_id=str(job.id),
-                queue_name=job.origin or self.queue_name,
+                queue_name=queue_name,
                 status=status,
-                stage=str(meta.get("stage")).strip() if meta.get("stage") else None,
-                detail=str(meta.get("detail")).strip() if meta.get("detail") else None,
-                worker_name=getattr(job, "worker_name", None),
+                stage=_coerce_text(meta.get("stage")),
+                detail=_coerce_text(meta.get("detail")),
+                worker_name=_coerce_text(getattr(job, "worker_name", None)),
                 queue_position=queue_position,
                 chunk_progress_current=_coerce_int(meta.get("chunk_progress_current")),
                 chunk_progress_total=_coerce_int(meta.get("chunk_progress_total")),

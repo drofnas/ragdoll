@@ -16,6 +16,7 @@ interface DocumentStatusSource {
   chunk_count?: number;
   has_queued_reprocess?: boolean;
   indexed_chunk_count?: number;
+  latest_job?: DocumentProcessingJobResponse | null;
   processing_status: ProcessingStatus;
   queue_runtime?: DocumentQueueRuntimeResponse | null;
   queued_job_count?: number;
@@ -90,39 +91,117 @@ function resolveProcessingStage(source: DocumentStatusSource): OrderedStage | nu
   return isOrderedStage(requestedStage) ? requestedStage : null;
 }
 
-function clampProgress(value: number) {
-  return Math.min(100, Math.max(0, value));
-}
-
-function progressPercent(indexedChunkCount: number, chunkCount: number) {
-  if (chunkCount <= 0) {
-    return 0;
+function resolveWorkflowStartStage(source: DocumentStatusSource): OrderedStage | null {
+  const requestedStage = source.active_job?.requested_stage ?? source.latest_job?.requested_stage;
+  if (isOrderedStage(requestedStage)) {
+    return requestedStage;
   }
 
-  return clampProgress((indexedChunkCount / chunkCount) * 100);
+  const activeStage =
+    findStageWithValue(source.processing_status, "processing") ??
+    findStageWithValue(source.processing_status, "failed") ??
+    nextIncompleteStage(source);
+  return activeStage;
+}
+
+function clampProgress(value: number) {
+  return Math.min(100, Math.max(0, value));
 }
 
 function percentLabel(value: number) {
   return `${clampProgress(Math.round(value))}%`;
 }
 
-function overallStageProgress(stage: OrderedStage, stageProgressPercent: number) {
-  const stageIndex = ORDERED_STAGES.indexOf(stage);
-  const normalizedStageProgress = clampProgress(stageProgressPercent) / 100;
-  const overallProgress = ((stageIndex + normalizedStageProgress) / ORDERED_STAGES.length) * 100;
-  return clampProgress(Math.round(stage === "graph" ? Math.min(overallProgress, 99) : overallProgress));
+function resolveStageItemTotal(source: DocumentStatusSource) {
+  const runtimeTotal = source.queue_runtime?.chunk_progress_total ?? 0;
+  return Math.max(source.chunk_count ?? 0, source.indexed_chunk_count ?? 0, runtimeTotal);
 }
 
-function processingChunkCount(source: DocumentStatusSource, indexedChunkCount: number) {
-  if ((source.queue_runtime?.status === "queued") || source.processing_status.parsing === "processing") {
+function resolveCompletedChunkCount(source: DocumentStatusSource) {
+  return Math.max(source.chunk_count ?? 0, source.indexed_chunk_count ?? 0);
+}
+
+function resolveWorkflowStages(source: DocumentStatusSource) {
+  const startStage = resolveWorkflowStartStage(source);
+  if (!startStage) {
+    return [...ORDERED_STAGES];
+  }
+
+  return ORDERED_STAGES.slice(stageRank(startStage));
+}
+
+function resolveStageProgressCount(source: DocumentStatusSource, currentStage: OrderedStage | null) {
+  if (!currentStage || source.queue_runtime?.status === "queued") {
     return 0;
   }
 
-  if (source.queue_runtime?.chunk_progress_total && source.queue_runtime.chunk_progress_total > 0) {
+  const runtimeStage = isOrderedStage(source.queue_runtime?.stage) ? source.queue_runtime.stage : null;
+  if (
+    runtimeStage === currentStage &&
+    source.queue_runtime?.chunk_progress_total &&
+    source.queue_runtime.chunk_progress_total > 0
+  ) {
     return source.queue_runtime.chunk_progress_current;
   }
 
-  return indexedChunkCount;
+  return 0;
+}
+
+function computeItemProgress(
+  source: DocumentStatusSource,
+  {
+    currentStage,
+    totalItemsPerStage
+  }: {
+    currentStage: OrderedStage | null;
+    totalItemsPerStage: number;
+  }
+) {
+  const workflowStages = resolveWorkflowStages(source);
+  if (workflowStages.length === 0 || totalItemsPerStage <= 0) {
+    return {
+      processedItems: 0,
+      totalItems: 0
+    };
+  }
+
+  const totalItems = workflowStages.length * totalItemsPerStage;
+  if (!currentStage) {
+    const allCompleted = workflowStages.every((stage) => source.processing_status[stage] === "completed");
+    return {
+      processedItems: allCompleted ? totalItems : 0,
+      totalItems
+    };
+  }
+
+  const currentStageIndex = workflowStages.indexOf(currentStage);
+  const completedStagesBeforeCurrent = currentStageIndex < 0 ? 0 : currentStageIndex;
+  const processedItemsBeforeCurrent = completedStagesBeforeCurrent * totalItemsPerStage;
+  const currentStageItems = Math.min(
+    totalItemsPerStage,
+    Math.max(0, resolveStageProgressCount(source, currentStage))
+  );
+  return {
+    processedItems: Math.min(totalItems, processedItemsBeforeCurrent + currentStageItems),
+    totalItems
+  };
+}
+
+function computeProgressValue(
+  processedItems: number,
+  totalItems: number,
+  { isTerminal }: { isTerminal: boolean }
+) {
+  if (totalItems <= 0) {
+    return 0;
+  }
+
+  if (isTerminal && processedItems >= totalItems) {
+    return 100;
+  }
+
+  const progressValue = clampProgress(Math.round((processedItems / totalItems) * 100));
+  return !isTerminal && processedItems >= totalItems ? 99 : progressValue;
 }
 
 export function hasInFlightDocumentWork(source: DocumentStatusSource) {
@@ -181,11 +260,9 @@ export function getDocumentStatusPresentation(source: DocumentStatusSource) {
 export function getDocumentChunkStatusPresentation(source: DocumentStatusSource) {
   const overall = source.processing_status.overall ?? "pending";
   const queuedJobCount = source.queued_job_count ?? 0;
-  const chunkCount = source.chunk_count ?? 0;
-  const indexedChunkCount = source.indexed_chunk_count ?? 0;
   const runtime = source.queue_runtime;
-  const runtimeTotal = runtime?.chunk_progress_total ?? 0;
-  const displayChunkTotal = runtimeTotal > 0 ? runtimeTotal : chunkCount;
+  const stageItemTotal = resolveStageItemTotal(source);
+  const currentStage = resolveProcessingStage(source);
 
   if (runtime?.status === "queued") {
     return {
@@ -197,27 +274,16 @@ export function getDocumentChunkStatusPresentation(source: DocumentStatusSource)
   }
 
   if (runtime?.status === "started" || source.active_job?.status === "processing" || overall === "processing") {
-    const currentStage = resolveProcessingStage(source);
-    if (currentStage === "graph") {
-      const stageProgress = displayChunkTotal > 0 ? 100 : 90;
-      const progressValue = overallStageProgress(currentStage, stageProgress);
-      return {
-        label: labelForStage(currentStage) ?? "Processing",
-        progressTone: "processing" satisfies ChunkProgressTone,
-        progressValue,
-        valueLabel: percentLabel(progressValue)
-      };
-    }
-
-    const currentChunkCount = processingChunkCount(source, indexedChunkCount);
-    const label = labelForStage(currentStage) ?? "Processing";
-    const stageProgress = progressPercent(currentChunkCount, displayChunkTotal);
-    const progressValue = currentStage ? overallStageProgress(currentStage, stageProgress) : stageProgress;
+    const { processedItems, totalItems } = computeItemProgress(source, {
+      currentStage,
+      totalItemsPerStage: stageItemTotal
+    });
+    const progressValue = computeProgressValue(processedItems, totalItems, { isTerminal: false });
     return {
-      label,
+      label: labelForStage(currentStage) ?? "Processing",
       progressTone: "processing" satisfies ChunkProgressTone,
       progressValue,
-      valueLabel: displayChunkTotal > 0 ? percentLabel(progressValue) : "Starting"
+      valueLabel: totalItems > 0 ? percentLabel(progressValue) : "Starting"
     };
   }
 
@@ -231,17 +297,20 @@ export function getDocumentChunkStatusPresentation(source: DocumentStatusSource)
   }
 
   if (runtime?.status === "failed" || overall === "failed") {
-    const failedStage =
+    const currentStageForFailure =
       findStageWithValue(source.processing_status, "failed") ??
       findStageWithValue(source.processing_status, "processing") ??
       nextIncompleteStage(source);
-    const stageProgress = progressPercent(processingChunkCount(source, indexedChunkCount), displayChunkTotal);
-    const progressValue = failedStage ? overallStageProgress(failedStage, stageProgress) : stageProgress;
+    const { processedItems, totalItems } = computeItemProgress(source, {
+      currentStage: currentStageForFailure,
+      totalItemsPerStage: stageItemTotal
+    });
+    const progressValue = computeProgressValue(processedItems, totalItems, { isTerminal: false });
     return {
       label: "Failed",
       progressTone: "failed" satisfies ChunkProgressTone,
       progressValue,
-      valueLabel: percentLabel(progressValue)
+      valueLabel: String(resolveCompletedChunkCount(source))
     };
   }
 
@@ -257,8 +326,8 @@ export function getDocumentChunkStatusPresentation(source: DocumentStatusSource)
   return {
     label: "Completed",
     progressTone: "completed" satisfies ChunkProgressTone,
-    progressValue: displayChunkTotal > 0 ? 100 : 0,
-    valueLabel: String(displayChunkTotal)
+    progressValue: stageItemTotal > 0 ? 100 : 0,
+    valueLabel: String(resolveCompletedChunkCount(source))
   };
 }
 
