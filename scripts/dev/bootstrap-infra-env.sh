@@ -191,6 +191,12 @@ is_placeholder_api_value() {
     OLLAMA_EMBEDDING_MODEL|SUPABASE_STORAGE_BUCKET)
       [ -z "$value" ]
       ;;
+    DOCUMENT_PROCESSING_QUEUE_BACKEND)
+      [ -z "$value" ]
+      ;;
+    REDIS_URL)
+      [ -z "$value" ] || [ "$value" = "redis://localhost:6379/0" ]
+      ;;
     *)
       return 1
       ;;
@@ -481,6 +487,14 @@ sync_api_env() {
 
   if is_placeholder_api_value OLLAMA_EMBEDDING_MODEL "$(env_get "$API_ENV_FILE" OLLAMA_EMBEDDING_MODEL || true)"; then
     env_set "$API_ENV_FILE" OLLAMA_EMBEDDING_MODEL "$(env_get "$INFRA_ENV_FILE" OLLAMA_EMBEDDING_MODEL)"
+  fi
+
+  if is_placeholder_api_value DOCUMENT_PROCESSING_QUEUE_BACKEND "$(env_get "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_BACKEND || true)"; then
+    env_set "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_BACKEND "redis"
+  fi
+
+  if is_placeholder_api_value REDIS_URL "$(env_get "$API_ENV_FILE" REDIS_URL || true)"; then
+    env_set "$API_ENV_FILE" REDIS_URL "redis://redis:6379/0"
   fi
 }
 

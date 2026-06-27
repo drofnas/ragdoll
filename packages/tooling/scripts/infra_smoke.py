@@ -4,6 +4,7 @@ import time
 from uuid import uuid4
 
 import httpx
+import redis
 from sqlalchemy import text
 
 from ragdoll.core.config import get_settings
@@ -37,13 +38,13 @@ def _verify_readiness() -> None:
         payload = _request("GET", "/api/v1/health").json()
         services = payload["services"]
         last_services = services
-        if all(services[key]["status"] == "healthy" for key in ("database", "storage", "vector", "graph", "llm")):
+        if all(services[key]["status"] == "healthy" for key in ("database", "storage", "vector", "graph", "llm", "queue")):
             return
         time.sleep(1)
 
     details = {
         key: (last_services or {}).get(key, {}).get("status", "missing")
-        for key in ("database", "storage", "vector", "graph", "llm")
+        for key in ("database", "storage", "vector", "graph", "llm", "queue")
     }
     raise RuntimeError(f"Expected readiness services to become healthy, last observed statuses: {details}")
 
@@ -71,6 +72,15 @@ def _verify_storage_bucket(settings) -> None:
         for item in (buckets or [])
     )
     _assert(found, f"Expected Supabase bucket '{bucket_name}' to exist.")
+
+
+def _verify_redis_queue(settings) -> None:
+    _assert(
+        settings.document_processing_queue_backend == "redis",
+        "Expected Redis to be the document-processing queue backend.",
+    )
+    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    _assert(client.ping() is True, "Expected Redis queue backend to respond to PING.")
 
 
 def _verify_ollama_catalog(settings) -> None:
@@ -166,6 +176,7 @@ def main() -> None:
     _verify_readiness()
     _verify_pgvector()
     _verify_storage_bucket(settings)
+    _verify_redis_queue(settings)
     _verify_ollama_catalog(settings)
     token = _register_and_login()
     _exercise_upload_flow(token)

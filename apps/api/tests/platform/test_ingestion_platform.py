@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from ragdoll.core.config import get_settings
+from ragdoll.core.config import Settings, get_settings
+from ragdoll.core.exceptions import QueueUnavailableError
 from ragdoll.modules.ingestion.domain.policies import build_processing_status_for_upload
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, DocumentChunkVector, Entity, GraphEdge, Space, User
 from ragdoll.platform.llm import (
@@ -12,7 +13,12 @@ from ragdoll.platform.llm import (
     DeterministicEntityExtractionService,
     get_entity_extraction_service,
 )
-from ragdoll.platform.queues import InMemoryDocumentProcessingQueue, ProcessingJobPayload, SqlDocumentProcessingQueue
+from ragdoll.platform.queues import (
+    InMemoryDocumentProcessingQueue,
+    ProcessingJobPayload,
+    RedisDocumentProcessingQueue,
+    SqlDocumentProcessingQueue,
+)
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.workers.document_pipeline import drain_document_jobs
 
@@ -72,6 +78,160 @@ def test_sql_queue_claims_and_marks_completion(db_session):
     assert refreshed is not None
     assert refreshed.status == "completed"
     assert refreshed.completed_at is not None
+
+
+class FakeRedisClient:
+    def __init__(self, *, fail_xadd: bool = False) -> None:
+        self.fail_xadd = fail_xadd
+        self.group_creates: list[tuple[str, str, str, bool]] = []
+        self.messages: list[tuple[str, dict[str, str]]] = []
+        self.acked: list[tuple[str, str, str]] = []
+        self._next_id = 1
+
+    def ping(self):
+        return True
+
+    def xgroup_create(self, stream, group, *, id, mkstream):
+        self.group_creates.append((stream, group, id, mkstream))
+
+    def xadd(self, stream, fields, *, maxlen=None, approximate=True):
+        if self.fail_xadd:
+            raise RuntimeError("redis unavailable")
+        del maxlen, approximate
+        message_id = f"{self._next_id}-0"
+        self._next_id += 1
+        self.messages.append((message_id, dict(fields)))
+        return message_id
+
+    def xreadgroup(self, group, consumer, streams, *, count, block):
+        del group, consumer, streams, count, block
+        if not self.messages:
+            return []
+        return [("ragdoll:queues:document-vector", [self.messages.pop(0)])]
+
+    def xautoclaim(self, stream, group, consumer, *, min_idle_time, start_id, count):
+        del stream, group, consumer, min_idle_time, start_id, count
+        return ("0-0", [])
+
+    def xack(self, stream, group, message_id):
+        self.acked.append((stream, group, message_id))
+        return 1
+
+
+def _redis_queue_settings() -> Settings:
+    return Settings(
+        document_processing_queue_backend="redis",
+        redis_url="redis://redis:6379/0",
+        document_vector_repair_interval_seconds=3600,
+        _env_file=None,
+    )
+
+
+def test_redis_queue_claims_sql_job_and_acks_completion(db_session):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    redis_client = FakeRedisClient()
+    queue = RedisDocumentProcessingQueue(
+        settings=_redis_queue_settings(),
+        client=redis_client,
+        monotonic_fn=lambda: 0.0,
+        consumer_name="worker-a",
+    )
+
+    queue.enqueue(
+        ProcessingJobPayload(
+            job_id=job.id,
+            document_id=document.id,
+            space_id=space.id,
+            uploaded_by=user.id,
+            requested_stage="parsing",
+            attempt=1,
+        )
+    )
+    payload = queue.claim_next_job()
+
+    assert payload is not None
+    assert payload.job_id == job.id
+    assert redis_client.group_creates == [("ragdoll:queues:document-vector", "document-vector", "0", True)]
+    db_session.expire_all()
+    processing_job = db_session.get(DocumentProcessingJob, job.id)
+    assert processing_job is not None
+    assert processing_job.status == "processing"
+
+    queue.mark_job_completed(job.id)
+    db_session.expire_all()
+    completed_job = db_session.get(DocumentProcessingJob, job.id)
+    assert completed_job is not None
+    assert completed_job.status == "completed"
+    assert redis_client.acked == [("ragdoll:queues:document-vector", "document-vector", "1-0")]
+
+
+def test_redis_queue_skips_and_acks_duplicate_messages_for_non_queued_jobs(db_session):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="completed",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    redis_client = FakeRedisClient()
+    redis_client.messages.append(("duplicate-1", {"job_id": str(job.id)}))
+    queue = RedisDocumentProcessingQueue(
+        settings=_redis_queue_settings(),
+        client=redis_client,
+        monotonic_fn=lambda: 0.0,
+        consumer_name="worker-b",
+    )
+
+    assert queue.claim_next_job() is None
+    assert redis_client.acked == [("ragdoll:queues:document-vector", "document-vector", "duplicate-1")]
+
+
+def test_redis_queue_raises_when_enqueue_fails(db_session):
+    user, space, document = _seed_user_space_document(db_session)
+    job = DocumentProcessingJob(
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        status="queued",
+        attempt=1,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    queue = RedisDocumentProcessingQueue(
+        settings=_redis_queue_settings(),
+        client=FakeRedisClient(fail_xadd=True),
+        monotonic_fn=lambda: 0.0,
+    )
+
+    with pytest.raises(QueueUnavailableError):
+        queue.enqueue(
+            ProcessingJobPayload(
+                job_id=job.id,
+                document_id=document.id,
+                space_id=space.id,
+                uploaded_by=user.id,
+                requested_stage="parsing",
+                attempt=1,
+            )
+        )
 
 
 def test_worker_marks_document_failed_when_blob_is_missing(db_session):

@@ -18,6 +18,7 @@ from ragdoll.api.shared_schemas import (
 )
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.platform.db.engine import get_engine
+from ragdoll.platform.queues import ping_redis_queue
 
 PHASE_1_NOT_CONFIGURED_DETAIL = "Phase 1 scaffold: probe not wired yet"
 DEPENDENCY_KEYS = ("database", "storage", "vector", "graph", "llm", "queue")
@@ -171,8 +172,17 @@ def _check_graph(settings: Settings, database_status: DependencyStatus) -> Depen
 
 
 def _check_queue(settings: Settings, database_status: DependencyStatus) -> DependencyStatus:
-    if settings.e2e_memory_backends:
+    queue_backend = settings.document_processing_queue_backend
+    if settings.e2e_memory_backends or queue_backend == "memory":
         return _service("healthy", "In-memory queue backend is enabled.", backend="memory")
+    if queue_backend == "redis":
+        if not (settings.redis_url or "").strip():
+            return _service("not_configured", "REDIS_URL is required for the Redis queue backend.", backend="redis")
+        try:
+            ping_redis_queue(settings)
+            return _service("healthy", "Redis Streams queue runtime is reachable.", backend="redis")
+        except Exception:
+            return _service("unhealthy", _redact_exception("Redis queue"), backend="redis")
     if not settings.has_database_config:
         return _service("not_configured", "Database URL is required before queue readiness can be checked.", backend="sql")
     if database_status.status != "healthy":

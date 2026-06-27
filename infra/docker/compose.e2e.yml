@@ -4,7 +4,7 @@ services:
       ALLOWED_ORIGINS: http://frontend:3000,http://localhost:8030
       E2E_SHARED_BACKENDS: "true"
 
-  worker:
+  document-vector:
     environment:
       E2E_SHARED_BACKENDS: "true"
 

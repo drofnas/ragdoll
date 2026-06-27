@@ -37,7 +37,9 @@ apps/api/
       queues/
       integrations/
     workers/
+      document_vector_worker.py
       document_pipeline.py
+      document_worker.py
       tracked_state_recompute.py
       archivist.py
     modules/
@@ -82,7 +84,7 @@ apps/api/
 - `platform/vector/*`: embedding provider and vector-store access
 - `platform/graph/*`: graph-store access and query helpers
 - `platform/llm/*`: orchestration and worker-facing model calls
-- `platform/queues/*`: job payload transport and retry semantics
+- `platform/queues/*`: Redis Streams, SQL fallback, in-memory test queue, job payload transport, and retry semantics
 
 ### Canonical module shape
 
@@ -140,7 +142,7 @@ modules/<module>/
 1. `auth` resolves user identity and admin status.
 2. `spaces` resolves request scope once and passes it through services.
 3. `documents` and `ingestion` accept file uploads or sync requests, persist metadata, and enqueue background jobs.
-4. `workers/document_pipeline.py` performs extraction, chunking, embedding, vector writes, graph writes, and processing status updates.
+4. `workers/document_vector_worker.py` drains document jobs from the queue adapter and invokes `workers/document_pipeline.py` to perform extraction, chunking, embedding, vector writes, graph writes, and processing status updates.
 5. `usage`, `ingestion`, and admin reads resolve effective self-hosted limits through shared instance-policy code instead of tier logic.
 6. `search`, `chat`, and `tracked_state` retrieve evidence through repositories and gateways, then compose user-facing outputs.
 7. `changes` and `corrections` expose historical and human-in-the-loop surfaces without bypassing provenance rules.

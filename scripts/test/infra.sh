@@ -142,6 +142,14 @@ assert_env_value_not_equal \
   "SUPABASE_DB_URL" \
   "postgresql://postgres:replace-with-local-postgres-password@db:5432/postgres"
 assert_env_value_not_equal "$ROOT_DIR/apps/api/.env" "SUPABASE_SERVICE_ROLE_KEY" "replace-with-local-service-role-key"
+if [ "$(env_get "$ROOT_DIR/apps/api/.env" DOCUMENT_PROCESSING_QUEUE_BACKEND || true)" != "redis" ]; then
+  echo "Error: expected DOCUMENT_PROCESSING_QUEUE_BACKEND=redis in apps/api/.env."
+  exit 1
+fi
+if [ "$(env_get "$ROOT_DIR/apps/api/.env" REDIS_URL || true)" != "redis://redis:6379/0" ]; then
+  echo "Error: expected REDIS_URL=redis://redis:6379/0 in apps/api/.env."
+  exit 1
+fi
 
 "$ROOT_DIR/dev-setup.sh" infra ps
 "$ROOT_DIR/dev-setup.sh" daemon

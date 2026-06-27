@@ -66,7 +66,7 @@ test.describe("self-hosted public and auth flows", () => {
     await expect(page).toHaveURL(/\/documents$/);
     await expect(page.locator("table")).toContainText("e2e-upload.txt");
     await expect.poll(async () => (await page.locator("table").textContent()) ?? "", {
-      message: "document processing should complete in the dedicated worker"
+      message: "document processing should complete in the document-vector worker"
     }).toContain("Completed");
     await expect(page.getByRole("link", { name: "View" }).first()).toBeVisible();
   });

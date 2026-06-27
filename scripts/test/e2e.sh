@@ -40,6 +40,7 @@ ensure_runtime_env_files() {
 }
 
 require_docker_compose
+"$ROOT_DIR/dev-setup.sh" infra up
 ensure_runtime_env_files
 
 cd "$ROOT_DIR"
@@ -49,7 +50,7 @@ restore_dev_stack() {
   restore_status=0
   trap - EXIT
 
-  docker compose -f "$DEV_COMPOSE_FILE" up --build -d backend worker frontend || restore_status=$?
+  docker compose -f "$DEV_COMPOSE_FILE" up --build -d backend document-vector frontend || restore_status=$?
   if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then
     exit "$restore_status"
   fi
@@ -58,5 +59,5 @@ restore_dev_stack() {
 
 trap restore_dev_stack EXIT
 
-docker compose -f "$DEV_COMPOSE_FILE" -f "$E2E_COMPOSE_FILE" up --build -d backend worker frontend
+docker compose -f "$DEV_COMPOSE_FILE" -f "$E2E_COMPOSE_FILE" up --build -d backend document-vector frontend
 docker compose -f "$DEV_COMPOSE_FILE" -f "$E2E_COMPOSE_FILE" run --build --rm e2e npm test -- "$@"

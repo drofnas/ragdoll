@@ -36,7 +36,7 @@ Still deferred:
 ## Local Commands
 
 - start dev server: `uvicorn ragdoll.main:app --host 0.0.0.0 --port 8000 --reload`
-- start document worker: `python3 -m ragdoll.workers.document_worker`
+- start document-vector worker: `python3 -m ragdoll.workers.document_vector_worker`
 - run platform tests: `../../scripts/test/backend.sh`
 - export OpenAPI + contract scaffold from Docker: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace backend python3 packages/tooling/scripts/generate_contracts.py`
 - run Alembic upgrades: `alembic upgrade head`

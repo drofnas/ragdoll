@@ -17,6 +17,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - Update top-level API composition in `apps/api/src/ragdoll/api/` when router-wide behavior changes.
 - Add backend platform services in `apps/api/src/ragdoll/platform/`.
 - Add worker entrypoints in `apps/api/src/ragdoll/workers/`.
+- Update local Docker infra and scalable runtime services in `infra/docker/`.
 - Update shared contracts in `packages/contracts/`.
 - Put shared env, lint, and test config in `packages/config/`.
 - Put repo-owned generation and utility scripts in `packages/tooling/` or `scripts/` based on whether they are codegen/tooling or operator entrypoints.
@@ -83,9 +84,10 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - `apps/api/src/ragdoll/modules/` - Feature and capability modules. Most new business functionality belongs here.
 - `apps/api/src/ragdoll/modules/registry.py` - Central list of v1 modules and route/schema registration metadata.
 - `apps/api/src/ragdoll/platform/` - Shared infrastructure services for DB, storage, queues, graph, and vector concerns.
+- `apps/api/src/ragdoll/platform/queues/` - Document-processing queue adapters; Redis Streams is the scalable runtime queue, with SQL and memory adapters for explicit fallback/test modes.
 - `apps/api/src/ragdoll/platform/db/models/` - SQLAlchemy models.
 - `apps/api/src/ragdoll/platform/db/migrations/` - Alembic environment and migration versions.
-- `apps/api/src/ragdoll/workers/` - Worker entrypoints and background pipeline wiring.
+- `apps/api/src/ragdoll/workers/` - Worker entrypoints and background pipeline wiring; `document_vector_worker.py` is the scalable document-processing worker entrypoint.
 - `apps/api/tests/platform/` - Platform and bootstrap coverage.
 - `apps/api/tests/modules/` - Module-level API and contract coverage.
 
@@ -100,6 +102,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - Register new v1 modules in `apps/api/src/ragdoll/modules/registry.py`.
 - Put app-wide cross-cutting concerns in `apps/api/src/ragdoll/core/`, not inside a feature module.
 - Put shared runtime services in `apps/api/src/ragdoll/platform/` when they support multiple modules.
+- Put scalable local worker service changes in `infra/docker/compose.dev.yml` under the `document-vector` service.
 - Put DB models in `apps/api/src/ragdoll/platform/db/models/` and migrations in `apps/api/src/ragdoll/platform/db/migrations/versions/`.
 - Put backend tests in the matching area under `apps/api/tests/modules/` or `apps/api/tests/platform/`.
 

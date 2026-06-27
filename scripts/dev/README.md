@@ -11,3 +11,5 @@ Phase 1 wires these scripts to `infra/docker/compose.dev.yml`:
 - `up.sh`
 - `down.sh`
 - `status.sh`
+
+Use `./dev-setup.sh daemon --scale document-vector=3` to run three `document-vector` workers against the shared Redis-backed queue.
