@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-exec python3 -m ragdoll.workers.document_vector_worker
+exec rq worker --url "${REDIS_URL}" "${DOCUMENT_PROCESSING_QUEUE_NAME:-document-processing}"

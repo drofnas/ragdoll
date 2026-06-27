@@ -111,15 +111,11 @@ class Settings(BaseSettings):
     upload_rate_limit_enabled: bool = True
     upload_rate_limit_requests: int = 10
     upload_rate_limit_window_seconds: int = 60
-    document_processing_queue_backend: Literal["redis", "sql", "memory"] = "sql"
     redis_url: str | None = "redis://redis:6379/0"
-    document_vector_queue_stream: str = "ragdoll:queues:document-vector"
-    document_vector_consumer_group: str = "document-vector"
-    document_vector_consumer_name: str | None = None
-    document_vector_block_timeout_seconds: float = Field(default=5.0, ge=0.0, le=300.0)
-    document_vector_repair_interval_seconds: float = Field(default=30.0, ge=0.0, le=3600.0)
-    document_vector_stream_maxlen: int = Field(default=10000, ge=1, le=1000000)
-    document_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
+    document_processing_queue_name: str = "document-processing"
+    document_processing_job_timeout_seconds: int = Field(default=2700, ge=30, le=86400)
+    document_processing_result_ttl_seconds: int = Field(default=86400, ge=30, le=604800)
+    document_processing_failure_ttl_seconds: int = Field(default=604800, ge=30, le=2592000)
     document_processing_timeout_seconds_default: float = Field(default=600.0, ge=30.0, le=86400.0)
     document_processing_timeout_seconds_extraction: float = Field(default=2700.0, ge=30.0, le=86400.0)
 
@@ -142,13 +138,6 @@ class Settings(BaseSettings):
     @field_validator("entity_extraction_mode", mode="before")
     @classmethod
     def normalize_entity_extraction_mode(cls, value: object) -> object:
-        if isinstance(value, str):
-            return value.strip().lower()
-        return value
-
-    @field_validator("document_processing_queue_backend", mode="before")
-    @classmethod
-    def normalize_document_processing_queue_backend(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip().lower()
         return value

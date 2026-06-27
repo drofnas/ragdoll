@@ -19,9 +19,9 @@ from ragdoll.platform.db.models import (
 from ragdoll.platform.db.models.documents import default_processing_status_payload
 from ragdoll.platform.graph import InMemoryGraphCleanupService
 from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService, normalize_entity_name
-from ragdoll.platform.queues import InMemoryDocumentProcessingQueue
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.platform.vector import InMemoryVectorCleanupService
+from tests.support.document_processing import FakeDocumentProcessingQueue
 
 
 def register_and_login(api_client, *, email: str = "user@example.com", password: str = "testpass123") -> str:
@@ -197,7 +197,7 @@ def seed_retrieval_document(
 
 def build_processing_runtime(api_client):
     storage = InMemoryDocumentStorage()
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     vector_cleanup = InMemoryVectorCleanupService()
     graph_cleanup = InMemoryGraphCleanupService()
     embedding_service = DeterministicEmbeddingService()

@@ -287,9 +287,27 @@ export interface DocumentProcessingStatusResponse {
   indexed_chunk_count: number;
   latest_job?: DocumentProcessingJobResponse | null;
   active_job?: DocumentProcessingJobResponse | null;
+  queue_runtime?: DocumentQueueRuntimeResponse | null;
   queued_job_count?: number;
   has_queued_reprocess?: boolean;
   updated_at: string;
+}
+
+export interface DocumentQueueRuntimeResponse {
+  job_id: string;
+  queue_job_id: string;
+  queue_name: string;
+  status: string;
+  stage?: string | null;
+  detail?: string | null;
+  worker_name?: string | null;
+  queue_position?: number | null;
+  chunk_progress_current?: number;
+  chunk_progress_total?: number;
+  enqueued_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface DocumentUpdateRequest {

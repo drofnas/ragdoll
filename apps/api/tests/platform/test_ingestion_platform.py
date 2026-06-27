@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from uuid import UUID
 
 from ragdoll.core.config import Settings, get_settings
 from ragdoll.core.exceptions import QueueUnavailableError
@@ -13,14 +14,10 @@ from ragdoll.platform.llm import (
     DeterministicEntityExtractionService,
     get_entity_extraction_service,
 )
-from ragdoll.platform.queues import (
-    InMemoryDocumentProcessingQueue,
-    ProcessingJobPayload,
-    RedisDocumentProcessingQueue,
-    SqlDocumentProcessingQueue,
-)
+from ragdoll.platform.queues import ProcessingJobPayload, RedisDocumentProcessingQueue
+from ragdoll.platform.queues import service as queue_service_module
 from ragdoll.platform.storage import InMemoryDocumentStorage
-from ragdoll.workers.document_pipeline import drain_document_jobs
+from tests.support.document_processing import FakeDocumentProcessingQueue, drain_test_document_jobs
 
 
 @pytest.fixture(autouse=True)
@@ -54,81 +51,58 @@ def _seed_user_space_document(db_session):
     return user, space, document
 
 
-def test_sql_queue_claims_and_marks_completion(db_session):
-    user, space, document = _seed_user_space_document(db_session)
-    job = DocumentProcessingJob(
-        document_id=document.id,
-        space_id=space.id,
-        uploaded_by=user.id,
-        requested_stage="parsing",
-        status="queued",
-        attempt=1,
-    )
-    db_session.add(job)
-    db_session.commit()
-
-    queue = SqlDocumentProcessingQueue()
-    payload = queue.claim_next_job()
-    assert payload is not None
-    assert payload.document_id == document.id
-
-    queue.mark_job_completed(job.id)
-    db_session.expire_all()
-    refreshed = db_session.get(DocumentProcessingJob, job.id)
-    assert refreshed is not None
-    assert refreshed.status == "completed"
-    assert refreshed.completed_at is not None
-
-
 class FakeRedisClient:
-    def __init__(self, *, fail_xadd: bool = False, autoclaim_response=None) -> None:
-        self.fail_xadd = fail_xadd
-        self.autoclaim_response = autoclaim_response
-        self.group_creates: list[tuple[str, str, str, bool]] = []
-        self.messages: list[tuple[str, dict[str, str]]] = []
-        self.acked: list[tuple[str, str, str]] = []
-        self._next_id = 1
+    def __init__(self) -> None:
+        self.pings = 0
 
     def ping(self):
+        self.pings += 1
         return True
 
-    def xgroup_create(self, stream, group, *, id, mkstream):
-        self.group_creates.append((stream, group, id, mkstream))
 
-    def xadd(self, stream, fields, *, maxlen=None, approximate=True):
-        if self.fail_xadd:
-            raise RuntimeError("redis unavailable")
-        del maxlen, approximate
-        message_id = f"{self._next_id}-0"
-        self._next_id += 1
-        self.messages.append((message_id, dict(fields)))
-        return message_id
+class FakeRqJob:
+    def __init__(self, job_id: str, *, status: str = "queued", origin: str = "document-processing") -> None:
+        self.id = job_id
+        self.origin = origin
+        self._status = status
+        self.meta: dict[str, object] = {}
+        self.enqueued_at = None
+        self.started_at = None
+        self.ended_at = None
+        self.last_heartbeat = None
+        self.worker_name = None
 
-    def xreadgroup(self, group, consumer, streams, *, count, block):
-        del group, consumer, streams, count, block
-        if not self.messages:
-            return []
-        return [("ragdoll:queues:document-vector", [self.messages.pop(0)])]
+    def save_meta(self) -> None:
+        return None
 
-    def xautoclaim(self, stream, group, consumer, *, min_idle_time, start_id, count):
-        del stream, group, consumer, min_idle_time, start_id, count
-        return self.autoclaim_response if self.autoclaim_response is not None else ["0-0", [], []]
+    def get_status(self, *, refresh: bool = False):
+        del refresh
+        return self._status
 
-    def xack(self, stream, group, message_id):
-        self.acked.append((stream, group, message_id))
-        return 1
+
+class FakeRqQueue:
+    def __init__(self, name: str, *, connection=None) -> None:
+        del connection
+        self.name = name
+        self.enqueued: list[dict[str, object]] = []
+        self.job_ids: list[str] = []
+
+    def enqueue(self, func, payload, **kwargs):
+        job = FakeRqJob(kwargs["job_id"], origin=self.name)
+        self.enqueued.append({"func": func, "payload": payload, "kwargs": kwargs, "job": job})
+        self.job_ids.append(job.id)
+        return job
 
 
 def _redis_queue_settings() -> Settings:
     return Settings(
-        document_processing_queue_backend="redis",
         redis_url="redis://redis:6379/0",
-        document_vector_repair_interval_seconds=3600,
+        document_processing_queue_name="document-processing",
         _env_file=None,
     )
 
 
-def test_redis_queue_claims_sql_job_and_acks_completion(db_session):
+def test_redis_queue_enqueues_rq_job_with_expected_metadata(monkeypatch, db_session):
     user, space, document = _seed_user_space_document(db_session)
     job = DocumentProcessingJob(
         document_id=document.id,
@@ -141,107 +115,96 @@ def test_redis_queue_claims_sql_job_and_acks_completion(db_session):
     db_session.add(job)
     db_session.commit()
 
-    redis_client = FakeRedisClient()
-    queue = RedisDocumentProcessingQueue(
-        settings=_redis_queue_settings(),
-        client=redis_client,
-        monotonic_fn=lambda: 0.0,
-        consumer_name="worker-a",
-    )
+    fake_queue = FakeRqQueue("document-processing")
+    fake_job_store: dict[str, FakeRqJob] = {}
 
-    queue.enqueue(
-        ProcessingJobPayload(
-            job_id=job.id,
-            document_id=document.id,
-            space_id=space.id,
-            uploaded_by=user.id,
-            requested_stage="parsing",
-            attempt=1,
-        )
-    )
-    payload = queue.claim_next_job()
+    def fake_queue_factory(name, *, connection=None):
+        del connection
+        assert name == "document-processing"
+        return fake_queue
 
-    assert payload is not None
-    assert payload.job_id == job.id
-    assert redis_client.group_creates == [("ragdoll:queues:document-vector", "document-vector", "0", True)]
-    db_session.expire_all()
-    processing_job = db_session.get(DocumentProcessingJob, job.id)
-    assert processing_job is not None
-    assert processing_job.status == "processing"
+    def fake_job_fetch(job_id, *, connection=None):
+        del connection
+        return fake_job_store[job_id]
+
+    monkeypatch.setattr(queue_service_module, "_rq_dependencies", lambda: (fake_queue_factory, type("FakeJobApi", (), {"fetch": staticmethod(fake_job_fetch)}), KeyError))
+
+    queue = RedisDocumentProcessingQueue(settings=_redis_queue_settings(), client=FakeRedisClient())
+
+    payload = ProcessingJobPayload(
+        job_id=job.id,
+        document_id=document.id,
+        space_id=space.id,
+        uploaded_by=user.id,
+        requested_stage="parsing",
+        attempt=1,
+    )
+    queue.enqueue(payload)
+    assert len(fake_queue.enqueued) == 1
+    enqueued = fake_queue.enqueued[0]
+    fake_job_store[str(job.id)] = enqueued["job"]
+    assert enqueued["payload"] == payload
+    assert enqueued["kwargs"]["job_id"] == str(job.id)
+    assert enqueued["kwargs"]["job_timeout"] >= 2700
+    assert enqueued["job"].meta["stage"] == "parsing"
+    assert enqueued["job"].meta["chunk_progress_current"] == 0
 
     queue.mark_job_completed(job.id)
     db_session.expire_all()
     completed_job = db_session.get(DocumentProcessingJob, job.id)
     assert completed_job is not None
     assert completed_job.status == "completed"
-    assert redis_client.acked == [("ragdoll:queues:document-vector", "document-vector", "1-0")]
+
+def test_redis_queue_reads_runtime_from_rq_job_meta(monkeypatch):
+    fake_queue = FakeRqQueue("document-processing")
+    job_id = "00000000-0000-0000-0000-000000000001"
+    fake_job = FakeRqJob(job_id, status="queued", origin="document-processing")
+    fake_job.meta = {
+        "stage": "extraction",
+        "detail": None,
+        "chunk_progress_current": 2,
+        "chunk_progress_total": 5,
+    }
+    fake_queue.job_ids = [job_id]
+
+    def fake_queue_factory(name, *, connection=None):
+        del connection
+        assert name == "document-processing"
+        return fake_queue
+
+    def fake_job_fetch(job_id, *, connection=None):
+        del connection
+        assert job_id == "00000000-0000-0000-0000-000000000001"
+        return fake_job
+
+    monkeypatch.setattr(queue_service_module, "_rq_dependencies", lambda: (fake_queue_factory, type("FakeJobApi", (), {"fetch": staticmethod(fake_job_fetch)}), KeyError))
+
+    queue = RedisDocumentProcessingQueue(settings=_redis_queue_settings(), client=FakeRedisClient())
+    runtime = queue.read_runtime(UUID(job_id))
+    assert runtime is not None
+    assert runtime.status == "queued"
+    assert runtime.stage == "extraction"
+    assert runtime.chunk_progress_current == 2
+    assert runtime.chunk_progress_total == 5
+    assert runtime.queue_position == 1
 
 
-def test_redis_queue_skips_and_acks_duplicate_messages_for_non_queued_jobs(db_session):
-    user, space, document = _seed_user_space_document(db_session)
-    job = DocumentProcessingJob(
-        document_id=document.id,
-        space_id=space.id,
-        uploaded_by=user.id,
-        requested_stage="parsing",
-        status="completed",
-        attempt=1,
-    )
-    db_session.add(job)
-    db_session.commit()
+def test_redis_queue_raises_when_enqueue_fails(monkeypatch):
+    class FailingRqQueue(FakeRqQueue):
+        def enqueue(self, func, payload, **kwargs):
+            del func, payload, kwargs
+            raise RuntimeError("redis unavailable")
 
-    redis_client = FakeRedisClient()
-    redis_client.messages.append(("duplicate-1", {"job_id": str(job.id)}))
-    queue = RedisDocumentProcessingQueue(
-        settings=_redis_queue_settings(),
-        client=redis_client,
-        monotonic_fn=lambda: 0.0,
-        consumer_name="worker-b",
-    )
-
-    assert queue.claim_next_job() is None
-    assert redis_client.acked == [("ragdoll:queues:document-vector", "document-vector", "duplicate-1")]
-
-
-def test_redis_queue_accepts_empty_redis_py_autoclaim_envelope():
-    redis_client = FakeRedisClient(autoclaim_response=["0-0", [], []])
-    queue = RedisDocumentProcessingQueue(
-        settings=_redis_queue_settings(),
-        client=redis_client,
-        monotonic_fn=lambda: 0.0,
-        consumer_name="worker-c",
-    )
-
-    assert queue.claim_next_job() is None
-    assert redis_client.acked == []
-
-
-def test_redis_queue_raises_when_enqueue_fails(db_session):
-    user, space, document = _seed_user_space_document(db_session)
-    job = DocumentProcessingJob(
-        document_id=document.id,
-        space_id=space.id,
-        uploaded_by=user.id,
-        requested_stage="parsing",
-        status="queued",
-        attempt=1,
-    )
-    db_session.add(job)
-    db_session.commit()
-
-    queue = RedisDocumentProcessingQueue(
-        settings=_redis_queue_settings(),
-        client=FakeRedisClient(fail_xadd=True),
-        monotonic_fn=lambda: 0.0,
-    )
+    monkeypatch.setattr(queue_service_module, "_rq_dependencies", lambda: (lambda name, *, connection=None: FailingRqQueue(name, connection=connection), object, KeyError))
+    queue = RedisDocumentProcessingQueue(settings=_redis_queue_settings(), client=FakeRedisClient())
 
     with pytest.raises(QueueUnavailableError):
         queue.enqueue(
             ProcessingJobPayload(
-                job_id=job.id,
-                document_id=document.id,
-                space_id=space.id,
-                uploaded_by=user.id,
+                job_id=UUID("00000000-0000-0000-0000-000000000001"),
+                document_id=UUID("00000000-0000-0000-0000-000000000002"),
+                space_id=UUID("00000000-0000-0000-0000-000000000003"),
+                uploaded_by=UUID("00000000-0000-0000-0000-000000000004"),
                 requested_stage="parsing",
                 attempt=1,
             )
@@ -261,7 +224,7 @@ def test_worker_marks_document_failed_when_blob_is_missing(db_session):
     db_session.add(job)
     db_session.commit()
 
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -273,7 +236,7 @@ def test_worker_marks_document_failed_when_blob_is_missing(db_session):
         )
     )
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
@@ -312,7 +275,7 @@ def test_worker_replaces_existing_chunks_idempotently(db_session):
 
     storage = InMemoryDocumentStorage()
     storage.store_original_file(document.storage_key, b"fresh content for parsing")
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -324,7 +287,7 @@ def test_worker_replaces_existing_chunks_idempotently(db_session):
         )
     )
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=DeterministicEmbeddingService(),
@@ -458,7 +421,7 @@ def test_worker_marks_stage_specific_failures(
 
     storage = InMemoryDocumentStorage()
     storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -471,7 +434,7 @@ def test_worker_marks_stage_specific_failures(
     )
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -507,7 +470,7 @@ def test_worker_deterministic_mode_skips_primary_entity_extractor(db_session, mo
 
     storage = InMemoryDocumentStorage()
     storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -521,7 +484,7 @@ def test_worker_deterministic_mode_skips_primary_entity_extractor(db_session, mo
     primary_extractor = CountingEntityExtractionService(failure_count=1)
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=DeterministicEmbeddingService(),
@@ -556,7 +519,7 @@ def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_sess
     db_session.flush()
     _seed_document_chunks(db_session, document, chunk_count=8)
 
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -570,7 +533,7 @@ def test_worker_auto_mode_switches_to_deterministic_after_three_failures(db_sess
     primary_extractor = CountingEntityExtractionService(failure_count=3)
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
@@ -607,7 +570,7 @@ def test_worker_processes_multiple_extraction_batches_and_persists_batch_metadat
     db_session.flush()
     _seed_document_chunks(db_session, document, chunk_count=6)
 
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -621,7 +584,7 @@ def test_worker_processes_multiple_extraction_batches_and_persists_batch_metadat
     extractor = CountingEntityExtractionService()
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
@@ -659,7 +622,7 @@ def test_worker_maps_out_of_order_batch_results_back_to_chunk_indexes(db_session
     db_session.flush()
     _seed_document_chunks(db_session, document, chunk_count=6)
 
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -672,7 +635,7 @@ def test_worker_maps_out_of_order_batch_results_back_to_chunk_indexes(db_session
     )
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
@@ -708,7 +671,7 @@ def test_worker_batch_size_one_behaves_like_single_chunk_calls(db_session, monke
     db_session.flush()
     _seed_document_chunks(db_session, document, chunk_count=3)
 
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -722,7 +685,7 @@ def test_worker_batch_size_one_behaves_like_single_chunk_calls(db_session, monke
     extractor = CountingEntityExtractionService()
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=InMemoryDocumentStorage(),
             embedding_service=DeterministicEmbeddingService(),
@@ -752,7 +715,7 @@ def test_worker_graph_stage_persists_entities_vectors_and_edges(db_session):
 
     storage = InMemoryDocumentStorage()
     storage.store_original_file(document.storage_key, b"Project Atlas works with Ragdoll")
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     queue.enqueue(
         ProcessingJobPayload(
             job_id=job.id,
@@ -765,7 +728,7 @@ def test_worker_graph_stage_persists_entities_vectors_and_edges(db_session):
     )
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=DeterministicEmbeddingService(),

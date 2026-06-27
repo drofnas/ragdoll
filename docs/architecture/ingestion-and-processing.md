@@ -10,8 +10,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 
 - `modules/documents`: metadata lifecycle after a document exists
 - `modules/ingestion`: upload intake, processing commands, retry commands, status APIs
-- `workers/document_vector_worker.py`: scalable background worker entrypoint
-- `workers/document_pipeline.py`: document-processing stage runner
+- `workers/document_pipeline.py`: RQ job entrypoint and document-processing stage runner
 - `platform/storage`, `platform/vector`, `platform/graph`, `platform/llm`, `platform/queues`: external systems
 
 ### Processing stages
@@ -30,7 +29,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 
 - HTTP routes accept uploads, explicit process requests, reprocess requests, and status lookups.
 - Application commands create document records, enqueue jobs, and update stage state.
-- `document-vector` workers drain Redis-backed queue messages, while SQL processing-job rows remain the durable status ledger.
+- `document-vector` runs an RQ worker against Redis, while SQL processing-job rows remain the durable status ledger.
 - Worker code runs long-lived stage transitions and retries.
 - Platform adapters parse file content, call Ollama-backed embedding and entity-extraction services, and write to external stores.
 - Entity extraction runs in bounded micro-batches, validates `chunk_index` round-tripping from the model response, and remaps results back onto stable relational chunk rows before persistence.
@@ -53,7 +52,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 2. `modules/ingestion` validates file type, size, scope, and actor.
 3. API persists initial document metadata and object-store location.
 4. Job is enqueued for background processing through the queue adapter.
-5. A `document-vector` worker extracts text, chunks content, embeds chunks, writes vector rows, extracts entities, and projects graph records.
+5. An RQ-powered `document-vector` worker extracts text, chunks content, embeds chunks, writes vector rows, extracts entities, and projects graph records.
 6. Final status and change/provenance events are written back to SQL.
 
 ### Manual reprocess

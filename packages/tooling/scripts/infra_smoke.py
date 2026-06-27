@@ -76,8 +76,8 @@ def _verify_storage_bucket(settings) -> None:
 
 def _verify_redis_queue(settings) -> None:
     _assert(
-        settings.document_processing_queue_backend == "redis",
-        "Expected Redis to be the document-processing queue backend.",
+        bool((settings.redis_url or "").strip()),
+        "Expected REDIS_URL to be configured for document processing.",
     )
     client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
     _assert(client.ping() is True, "Expected Redis queue backend to respond to PING.")

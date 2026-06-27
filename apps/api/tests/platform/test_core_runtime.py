@@ -246,30 +246,27 @@ def test_db_engine_module_does_not_create_engine_until_requested():
 
 def test_settings_parse_redis_queue_runtime_values():
     settings = Settings(
-        document_processing_queue_backend="REDIS",
         redis_url="redis://redis:6379/0",
-        document_vector_queue_stream="ragdoll:queues:document-vector",
-        document_vector_consumer_group="document-vector",
-        document_vector_block_timeout_seconds=5,
-        document_vector_repair_interval_seconds=30,
-        document_vector_stream_maxlen=10000,
+        document_processing_queue_name="document-processing",
+        document_processing_job_timeout_seconds=2700,
+        document_processing_result_ttl_seconds=86400,
+        document_processing_failure_ttl_seconds=604800,
         _env_file=None,
     )
 
-    assert settings.document_processing_queue_backend == "redis"
     assert settings.redis_url == "redis://redis:6379/0"
-    assert settings.document_vector_queue_stream == "ragdoll:queues:document-vector"
-    assert settings.document_vector_consumer_group == "document-vector"
+    assert settings.document_processing_queue_name == "document-processing"
+    assert settings.document_processing_job_timeout_seconds == 2700
 
 
 @pytest.mark.asyncio
-async def test_readiness_payload_marks_queue_not_configured_without_database_config():
+async def test_readiness_payload_marks_queue_not_configured_without_redis_url():
     payload = await build_readiness_payload(
         Settings(
             database_url=None,
             supabase_db_url=None,
             supabase_test_db_url=None,
-            document_processing_queue_backend="sql",
+            redis_url="",
             _env_file=None,
         )
     )
@@ -277,24 +274,8 @@ async def test_readiness_payload_marks_queue_not_configured_without_database_con
 
 
 @pytest.mark.asyncio
-async def test_readiness_payload_marks_queue_healthy_with_database_runtime(monkeypatch):
-    settings = Settings(
-        database_url="postgresql://postgres:secret@db.example:5432/postgres",
-        document_processing_queue_backend="sql",
-        _env_file=None,
-    )
-
-    monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
-    payload = await build_readiness_payload(settings)
-
-    assert payload.services["queue"].status == "healthy"
-    assert payload.services["queue"].backend == "sql"
-
-
-@pytest.mark.asyncio
 async def test_readiness_payload_marks_queue_healthy_with_redis_runtime(monkeypatch):
     settings = Settings(
-        document_processing_queue_backend="redis",
         redis_url="redis://redis:6379/0",
         _env_file=None,
     )
@@ -309,7 +290,6 @@ async def test_readiness_payload_marks_queue_healthy_with_redis_runtime(monkeypa
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_queue_unhealthy_when_redis_ping_fails(monkeypatch):
     settings = Settings(
-        document_processing_queue_backend="redis",
         redis_url="redis://redis:6379/0",
         _env_file=None,
     )
@@ -328,7 +308,6 @@ async def test_readiness_payload_marks_queue_unhealthy_when_redis_ping_fails(mon
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_redis_queue_not_configured_without_url():
     settings = Settings(
-        document_processing_queue_backend="redis",
         redis_url="",
         _env_file=None,
     )

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -21,7 +23,7 @@ from ragdoll.modules.ingestion.domain.policies import (
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
 from ragdoll.modules.changes.application.service import record_change_event
 from ragdoll.modules.users.application.queries import get_user_by_subject
-from ragdoll.platform.db.models import Document, DocumentChunk, Entity
+from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, Entity
 from ragdoll.platform.db.session import get_session_factory
 from ragdoll.platform.graph import GraphCleanupService, get_graph_cleanup_service
 from ragdoll.platform.llm import (
@@ -34,12 +36,55 @@ from ragdoll.platform.llm import (
     get_embedding_generation_service,
     get_entity_extraction_service,
 )
-from ragdoll.platform.queues import DocumentProcessingQueueService, ProcessingJobPayload
+from ragdoll.platform.queues import ProcessingJobPayload, utc_now
 from ragdoll.platform.storage import DocumentStorageService, get_document_storage
 from ragdoll.platform.vector import VectorCleanupService, get_vector_cleanup_service
 
 logger = get_logger("ragdoll.modules.ingestion.service")
 AUTO_EXTRACTION_FAILURE_THRESHOLD = 3
+
+
+def _save_job_meta(current_job: Any | None, **updates: object) -> None:
+    if current_job is None:
+        return
+    meta = dict(getattr(current_job, "meta", {}) or {})
+    meta.update(updates)
+    meta["updated_at"] = utc_now().isoformat()
+    current_job.meta = meta
+    current_job.save_meta()
+
+
+def _set_sql_job_processing(session: Session, job_id: UUID) -> None:
+    job = session.get(DocumentProcessingJob, job_id)
+    if job is None:
+        raise FileNotFoundError(f"Document processing job {job_id} was not found.")
+    if job.status == "completed":
+        return
+    job.status = "processing"
+    job.started_at = job.started_at or utc_now()
+    job.completed_at = None
+    job.visible_error_detail = None
+    session.commit()
+
+
+def _set_sql_job_completed(session: Session, job_id: UUID) -> None:
+    job = session.get(DocumentProcessingJob, job_id)
+    if job is None:
+        return
+    job.status = "completed"
+    job.completed_at = utc_now()
+    job.visible_error_detail = None
+    session.commit()
+
+
+def _set_sql_job_failed(session: Session, job_id: UUID, detail: str) -> None:
+    job = session.get(DocumentProcessingJob, job_id)
+    if job is None:
+        return
+    job.status = "failed"
+    job.completed_at = utc_now()
+    job.visible_error_detail = detail[:2000]
+    session.commit()
 
 
 def _build_document_chunks(document: Document, *, text: str) -> tuple[int, list[DocumentChunk]]:
@@ -128,6 +173,7 @@ def _extract_entities(
     extraction_mode: str,
     extraction_batch_size: int,
     max_parallel_batches: int,
+    current_job: Any | None = None,
 ) -> list[Entity]:
     repo = IngestionRepository(session)
     rows: list[Entity] = []
@@ -154,6 +200,15 @@ def _extract_entities(
         extraction_batch_size,
         max_parallel_batches,
     )
+    _save_job_meta(
+        current_job,
+        stage="extraction",
+        detail=None,
+        chunk_progress_current=0,
+        chunk_progress_total=chunk_count,
+    )
+
+    processed_chunk_count = 0
 
     for offset in range(0, len(chunk_batches), max_parallel_batches):
         batch_window = chunk_batches[offset : offset + max_parallel_batches]
@@ -168,6 +223,14 @@ def _extract_entities(
                         "extraction_mode": "deterministic",
                         "batch_size": len(batch),
                     }
+                processed_chunk_count += len(batch)
+                _save_job_meta(
+                    current_job,
+                    stage="extraction",
+                    detail=None,
+                    chunk_progress_current=processed_chunk_count,
+                    chunk_progress_total=chunk_count,
+                )
             continue
 
         with ThreadPoolExecutor(max_workers=max_parallel_batches) as executor:
@@ -189,6 +252,14 @@ def _extract_entities(
                             "extraction_mode": extraction_mode,
                             "batch_size": len(batch),
                         }
+                    processed_chunk_count += len(batch)
+                    _save_job_meta(
+                        current_job,
+                        stage="extraction",
+                        detail=None,
+                        chunk_progress_current=processed_chunk_count,
+                        chunk_progress_total=chunk_count,
+                    )
                 except (EntityExtractionError, TimeoutError, RuntimeError) as exc:
                     if extraction_mode != "auto":
                         logger.warning(
@@ -219,6 +290,14 @@ def _extract_entities(
                             "extraction_mode": "deterministic",
                             "batch_size": len(batch),
                         }
+                    processed_chunk_count += len(batch)
+                    _save_job_meta(
+                        current_job,
+                        stage="extraction",
+                        detail=None,
+                        chunk_progress_current=processed_chunk_count,
+                        chunk_progress_total=chunk_count,
+                    )
                     if consecutive_failures >= AUTO_EXTRACTION_FAILURE_THRESHOLD and not fallback_mode_active:
                         fallback_mode_active = True
                         logger.warning(
@@ -261,18 +340,25 @@ def _extract_entities(
         chunk_count,
         str(fallback_mode_active).lower(),
     )
+    _save_job_meta(
+        current_job,
+        stage="extraction",
+        detail=None,
+        chunk_progress_current=chunk_count,
+        chunk_progress_total=chunk_count,
+    )
     return rows
 
 
 def process_job_payload(
     payload: ProcessingJobPayload,
-    queue: DocumentProcessingQueueService,
     *,
     storage: DocumentStorageService | None = None,
     embedding_service: EmbeddingGenerationService | None = None,
     entity_extraction_service: EntityExtractionService | None = None,
     vector_cleanup: VectorCleanupService | None = None,
     graph_cleanup: GraphCleanupService | None = None,
+    current_job: Any | None = None,
 ) -> None:
     session = get_session_factory()()
     active_storage = storage or get_document_storage()
@@ -290,8 +376,16 @@ def process_job_payload(
     current_stage = validate_requested_stage(payload.requested_stage)
 
     try:
+        _set_sql_job_processing(session, payload.job_id)
         document = _load_document(session, payload.document_id)
         repo = IngestionRepository(session)
+        _save_job_meta(
+            current_job,
+            stage=current_stage,
+            detail=None,
+            chunk_progress_current=0,
+            chunk_progress_total=document.chunk_count,
+        )
         _prepare_document_for_job(
             session,
             document=document,
@@ -307,6 +401,13 @@ def process_job_payload(
             current_stage = stage
             document.processing_status = mark_processing_stage_started(document.processing_status, requested_stage=stage)
             session.commit()
+            _save_job_meta(
+                current_job,
+                stage=stage,
+                detail=None,
+                chunk_progress_current=0 if stage == "parsing" else document.indexed_chunk_count,
+                chunk_progress_total=document.chunk_count,
+            )
 
             if stage == "parsing":
                 blob = active_storage.download_original_file(document.storage_key)
@@ -319,10 +420,24 @@ def process_job_payload(
                 document.original_text_content = extracted_text
                 document.chunk_count = total_chunks
                 document.indexed_chunk_count = len(chunk_rows)
+                _save_job_meta(
+                    current_job,
+                    stage="parsing",
+                    detail=None,
+                    chunk_progress_current=len(chunk_rows),
+                    chunk_progress_total=total_chunks,
+                )
             elif stage == "vector":
                 chunks = list(document.chunks)
                 if not chunks:
                     raise ValueError("Vector projection requires parsed document chunks.")
+                _save_job_meta(
+                    current_job,
+                    stage="vector",
+                    detail=None,
+                    chunk_progress_current=0,
+                    chunk_progress_total=len(chunks),
+                )
                 embeddings = active_embedding_service.generate_embeddings([chunk.text_content for chunk in chunks])
                 active_vector_cleanup.replace_document_embeddings(
                     session,
@@ -330,6 +445,13 @@ def process_job_payload(
                     chunks=chunks,
                     embeddings=embeddings,
                     embedding_model=getattr(active_embedding_service, "_model", "deterministic"),
+                )
+                _save_job_meta(
+                    current_job,
+                    stage="vector",
+                    detail=None,
+                    chunk_progress_current=len(chunks),
+                    chunk_progress_total=len(chunks),
                 )
             elif stage == "extraction":
                 entities = _extract_entities(
@@ -340,17 +462,32 @@ def process_job_payload(
                     extraction_mode=extraction_mode,
                     extraction_batch_size=extraction_batch_size,
                     max_parallel_batches=max_parallel_batches,
+                    current_job=current_job,
                 )
                 repo.replace_entities(document, entities)
                 session.flush()
                 repo.prune_orphan_canonical_entities()
             elif stage == "graph":
+                _save_job_meta(
+                    current_job,
+                    stage="graph",
+                    detail=None,
+                    chunk_progress_current=document.indexed_chunk_count,
+                    chunk_progress_total=document.chunk_count,
+                )
                 active_graph_cleanup.project_document_relationships(session, document=document)
 
             document.processing_status = mark_processing_stage_completed(document.processing_status, completed_stage=stage)
             session.commit()
 
-        queue.mark_job_completed(payload.job_id)
+        _set_sql_job_completed(session, payload.job_id)
+        _save_job_meta(
+            current_job,
+            stage=current_stage,
+            detail=None,
+            chunk_progress_current=document.indexed_chunk_count,
+            chunk_progress_total=document.chunk_count,
+        )
         event_type = "document_processed" if payload.job_kind == "upload" else "document_reprocessed"
         record_change_event(
             session,
@@ -377,6 +514,13 @@ def process_job_payload(
         except Exception:
             session.rollback()
         finally:
-            queue.mark_job_failed(payload.job_id, str(exc))
+            _set_sql_job_failed(session, payload.job_id, str(exc))
+            _save_job_meta(
+                current_job,
+                stage=current_stage,
+                detail=str(exc),
+                chunk_progress_current=0,
+                chunk_progress_total=getattr(document, "chunk_count", 0) if "document" in locals() else 0,
+            )
     finally:
         session.close()

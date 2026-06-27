@@ -172,22 +172,14 @@ def _check_graph(settings: Settings, database_status: DependencyStatus) -> Depen
 
 
 def _check_queue(settings: Settings, database_status: DependencyStatus) -> DependencyStatus:
-    queue_backend = settings.document_processing_queue_backend
-    if settings.e2e_memory_backends or queue_backend == "memory":
-        return _service("healthy", "In-memory queue backend is enabled.", backend="memory")
-    if queue_backend == "redis":
-        if not (settings.redis_url or "").strip():
-            return _service("not_configured", "REDIS_URL is required for the Redis queue backend.", backend="redis")
-        try:
-            ping_redis_queue(settings)
-            return _service("healthy", "Redis Streams queue runtime is reachable.", backend="redis")
-        except Exception:
-            return _service("unhealthy", _redact_exception("Redis queue"), backend="redis")
-    if not settings.has_database_config:
-        return _service("not_configured", "Database URL is required before queue readiness can be checked.", backend="sql")
-    if database_status.status != "healthy":
-        return _service("unhealthy", "Queue backing prerequisites depend on a healthy database connection.", backend="sql")
-    return _service("healthy", "Database-backed queue runtime is available.", backend="sql")
+    del database_status
+    if not (settings.redis_url or "").strip():
+        return _service("not_configured", "REDIS_URL is required for the Redis queue backend.", backend="redis")
+    try:
+        ping_redis_queue(settings)
+        return _service("healthy", "Redis-backed RQ runtime is reachable.", backend="redis")
+    except Exception:
+        return _service("unhealthy", _redact_exception("Redis queue"), backend="redis")
 
 
 async def _check_llm(settings: Settings) -> DependencyStatus:

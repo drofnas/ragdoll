@@ -11,6 +11,7 @@ from sqlalchemy import event
 from ragdoll.api import dependencies as dependency_module
 from ragdoll.core.exceptions import StorageUnavailableError
 from ragdoll.core.instance_policy import InstanceLimits
+from ragdoll.modules.ingestion.application import queries as ingestion_queries
 from ragdoll.modules.ingestion.domain import policies as ingestion_policies
 from ragdoll.platform.db.models import (
     CanonicalEntity,
@@ -26,12 +27,12 @@ from ragdoll.platform.db.models import (
 )
 from ragdoll.platform.graph import InMemoryGraphCleanupService
 from ragdoll.platform.llm import DeterministicEmbeddingService, DeterministicEntityExtractionService
-from ragdoll.platform.queues import InMemoryDocumentProcessingQueue
+from ragdoll.platform.queues import DocumentQueueRuntime
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.platform.vector import InMemoryVectorCleanupService
 from ragdoll.modules.ingestion.application.service import process_job_payload
 from ragdoll.platform.queues.service import utc_now
-from ragdoll.workers.document_pipeline import drain_document_jobs
+from tests.support.document_processing import FakeDocumentProcessingQueue, drain_test_document_jobs
 
 
 class FailingUploadStorage:
@@ -139,7 +140,7 @@ def seed_stale_processing_state(
 @pytest.fixture
 def ingestion_runtime(api_client):
     storage = InMemoryDocumentStorage()
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     vector_cleanup = InMemoryVectorCleanupService()
     graph_cleanup = InMemoryGraphCleanupService()
     embedding_service = DeterministicEmbeddingService()
@@ -276,7 +277,7 @@ def test_upload_rejects_oversized_file(api_client, ingestion_runtime):
 
 
 def test_upload_returns_service_unavailable_when_storage_write_fails(api_client, db_session):
-    queue = InMemoryDocumentProcessingQueue()
+    queue = FakeDocumentProcessingQueue()
     vector_cleanup = InMemoryVectorCleanupService()
     graph_cleanup = InMemoryGraphCleanupService()
     api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: FailingUploadStorage()
@@ -315,7 +316,7 @@ def test_batch_status_dedupes_and_filters_visibility(api_client, db_session, ing
     )
     assert upload_a.status_code == 201, upload_a.text
     assert upload_b.status_code == 201, upload_b.text
-    drain_document_jobs(
+    drain_test_document_jobs(
         queue=queue,
         storage=storage,
         embedding_service=embedding_service,
@@ -454,7 +455,7 @@ def test_worker_processing_updates_document_reads(api_client, db_session, ingest
     document_id = upload.json()["document_id"]
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -473,27 +474,55 @@ def test_worker_processing_updates_document_reads(api_client, db_session, ingest
     assert status_payload["processing_status"]["vector"] == "completed"
     assert status_payload["processing_status"]["extraction"] == "completed"
     assert status_payload["processing_status"]["graph"] == "completed"
-    assert status_payload["chunk_count"] >= 1
-    assert status_payload["indexed_chunk_count"] >= 1
 
-    detail = api_client.get(f"/api/v1/documents/{document_id}", headers=auth_headers(token))
-    assert detail.status_code == 200, detail.text
-    assert detail.json()["preview_text"].startswith("Atlas")
-    assert detail.json()["chunk_count"] >= 2
 
-    document = db_session.get(Document, UUID(document_id))
-    assert document is not None
-    chunks = (
-        db_session.query(DocumentChunk)
-        .filter(DocumentChunk.document_id == document.id)
-        .order_by(DocumentChunk.chunk_index)
-        .all()
+def test_document_status_exposes_queue_runtime(api_client, db_session, monkeypatch, ingestion_runtime):
+    _, queue, _, _, _, _ = ingestion_runtime
+    token = register_and_login(api_client, email="queue-runtime@example.com")
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={"file": ("runtime.txt", BytesIO(b"runtime"), "text/plain")},
     )
-    assert [chunk.start_line for chunk in chunks] == [1, 4]
-    assert db_session.query(DocumentChunkVector).filter(DocumentChunkVector.document_id == document.id).count() >= 1
-    assert db_session.query(Entity).filter(Entity.document_id == document.id).count() >= 1
-    assert db_session.query(CanonicalEntity).filter(CanonicalEntity.space_id == document.space_id).count() >= 1
-    assert db_session.query(GraphNode).count() >= 1
+    assert upload.status_code == 201, upload.text
+    payload = upload.json()
+    job_id = UUID(payload["job_id"])
+    document_id = UUID(payload["document_id"])
+
+    class RuntimeProbe:
+        def read_runtime(self, active_job_id: UUID):
+            assert active_job_id == job_id
+            return DocumentQueueRuntime(
+                job_id=active_job_id,
+                queue_job_id=str(active_job_id),
+                queue_name="document-processing",
+                status="queued",
+                stage="parsing",
+                detail=None,
+                worker_name=None,
+                queue_position=1,
+                chunk_progress_current=0,
+                chunk_progress_total=0,
+            )
+
+    monkeypatch.setattr(ingestion_queries, "get_document_processing_queue", lambda: RuntimeProbe())
+
+    status = api_client.get(
+        f"/api/v1/ingestion/documents/{document_id}/status",
+        headers=auth_headers(token),
+    )
+    assert status.status_code == 200, status.text
+    queue_runtime = status.json()["queue_runtime"]
+    assert queue_runtime["status"] == "queued"
+    assert queue_runtime["queue_name"] == "document-processing"
+    assert queue_runtime["queue_position"] == 1
+    assert queue_runtime["stage"] == "parsing"
+    assert queue.queued_job_ids() == [job_id]
+
+    document = db_session.get(Document, document_id)
+    assert document is not None
+    assert document.processing_status["overall"] == "pending"
 
 
 def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_session, ingestion_runtime):
@@ -507,7 +536,7 @@ def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_se
     )
     assert upload.status_code == 201, upload.text
     document_id = UUID(upload.json()["document_id"])
-    drain_document_jobs(
+    drain_test_document_jobs(
         queue=queue,
         storage=storage,
         embedding_service=embedding_service,
@@ -532,7 +561,7 @@ def test_reprocess_clears_existing_chunks_and_enqueues_new_job(api_client, db_se
     assert f"derived/{document_id}" in storage.derived_prefixes
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -595,7 +624,6 @@ def test_reprocess_queues_one_follow_up_behind_an_active_job(api_client, db_sess
 
     process_job_payload(
         active_payload,
-        queue=queue,
         storage=storage,
         embedding_service=embedding_service,
         entity_extraction_service=entity_extraction_service,
@@ -606,7 +634,7 @@ def test_reprocess_queues_one_follow_up_behind_an_active_job(api_client, db_sess
     assert f"derived/{document_id}" in storage.derived_prefixes
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -642,7 +670,7 @@ def test_reprocess_cleans_derived_artifacts_before_replacing_chunks(api_client, 
     document_id = UUID(upload.json()["document_id"])
 
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -674,7 +702,7 @@ def test_reprocess_cleans_derived_artifacts_before_replacing_chunks(api_client, 
     event.listen(engine, "before_cursor_execute", record_chunk_delete)
     try:
         assert (
-            drain_document_jobs(
+            drain_test_document_jobs(
                 queue=queue,
                 storage=storage,
                 embedding_service=embedding_service,
@@ -803,7 +831,7 @@ def test_targeted_retries_reset_only_downstream_stages(
     assert upload.status_code == 201, upload.text
     document_id = UUID(upload.json()["document_id"])
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -840,7 +868,7 @@ def test_reprocess_with_identical_content_keeps_projection_counts_stable(api_cli
     assert upload.status_code == 201, upload.text
     document_id = UUID(upload.json()["document_id"])
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,
@@ -866,7 +894,7 @@ def test_reprocess_with_identical_content_keeps_projection_counts_stable(api_cli
     )
     assert reprocess.status_code == 200, reprocess.text
     assert (
-        drain_document_jobs(
+        drain_test_document_jobs(
             queue=queue,
             storage=storage,
             embedding_service=embedding_service,

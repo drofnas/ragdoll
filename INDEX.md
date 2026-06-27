@@ -84,10 +84,10 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - `apps/api/src/ragdoll/modules/` - Feature and capability modules. Most new business functionality belongs here.
 - `apps/api/src/ragdoll/modules/registry.py` - Central list of v1 modules and route/schema registration metadata.
 - `apps/api/src/ragdoll/platform/` - Shared infrastructure services for DB, storage, queues, graph, and vector concerns.
-- `apps/api/src/ragdoll/platform/queues/` - Document-processing queue adapters; Redis Streams is the scalable runtime queue, with SQL and memory adapters for explicit fallback/test modes.
+- `apps/api/src/ragdoll/platform/queues/` - Redis-backed RQ queue helpers plus queue-runtime inspection for document processing.
 - `apps/api/src/ragdoll/platform/db/models/` - SQLAlchemy models.
 - `apps/api/src/ragdoll/platform/db/migrations/` - Alembic environment and migration versions.
-- `apps/api/src/ragdoll/workers/` - Worker entrypoints and background pipeline wiring; `document_vector_worker.py` is the scalable document-processing worker entrypoint.
+- `apps/api/src/ragdoll/workers/` - RQ job callables and background pipeline wiring; `document_pipeline.py` is the document-processing job entrypoint used by the `document-vector` RQ worker service.
 - `apps/api/tests/platform/` - Platform and bootstrap coverage.
 - `apps/api/tests/modules/` - Module-level API and contract coverage.
 

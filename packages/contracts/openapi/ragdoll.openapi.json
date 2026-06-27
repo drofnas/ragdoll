@@ -1696,6 +1696,16 @@
           "processing_status": {
             "$ref": "#/components/schemas/ProcessingStatus"
           },
+          "queue_runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentQueueRuntimeResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "queued_job_count": {
             "default": 0,
             "minimum": 0.0,
@@ -1728,6 +1738,140 @@
           "updated_at"
         ],
         "title": "DocumentProcessingStatusResponse",
+        "type": "object"
+      },
+      "DocumentQueueRuntimeResponse": {
+        "properties": {
+          "chunk_progress_current": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Chunk Progress Current",
+            "type": "integer"
+          },
+          "chunk_progress_total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Chunk Progress Total",
+            "type": "integer"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "enqueued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enqueued At"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "queue_job_id": {
+            "title": "Queue Job Id",
+            "type": "string"
+          },
+          "queue_name": {
+            "title": "Queue Name",
+            "type": "string"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "worker_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Name"
+          }
+        },
+        "required": [
+          "job_id",
+          "queue_job_id",
+          "queue_name",
+          "status"
+        ],
+        "title": "DocumentQueueRuntimeResponse",
         "type": "object"
       },
       "DocumentUpdateRequest": {

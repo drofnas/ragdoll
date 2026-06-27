@@ -191,7 +191,7 @@ is_placeholder_api_value() {
     OLLAMA_EMBEDDING_MODEL|SUPABASE_STORAGE_BUCKET)
       [ -z "$value" ]
       ;;
-    DOCUMENT_PROCESSING_QUEUE_BACKEND)
+    DOCUMENT_PROCESSING_QUEUE_NAME)
       [ -z "$value" ]
       ;;
     REDIS_URL)
@@ -489,8 +489,8 @@ sync_api_env() {
     env_set "$API_ENV_FILE" OLLAMA_EMBEDDING_MODEL "$(env_get "$INFRA_ENV_FILE" OLLAMA_EMBEDDING_MODEL)"
   fi
 
-  if is_placeholder_api_value DOCUMENT_PROCESSING_QUEUE_BACKEND "$(env_get "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_BACKEND || true)"; then
-    env_set "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_BACKEND "redis"
+  if is_placeholder_api_value DOCUMENT_PROCESSING_QUEUE_NAME "$(env_get "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_NAME || true)"; then
+    env_set "$API_ENV_FILE" DOCUMENT_PROCESSING_QUEUE_NAME "document-processing"
   fi
 
   if is_placeholder_api_value REDIS_URL "$(env_get "$API_ENV_FILE" REDIS_URL || true)"; then

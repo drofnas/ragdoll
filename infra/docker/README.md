@@ -29,7 +29,7 @@ Key workflows:
 - `./dev-setup.sh infra upgrade` refreshes the local upstream Supabase Docker tree to the repo-selected pinned commit, pulls newer infra images, and restarts the dependency stack
 - `./dev-setup.sh test-infra` runs the opt-in Docker-backed Phase 7 readiness and manual-upload smoke suite
 - `./dev-setup.sh infra logs` tails local dependency logs
-- `./dev-setup.sh daemon --scale document-vector=3` starts three workers that drain the same Redis Stream
+- `./dev-setup.sh daemon --scale document-vector=3` starts three workers that drain the same Redis-backed RQ queue
 
 Recommended local full-stack flow:
 

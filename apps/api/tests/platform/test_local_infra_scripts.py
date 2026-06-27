@@ -43,7 +43,7 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_WORKER_BASE_URL=http://host.docker.internal:11434
 OLLAMA_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=
-DOCUMENT_PROCESSING_QUEUE_BACKEND=
+DOCUMENT_PROCESSING_QUEUE_NAME=
 REDIS_URL=
 """
 
@@ -98,7 +98,7 @@ def test_bootstrap_infra_env_creates_env_and_hydrates_api_placeholders(tmp_path)
     assert "SUPABASE_SERVICE_ROLE_KEY=replace-with-local-service-role-key" not in api_text
     assert "OLLAMA_BASE_URL=http://ollama:11434" in api_text
     assert "OLLAMA_WORKER_BASE_URL=http://ollama:11434" in api_text
-    assert "DOCUMENT_PROCESSING_QUEUE_BACKEND=redis" in api_text
+    assert "DOCUMENT_PROCESSING_QUEUE_NAME=document-processing" in api_text
     assert "REDIS_URL=redis://redis:6379/0" in api_text
 
 
@@ -150,7 +150,7 @@ def test_bootstrap_infra_env_hydrate_preserves_existing_real_api_values(tmp_path
                 "OLLAMA_WORKER_BASE_URL=http://custom-worker:11434",
                 "OLLAMA_MODEL=custom-model",
                 "OLLAMA_EMBEDDING_MODEL=custom-embedding",
-                "DOCUMENT_PROCESSING_QUEUE_BACKEND=sql",
+                "DOCUMENT_PROCESSING_QUEUE_NAME=custom-processing",
                 "REDIS_URL=redis://custom-redis:6379/2",
             ]
         )
@@ -177,7 +177,7 @@ def test_bootstrap_infra_env_hydrate_preserves_existing_real_api_values(tmp_path
     assert "SUPABASE_SERVICE_ROLE_KEY=custom-service-role" in api_text
     assert "OLLAMA_BASE_URL=http://custom-ollama:11434" in api_text
     assert "OLLAMA_EMBEDDING_MODEL=custom-embedding" in api_text
-    assert "DOCUMENT_PROCESSING_QUEUE_BACKEND=sql" in api_text
+    assert "DOCUMENT_PROCESSING_QUEUE_NAME=custom-processing" in api_text
     assert "REDIS_URL=redis://custom-redis:6379/2" in api_text
 
 

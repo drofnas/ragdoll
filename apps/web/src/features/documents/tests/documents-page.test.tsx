@@ -262,6 +262,19 @@ describe("DocumentsPage", () => {
         vector: "completed" as const
       }
     };
+    const staleRuntimeDocument = {
+      ...buildDocumentListItem("stale-runtime-document", "stale-runtime.pdf"),
+      chunk_count: 12,
+      indexed_chunk_count: 12,
+      processing_status: {
+        ...documentDetail.processing_status,
+        extraction: "processing" as const,
+        graph: "pending" as const,
+        overall: "processing" as const,
+        parsing: "completed" as const,
+        vector: "completed" as const
+      }
+    };
     const completedDocument = {
       ...buildDocumentListItem("completed-document", "completed.pdf"),
       chunk_count: 12,
@@ -291,6 +304,22 @@ describe("DocumentsPage", () => {
         chunk_count: 12,
         document_id: queuedDocument.id,
         indexed_chunk_count: 0,
+        queue_runtime: {
+          chunk_progress_current: 0,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:01:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: 2,
+          stage: "parsing",
+          started_at: null,
+          status: "queued",
+          updated_at: "2026-06-22T17:01:00Z",
+          worker_name: null
+        },
         processing_status: queuedDocument.processing_status,
         queued_job_count: 0
       },
@@ -335,6 +364,22 @@ describe("DocumentsPage", () => {
           started_at: "2026-06-22T17:02:00Z",
           status: "processing" as const
         },
+        queue_runtime: {
+          chunk_progress_current: 6,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:01:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: null,
+          stage: "vector",
+          started_at: "2026-06-22T17:02:00Z",
+          status: "started",
+          updated_at: "2026-06-22T17:02:30Z",
+          worker_name: "rq:worker-1"
+        },
         processing_status: processingDocument.processing_status,
         queued_job_count: 0
       },
@@ -357,7 +402,61 @@ describe("DocumentsPage", () => {
           started_at: "2026-06-22T17:08:00Z",
           status: "processing" as const
         },
+        queue_runtime: {
+          chunk_progress_current: 9,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:07:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: null,
+          stage: "graph",
+          started_at: "2026-06-22T17:08:00Z",
+          status: "started",
+          updated_at: "2026-06-22T17:08:30Z",
+          worker_name: "rq:worker-2"
+        },
         processing_status: graphingDocument.processing_status,
+        queued_job_count: 0
+      },
+      {
+        ...documentStatusResponse,
+        active_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:09:00Z",
+          status: "processing" as const
+        },
+        chunk_count: 12,
+        document_id: staleRuntimeDocument.id,
+        indexed_chunk_count: 12,
+        latest_job: {
+          ...documentStatusResponse.latest_job!,
+          completed_at: null,
+          requested_stage: "parsing",
+          started_at: "2026-06-22T17:09:00Z",
+          status: "processing" as const
+        },
+        queue_runtime: {
+          chunk_progress_current: 12,
+          chunk_progress_total: 12,
+          detail: null,
+          enqueued_at: "2026-06-22T17:08:00Z",
+          ended_at: null,
+          job_id: documentStatusResponse.latest_job!.id,
+          queue_job_id: documentStatusResponse.latest_job!.id,
+          queue_name: "document-processing",
+          queue_position: null,
+          stage: "vector",
+          started_at: "2026-06-22T17:09:00Z",
+          status: "started",
+          updated_at: "2026-06-22T17:09:30Z",
+          worker_name: "rq:worker-3"
+        },
+        processing_status: staleRuntimeDocument.processing_status,
         queued_job_count: 0
       },
       {
@@ -422,11 +521,12 @@ describe("DocumentsPage", () => {
               refreshStartDocument,
               processingDocument,
               graphingDocument,
+              staleRuntimeDocument,
               completedDocument,
               failedDocument,
               failedQueuedDocument
             ],
-            total: 7
+            total: 8
           });
         }
         return jsonResponse({}, { status: 404 });
@@ -449,42 +549,48 @@ describe("DocumentsPage", () => {
     const refreshStartRow = screen.getByText("refresh-start.pdf").closest("tr")!;
     const processingRow = screen.getByText("processing.pdf").closest("tr")!;
     const graphingRow = screen.getByText("graphing.pdf").closest("tr")!;
+    const staleRuntimeRow = screen.getByText("stale-runtime.pdf").closest("tr")!;
     const completedRow = screen.getByText("completed.pdf").closest("tr")!;
     const failedRow = screen.getByText("failed.pdf").closest("tr")!;
     const failedQueuedRow = screen.getByText("failed-queued.pdf").closest("tr")!;
 
     expect(within(queuedRow).getByText("Queued")).toBeInTheDocument();
-    expect(within(queuedRow).getByText("12")).toBeInTheDocument();
+    expect(within(queuedRow).getByText("0%")).toBeInTheDocument();
     expectProgressState(queuedRow, "Queued chunk progress", "0", "bg-muted-foreground/30");
 
-    expect(within(refreshStartRow).getByText("Processing")).toBeInTheDocument();
-    expect(within(refreshStartRow).getByText("0/12")).toBeInTheDocument();
-    expectProgressState(refreshStartRow, "Processing chunk progress", "0", "bg-sky-600");
+    expect(within(refreshStartRow).getByText("0%")).toBeInTheDocument();
+    expect(within(refreshStartRow).getByText("Parsing")).toBeInTheDocument();
+    expectProgressState(refreshStartRow, "Parsing chunk progress", "0", "bg-sky-600");
 
-    expect(within(processingRow).getByText("Processing")).toBeInTheDocument();
-    expect(within(processingRow).getByText("6/12")).toBeInTheDocument();
-    expectProgressState(processingRow, "Processing chunk progress", "50", "bg-sky-600");
+    await waitFor(() => expect(within(processingRow).getByText("Vectorizing")).toBeInTheDocument());
+    expect(within(processingRow).getByText("38%")).toBeInTheDocument();
+    expectProgressState(processingRow, "Vectorizing chunk progress", "38", "bg-sky-600");
 
-    expect(within(graphingRow).getByText("Processing")).toBeInTheDocument();
-    expect(within(graphingRow).getByText("9/12")).toBeInTheDocument();
-    expectProgressState(graphingRow, "Processing chunk progress", "75", "bg-sky-600");
+    await waitFor(() => expect(within(graphingRow).getByText("Graphing")).toBeInTheDocument());
+    expect(within(graphingRow).getByText("99%")).toBeInTheDocument();
+    expectProgressState(graphingRow, "Graphing chunk progress", "99", "bg-sky-600");
+
+    await waitFor(() => expect(within(staleRuntimeRow).getByText("Extracting")).toBeInTheDocument());
+    expect(within(staleRuntimeRow).getByText("75%")).toBeInTheDocument();
+    expectProgressState(staleRuntimeRow, "Extracting chunk progress", "75", "bg-sky-600");
 
     expect(within(completedRow).getByText("Completed")).toBeInTheDocument();
     expect(within(completedRow).getByText("12")).toBeInTheDocument();
     expectProgressState(completedRow, "Completed chunk progress", "100", "bg-primary");
 
     expect(within(failedRow).getByText("Failed")).toBeInTheDocument();
-    expect(within(failedRow).getByText("3/12")).toBeInTheDocument();
-    expectProgressState(failedRow, "Failed chunk progress", "100", "bg-destructive");
+    expect(within(failedRow).getByText("56%")).toBeInTheDocument();
+    expectProgressState(failedRow, "Failed chunk progress", "56", "bg-destructive");
 
     await waitFor(() => expect(within(failedQueuedRow).getByText("Queued")).toBeInTheDocument());
-    expect(within(failedQueuedRow).getByText("12")).toBeInTheDocument();
+    expect(within(failedQueuedRow).getByText("0%")).toBeInTheDocument();
     expectProgressState(failedQueuedRow, "Queued chunk progress", "0", "bg-muted-foreground/30");
 
     expect(within(queuedRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(refreshStartRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(processingRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(graphingRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(within(staleRuntimeRow).getByRole("button", { name: "Refresh" })).toBeDisabled();
     expect(within(completedRow).getByRole("button", { name: "Refresh" })).toBeEnabled();
     expect(within(failedRow).getByRole("button", { name: "Refresh" })).toBeEnabled();
     expect(within(failedQueuedRow).getByRole("button", { name: "Refresh" })).toBeDisabled();

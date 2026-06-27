@@ -21,6 +21,25 @@ class DocumentProcessingJobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DocumentQueueRuntimeResponse(BaseModel):
+    job_id: UUID
+    queue_job_id: str
+    queue_name: str
+    status: str
+    stage: str | None = None
+    detail: str | None = None
+    worker_name: str | None = None
+    queue_position: int | None = Field(default=None, ge=1)
+    chunk_progress_current: int = Field(default=0, ge=0)
+    chunk_progress_total: int = Field(default=0, ge=0)
+    enqueued_at: datetime | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UploadDocumentResponse(BaseModel):
     document_id: UUID
     job_id: UUID
@@ -37,6 +56,7 @@ class DocumentProcessingStatusResponse(BaseModel):
     indexed_chunk_count: int = Field(ge=0)
     latest_job: DocumentProcessingJobResponse | None = None
     active_job: DocumentProcessingJobResponse | None = None
+    queue_runtime: DocumentQueueRuntimeResponse | None = None
     queued_job_count: int = Field(default=0, ge=0)
     has_queued_reprocess: bool = False
     updated_at: datetime

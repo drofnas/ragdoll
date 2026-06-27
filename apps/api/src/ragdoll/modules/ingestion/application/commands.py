@@ -19,6 +19,7 @@ from ragdoll.modules.ingestion.domain.policies import (
     enforce_storage_limit,
     enforce_upload_rate_limit,
     enforce_upload_size_limit,
+    mark_processing_stage_failed,
     reset_processing_status_for_stage,
     validate_requested_stage,
 )
@@ -31,6 +32,7 @@ from ragdoll.platform.queues import (
     DocumentProcessingQueueService,
     ProcessingJobPayload,
     reconcile_stale_processing_jobs,
+    utc_now,
 )
 from ragdoll.platform.storage import DocumentStorageService
 from ragdoll.platform.vector import VectorCleanupService
@@ -88,6 +90,24 @@ def _ensure_document_is_requeueable(active_job: DocumentProcessingJob | None, qu
 
 def _next_attempt(latest_job: DocumentProcessingJob | None) -> int:
     return 1 if latest_job is None else latest_job.attempt + 1
+
+
+def _mark_enqueue_failed(
+    session: Session,
+    *,
+    document: Document,
+    job: DocumentProcessingJob,
+    detail: str,
+) -> None:
+    job.status = "failed"
+    job.completed_at = utc_now()
+    job.visible_error_detail = detail[:2000]
+    document.processing_status = mark_processing_stage_failed(
+        document.processing_status,
+        failed_stage=job.requested_stage,
+        detail=detail,
+    )
+    session.commit()
 
 
 def upload_document(
@@ -158,23 +178,31 @@ def upload_document(
     session.refresh(document)
     session.refresh(job)
 
-    queue.enqueue(
-        ProcessingJobPayload(
-            job_id=job.id,
-            document_id=document.id,
-            space_id=document.space_id,
-            uploaded_by=document.uploaded_by,
-            requested_stage=job.requested_stage,
-            attempt=job.attempt,
-            job_kind=job.job_kind,
-            cleanup_derived_artifacts=job.cleanup_derived_artifacts,
-            reset_document_content=job.reset_document_content,
-            clear_existing_chunks=job.clear_existing_chunks,
-            clear_existing_entities=job.clear_existing_entities,
-            cleanup_vectors=job.cleanup_vectors,
-            cleanup_graph=job.cleanup_graph,
-        )
+    payload = ProcessingJobPayload(
+        job_id=job.id,
+        document_id=document.id,
+        space_id=document.space_id,
+        uploaded_by=document.uploaded_by,
+        requested_stage=job.requested_stage,
+        attempt=job.attempt,
+        job_kind=job.job_kind,
+        cleanup_derived_artifacts=job.cleanup_derived_artifacts,
+        reset_document_content=job.reset_document_content,
+        clear_existing_chunks=job.clear_existing_chunks,
+        clear_existing_entities=job.clear_existing_entities,
+        cleanup_vectors=job.cleanup_vectors,
+        cleanup_graph=job.cleanup_graph,
     )
+    try:
+        queue.enqueue(payload)
+    except Exception:
+        _mark_enqueue_failed(
+            session,
+            document=document,
+            job=job,
+            detail="Document processing could not be queued because Redis or RQ was unavailable.",
+        )
+        raise
     return UploadDocumentResponse(
         document_id=document.id,
         job_id=job.id,
@@ -246,21 +274,29 @@ def requeue_document_processing(
     session.commit()
     session.refresh(job)
 
-    queue.enqueue(
-        ProcessingJobPayload(
-            job_id=job.id,
-            document_id=job.document_id,
-            space_id=job.space_id,
-            uploaded_by=job.uploaded_by,
-            requested_stage=job.requested_stage,
-            attempt=job.attempt,
-            job_kind=job.job_kind,
-            cleanup_derived_artifacts=job.cleanup_derived_artifacts,
-            reset_document_content=job.reset_document_content,
-            clear_existing_chunks=job.clear_existing_chunks,
-            clear_existing_entities=job.clear_existing_entities,
-            cleanup_vectors=job.cleanup_vectors,
-            cleanup_graph=job.cleanup_graph,
-        )
+    payload = ProcessingJobPayload(
+        job_id=job.id,
+        document_id=job.document_id,
+        space_id=job.space_id,
+        uploaded_by=job.uploaded_by,
+        requested_stage=job.requested_stage,
+        attempt=job.attempt,
+        job_kind=job.job_kind,
+        cleanup_derived_artifacts=job.cleanup_derived_artifacts,
+        reset_document_content=job.reset_document_content,
+        clear_existing_chunks=job.clear_existing_chunks,
+        clear_existing_entities=job.clear_existing_entities,
+        cleanup_vectors=job.cleanup_vectors,
+        cleanup_graph=job.cleanup_graph,
     )
+    try:
+        queue.enqueue(payload)
+    except Exception:
+        _mark_enqueue_failed(
+            session,
+            document=document,
+            job=job,
+            detail="Document processing could not be queued because Redis or RQ was unavailable.",
+        )
+        raise
     return job

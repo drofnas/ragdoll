@@ -1,5 +1,7 @@
 # Redis-Backed `document-vector` Worker Plan
 
+This planning note is historical context only. The current implementation uses Redis-backed RQ workers rather than the older Redis Streams design described below.
+
 ## Summary
 
 The change adds Redis to the local infra stack, renames the scalable document worker service to `document-vector`, and moves document-processing dispatch from DB polling to Redis Streams while keeping `document_processing_jobs` as the durable status ledger.
