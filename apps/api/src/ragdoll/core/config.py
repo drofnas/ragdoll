@@ -121,6 +121,9 @@ class Settings(BaseSettings):
 
     e2e_shared_backends: bool = False
     e2e_memory_backends: bool = False
+    e2e_test_user_email: str | None = None
+    e2e_test_user_password: str = "testpass123"
+    e2e_test_user_full_name: str = "Ragdoll E2E Test User"
 
     model_config = SettingsConfigDict(
         env_file=".env",

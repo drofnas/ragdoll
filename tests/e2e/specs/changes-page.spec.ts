@@ -1,10 +1,8 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext } from "@playwright/test";
+
+import { authenticatedTest as test } from "../helpers/shared-user";
 
 const API_BASE_URL = process.env.E2E_API_BASE_URL ?? "http://backend:8000";
-
-function uniqueEmail(label: string) {
-  return `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-}
 
 function uniqueDocumentName() {
   return `changes-accordion-${Date.now()}.txt`;
@@ -19,31 +17,6 @@ function buildChunkHeavyUpload() {
     { length: 4500 },
     (_, index) => `Acme Operations ${index} coordinates with Redwood Systems on document workflows.`
   ).join(" ");
-}
-
-async function register(page: Page, email: string, password: string) {
-  await page.goto("/register");
-  await page.getByLabel("Full name").fill("E2E User");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/login$/);
-}
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-}
-
-async function readAccessToken(page: Page) {
-  const token = await page.evaluate(() =>
-    window.localStorage.getItem("ragdoll.auth.accessToken")
-  );
-  expect(token).toBeTruthy();
-  return token as string;
 }
 
 async function createCorrection(
@@ -68,14 +41,11 @@ async function createCorrection(
 
 test.describe("changes page accordions", () => {
   test("activity accordion fetches detail once and reuses it after collapse", async ({
-    page
+    page,
+    sharedUser
   }) => {
-    const email = uniqueEmail("changes-activity");
-    const password = "testpass123";
+    void sharedUser;
     const uploadName = uniqueDocumentName();
-
-    await register(page, email, password);
-    await login(page, email, password);
 
     await page.goto("/documents");
     await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
@@ -124,19 +94,13 @@ test.describe("changes page accordions", () => {
 
   test("corrections accordion deep link fetches detail once and keeps inline review working", async ({
     page,
-    request
+    request,
+    sharedUser
   }) => {
-    const email = uniqueEmail("changes-corrections");
-    const password = "testpass123";
     const proposedValue = uniqueCorrectionValue();
-
-    await register(page, email, password);
-    await login(page, email, password);
-
-    const token = await readAccessToken(page);
     const correction = await createCorrection(
       request,
-      token,
+      sharedUser.accessToken,
       proposedValue,
       "The answer should use the more precise value."
     );

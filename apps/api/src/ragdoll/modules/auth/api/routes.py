@@ -2,16 +2,26 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, status
 
-from ragdoll.api.dependencies import CurrentUserDep, DatabaseSessionDep
-from ragdoll.api.shared_schemas import ProblemResponse
+from ragdoll.api.dependencies import (
+    CurrentUserDep,
+    DatabaseSessionDep,
+    DocumentStorageDep,
+    GraphCleanupDep,
+    SettingsDep,
+    VectorCleanupDep,
+)
+from ragdoll.api.shared_schemas import MutationResult, ProblemResponse
+from ragdoll.core.exceptions import ApplicationError, AuthorizationError
 from ragdoll.modules.auth.api.schemas import LoginTokenResponse, RegisterRequest
 from ragdoll.modules.auth.application.commands import (
     build_registration_response,
     login_user,
     parse_oauth_password_form,
     register_user,
+    reset_user_workspace,
 )
 from ragdoll.modules.auth.application.queries import get_current_user_profile
+from ragdoll.modules.users.domain.policies import normalize_email_address
 from ragdoll.modules.users.api.schemas import UpdateCurrentUserRequest, UserProfileResponse
 from ragdoll.modules.users.application.commands import update_current_user
 from ragdoll.modules.users.application.queries import build_user_profile_response, get_user_by_subject
@@ -82,3 +92,45 @@ def patch_current_user(
     user = get_user_by_subject(db, current_user.subject)
     updated_user = update_current_user(db, user, payload)
     return build_user_profile_response(updated_user)
+
+
+@router.post(
+    "/e2e/reset-workspace",
+    response_model=MutationResult,
+    include_in_schema=False,
+    responses={
+        401: {"model": ProblemResponse, "description": "Authentication required."},
+        403: {"model": ProblemResponse, "description": "Reserved for the configured E2E test user."},
+        404: {"model": ProblemResponse, "description": "Shared E2E reset is not enabled."},
+    },
+)
+def post_e2e_reset_workspace(
+    current_user: CurrentUserDep,
+    db: DatabaseSessionDep,
+    settings: SettingsDep,
+    storage: DocumentStorageDep,
+    vector_cleanup: VectorCleanupDep,
+    graph_cleanup: GraphCleanupDep,
+) -> MutationResult:
+    configured_email = (settings.e2e_test_user_email or "").strip()
+    if not configured_email:
+        raise ApplicationError(
+            "Shared E2E test user reset is not enabled.",
+            status_code=404,
+            title="Not found",
+            type_uri="https://ragdoll.dev/problems/not-found",
+            code="e2e_test_user_reset_not_enabled",
+        )
+
+    if normalize_email_address(current_user.email or "") != normalize_email_address(configured_email):
+        raise AuthorizationError("This endpoint is reserved for the configured E2E test user.")
+
+    user = get_user_by_subject(db, current_user.subject)
+    reset_user_workspace(
+        db,
+        user,
+        storage=storage,
+        vector_cleanup=vector_cleanup,
+        graph_cleanup=graph_cleanup,
+    )
+    return MutationResult(message="Shared E2E test user workspace reset.")
