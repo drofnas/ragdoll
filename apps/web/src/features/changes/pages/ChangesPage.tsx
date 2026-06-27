@@ -1,11 +1,24 @@
-import { useState } from "react";
+import type {
+  ChangeEventDetail,
+  ChangeEventSummary,
+  ChangeListResponse,
+  CorrectionListResponse,
+  CorrectionRecordResponse
+} from "@contracts";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Page, PageHeader } from "@/components/app/page";
 import { SelectField } from "@/components/app/select-field";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,14 +49,24 @@ const CORRECTION_STATUS_OPTIONS = [
   { label: "Rejected", value: "rejected" }
 ];
 
+interface ReviewActionState {
+  action: "verify" | "reject";
+  correctionId: string;
+}
+
+function addIdToSet(current: Set<string>, id: string) {
+  if (current.has(id)) {
+    return current;
+  }
+  const next = new Set(current);
+  next.add(id);
+  return next;
+}
+
 export function ChangesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { buildReadScopeParams, isReady } = useSpaceScope();
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [isMarkingRead, setIsMarkingRead] = useState(false);
-  const [reviewAction, setReviewAction] = useState<"verify" | "reject" | null>(null);
 
   const activeTab = searchParams.get("tab") === "corrections" ? "corrections" : "activity";
   const changeId = searchParams.get("change_id");
@@ -54,6 +77,21 @@ export function ChangesPage() {
     1,
     Number(searchParams.get("corrections_page") ?? "1") || 1
   );
+
+  const [reviewNotesById, setReviewNotesById] = useState<Record<string, string>>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [markingReadId, setMarkingReadId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<ReviewActionState | null>(null);
+  const [loadedChangeIds, setLoadedChangeIds] = useState(
+    () => new Set<string>(changeId ? [changeId] : [])
+  );
+  const [loadedCorrectionIds, setLoadedCorrectionIds] = useState(
+    () => new Set<string>(correctionId ? [correctionId] : [])
+  );
+  const [expandedChangeId, setExpandedChangeId] = useState(changeId ?? "");
+  const [expandedCorrectionId, setExpandedCorrectionId] = useState(correctionId ?? "");
+
   const scopeQuery = buildReadScopeParams();
 
   function updateParams(updates: Record<string, string | null | undefined>) {
@@ -68,6 +106,14 @@ export function ChangesPage() {
     setSearchParams(next);
   }
 
+  function rememberLoadedChangeId(id: string) {
+    setLoadedChangeIds((current) => addIdToSet(current, id));
+  }
+
+  function rememberLoadedCorrectionId(id: string) {
+    setLoadedCorrectionIds((current) => addIdToSet(current, id));
+  }
+
   const changesQuery = useQuery({
     enabled: isReady,
     queryFn: () =>
@@ -77,12 +123,6 @@ export function ChangesPage() {
         ...scopeQuery
       }),
     queryKey: ["changes", changePage, scopeQuery]
-  });
-
-  const changeDetailQuery = useQuery({
-    enabled: Boolean(changeId),
-    queryFn: () => readChangeDetail(changeId!),
-    queryKey: ["change-detail", changeId]
   });
 
   const correctionsQuery = useQuery({
@@ -97,24 +137,73 @@ export function ChangesPage() {
     queryKey: ["corrections", correctionsPage, correctionStatus, scopeQuery]
   });
 
-  const correctionDetailQuery = useQuery({
-    enabled: Boolean(correctionId),
-    queryFn: () => readCorrectionDetail(correctionId!),
-    queryKey: ["correction-detail", correctionId]
-  });
+  useEffect(() => {
+    if (changeId) {
+      rememberLoadedChangeId(changeId);
+    }
+  }, [changeId]);
 
-  async function handleMarkRead() {
-    if (!changeId) {
+  useEffect(() => {
+    if (correctionId) {
+      rememberLoadedCorrectionId(correctionId);
+    }
+  }, [correctionId]);
+
+  useEffect(() => {
+    setExpandedChangeId(changeId ?? "");
+  }, [changeId]);
+
+  useEffect(() => {
+    setExpandedCorrectionId(correctionId ?? "");
+  }, [correctionId]);
+
+  useEffect(() => {
+    if (!expandedChangeId || !changesQuery.data) {
       return;
     }
+    if (!changesQuery.data.items.some((item) => item.id === expandedChangeId)) {
+      setExpandedChangeId("");
+      if (changeId) {
+        updateParams({ change_id: null });
+      }
+    }
+  }, [changeId, changesQuery.data, expandedChangeId]);
 
-    setIsMarkingRead(true);
+  useEffect(() => {
+    if (!expandedCorrectionId || !correctionsQuery.data) {
+      return;
+    }
+    if (!correctionsQuery.data.items.some((item) => item.id === expandedCorrectionId)) {
+      setExpandedCorrectionId("");
+      if (correctionId) {
+        updateParams({ correction_id: null });
+      }
+    }
+  }, [correctionId, correctionsQuery.data, expandedCorrectionId]);
+
+  async function handleMarkRead(targetChangeId: string) {
+    setMarkingReadId(targetChangeId);
     setErrorMessage(null);
     setFeedbackMessage(null);
     try {
-      await markChangeRead(changeId);
+      await markChangeRead(targetChangeId);
       setFeedbackMessage("Change marked as read.");
-      await Promise.all([changesQuery.refetch(), changeDetailQuery.refetch()]);
+      queryClient.setQueryData<ChangeEventDetail>(
+        ["change-detail", targetChangeId],
+        (current) => (current ? { ...current, is_read: true } : current)
+      );
+      queryClient.setQueriesData<ChangeListResponse>(
+        { queryKey: ["changes"] },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === targetChangeId ? { ...item, is_read: true } : item
+                )
+              }
+            : current
+      );
     } catch (error) {
       if (error instanceof ApiProblemError) {
         setErrorMessage(error.problem.detail);
@@ -122,26 +211,38 @@ export function ChangesPage() {
         setErrorMessage("Unable to mark that change as read right now.");
       }
     } finally {
-      setIsMarkingRead(false);
+      setMarkingReadId(null);
     }
   }
 
-  async function handleReview(action: "verify" | "reject") {
-    if (!correctionId) {
-      return;
-    }
-
-    setReviewAction(action);
+  async function handleReview(targetCorrectionId: string, action: "verify" | "reject") {
+    setReviewAction({ action, correctionId: targetCorrectionId });
     setErrorMessage(null);
     setFeedbackMessage(null);
     try {
-      if (action === "verify") {
-        await verifyCorrection(correctionId, { review_notes: reviewNotes || null });
-      } else {
-        await rejectCorrection(correctionId, { review_notes: reviewNotes || null });
-      }
+      const reviewNotes = reviewNotesById[targetCorrectionId] || null;
+      const updatedCorrection =
+        action === "verify"
+          ? await verifyCorrection(targetCorrectionId, { review_notes: reviewNotes })
+          : await rejectCorrection(targetCorrectionId, { review_notes: reviewNotes });
+
       setFeedbackMessage(action === "verify" ? "Correction verified." : "Correction rejected.");
-      await Promise.all([correctionsQuery.refetch(), correctionDetailQuery.refetch()]);
+      queryClient.setQueryData<CorrectionRecordResponse>(
+        ["correction-detail", targetCorrectionId],
+        updatedCorrection
+      );
+      queryClient.setQueriesData<CorrectionListResponse>(
+        { queryKey: ["corrections"] },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === targetCorrectionId ? updatedCorrection : item
+                )
+              }
+            : current
+      );
     } catch (error) {
       if (error instanceof ApiProblemError) {
         setErrorMessage(error.problem.detail);
@@ -182,7 +283,7 @@ export function ChangesPage() {
         </TabsList>
 
         <TabsContent value="activity">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <section className="min-w-0">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <CardTitle>Activity feed</CardTitle>
@@ -198,39 +299,39 @@ export function ChangesPage() {
                   <p className="text-sm text-muted-foreground">Loading change events…</p>
                 ) : changesQuery.data && changesQuery.data.items.length > 0 ? (
                   <>
-                    <div className="space-y-3">
+                    <Accordion
+                      type="single"
+                      collapsible
+                      className="space-y-3"
+                      data-testid="changes-activity-accordion"
+                      value={expandedChangeId}
+                      onValueChange={(value) => {
+                        setExpandedChangeId(value);
+                        if (value) {
+                          rememberLoadedChangeId(value);
+                          updateParams({ change_id: value, tab: "activity" });
+                          return;
+                        }
+                        updateParams({ change_id: null });
+                      }}
+                    >
                       {changesQuery.data.items.map((item) => (
-                        <Card
+                        <ActivityAccordionItem
                           key={item.id}
-                          className={`min-w-0 ${item.id === changeId ? "border-primary/40 bg-muted/20" : "shadow-none"}`}
-                        >
-                          <CardContent className="min-w-0 space-y-3 p-4">
-                            <div className="flex min-w-0 items-start justify-between gap-4">
-                              <div className="min-w-0 flex-1 space-y-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto max-w-full justify-start whitespace-normal break-words px-0 py-0 text-left leading-snug"
-                                  onClick={() => updateParams({ change_id: item.id, tab: "activity" })}
-                                >
-                                  {item.title}
-                                </Button>
-                                <p className="break-words text-sm text-muted-foreground">{item.summary}</p>
-                              </div>
-                              <div className="shrink-0">
-                                <StatusBadge value={item.is_read ? "read" : "unread"} />
-                              </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDateTime(item.created_at)}
-                            </p>
-                          </CardContent>
-                        </Card>
+                          hasLoaded={loadedChangeIds.has(item.id)}
+                          isMarkingRead={markingReadId === item.id}
+                          isOpen={item.id === expandedChangeId}
+                          item={item}
+                          onMarkRead={handleMarkRead}
+                        />
                       ))}
-                    </div>
+                    </Accordion>
                     <Pagination
                       currentPage={changePage}
-                      totalPages={Math.max(1, Math.ceil(changesQuery.data.total / changesQuery.data.page_size))}
+                      totalPages={Math.max(
+                        1,
+                        Math.ceil(changesQuery.data.total / changesQuery.data.page_size)
+                      )}
                       onPageChange={(nextPage) => updateParams({ changes_page: String(nextPage) })}
                     />
                   </>
@@ -241,55 +342,11 @@ export function ChangesPage() {
                 )}
               </CardContent>
             </Card>
-
-            <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle>Change detail</CardTitle>
-                {changeDetailQuery.data ? (
-                  <StatusBadge value={changeDetailQuery.data.is_read ? "read" : "unread"} />
-                ) : null}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {changeDetailQuery.error instanceof ApiProblemError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Unable to load change detail</AlertTitle>
-                    <AlertDescription>{changeDetailQuery.error.problem.detail}</AlertDescription>
-                  </Alert>
-                ) : changeDetailQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading change detail…</p>
-                ) : changeDetailQuery.data ? (
-                  <>
-                    <div className="space-y-3">
-                      <h3 className="break-words text-lg font-semibold">{changeDetailQuery.data.title}</h3>
-                      <p className="break-words">{changeDetailQuery.data.summary}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Event type: {changeDetailQuery.data.event_type} ·{" "}
-                        {formatDateTime(changeDetailQuery.data.created_at)}
-                      </p>
-                      {changeDetailQuery.data.payload ? (
-                        <pre className="max-w-full overflow-x-auto rounded-md border bg-slate-950 p-4 text-sm text-slate-100">
-                          {JSON.stringify(changeDetailQuery.data.payload, null, 2)}
-                        </pre>
-                      ) : null}
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="outline" onClick={() => void handleMarkRead()}>
-                        {isMarkingRead ? "Marking…" : "Mark read"}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Choose an activity item to inspect its detail.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
           </section>
         </TabsContent>
 
         <TabsContent value="corrections">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <section className="min-w-0">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                 <CardTitle>Corrections</CardTitle>
@@ -320,45 +377,51 @@ export function ChangesPage() {
                   <p className="text-sm text-muted-foreground">Loading corrections…</p>
                 ) : correctionsQuery.data && correctionsQuery.data.items.length > 0 ? (
                   <>
-                    <div className="space-y-3">
+                    <Accordion
+                      type="single"
+                      collapsible
+                      className="space-y-3"
+                      data-testid="changes-corrections-accordion"
+                      value={expandedCorrectionId}
+                      onValueChange={(value) => {
+                        setExpandedCorrectionId(value);
+                        if (value) {
+                          rememberLoadedCorrectionId(value);
+                          updateParams({ correction_id: value, tab: "corrections" });
+                          return;
+                        }
+                        updateParams({ correction_id: null });
+                      }}
+                    >
                       {correctionsQuery.data.items.map((item) => (
-                        <Card
+                        <CorrectionAccordionItem
                           key={item.id}
-                          className={`min-w-0 ${item.id === correctionId ? "border-primary/40 bg-muted/20" : "shadow-none"}`}
-                        >
-                          <CardContent className="min-w-0 space-y-3 p-4">
-                            <div className="flex min-w-0 items-start justify-between gap-4">
-                              <div className="min-w-0 flex-1 space-y-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto max-w-full justify-start whitespace-normal break-words px-0 py-0 text-left leading-snug"
-                                  onClick={() => updateParams({ correction_id: item.id, tab: "corrections" })}
-                                >
-                                  {item.proposed_value}
-                                </Button>
-                                <p className="break-words text-sm text-muted-foreground">
-                                  {item.rationale ?? "No rationale provided"}
-                                </p>
-                              </div>
-                              <div className="shrink-0">
-                                <StatusBadge value={item.status} />
-                              </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDateTime(item.created_at)}
-                            </p>
-                          </CardContent>
-                        </Card>
+                          hasLoaded={loadedCorrectionIds.has(item.id)}
+                          isOpen={item.id === expandedCorrectionId}
+                          isReviewing={
+                            reviewAction?.correctionId === item.id ? reviewAction.action : null
+                          }
+                          item={item}
+                          onReview={handleReview}
+                          onReviewNotesChange={(value) =>
+                            setReviewNotesById((current) => ({
+                              ...current,
+                              [item.id]: value
+                            }))
+                          }
+                          reviewNotes={reviewNotesById[item.id] ?? ""}
+                        />
                       ))}
-                    </div>
+                    </Accordion>
                     <Pagination
                       currentPage={correctionsPage}
                       totalPages={Math.max(
                         1,
                         Math.ceil(correctionsQuery.data.total / correctionsQuery.data.page_size)
                       )}
-                      onPageChange={(nextPage) => updateParams({ corrections_page: String(nextPage) })}
+                      onPageChange={(nextPage) =>
+                        updateParams({ corrections_page: String(nextPage) })
+                      }
                     />
                   </>
                 ) : (
@@ -368,75 +431,233 @@ export function ChangesPage() {
                 )}
               </CardContent>
             </Card>
-
-            <Card className="min-w-0">
-              <CardHeader>
-                <CardTitle>Correction detail</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {correctionDetailQuery.error instanceof ApiProblemError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Unable to load correction detail</AlertTitle>
-                    <AlertDescription>{correctionDetailQuery.error.problem.detail}</AlertDescription>
-                  </Alert>
-                ) : correctionDetailQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading correction detail…</p>
-                ) : correctionDetailQuery.data ? (
-                  <>
-                    <div className="space-y-3">
-                      <div className="flex min-w-0 items-start justify-between gap-4">
-                        <h3 className="min-w-0 flex-1 break-words text-lg font-semibold">
-                          {correctionDetailQuery.data.proposed_value}
-                        </h3>
-                        <div className="shrink-0">
-                          <StatusBadge value={correctionDetailQuery.data.status} />
-                        </div>
-                      </div>
-                      <p className="break-words">{correctionDetailQuery.data.rationale ?? "No rationale provided."}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Submitted {formatDateTime(correctionDetailQuery.data.created_at)}
-                      </p>
-                      <p className="break-words text-sm text-muted-foreground">
-                        Citation: {formatCitationLabel(correctionDetailQuery.data.citation)} ·{" "}
-                        {formatSourceTier(correctionDetailQuery.data.citation.source_tier)}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="review-notes">
-                        Review notes
-                      </label>
-                      <Textarea
-                        id="review-notes"
-                        rows={4}
-                        value={reviewNotes}
-                        onChange={(event) => setReviewNotes(event.currentTarget.value)}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-3">
-                      <Button
-                        variant="ghost"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => void handleReview("reject")}
-                      >
-                        {reviewAction === "reject" ? "Rejecting…" : "Reject"}
-                      </Button>
-                      <Button onClick={() => void handleReview("verify")}>
-                        {reviewAction === "verify" ? "Verifying…" : "Verify"}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Choose a correction to inspect and review it.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
           </section>
         </TabsContent>
       </Tabs>
     </Page>
+  );
+}
+
+function ActivityAccordionItem({
+  hasLoaded,
+  isMarkingRead,
+  isOpen,
+  item,
+  onMarkRead
+}: {
+  hasLoaded: boolean;
+  isMarkingRead: boolean;
+  isOpen: boolean;
+  item: ChangeEventSummary;
+  onMarkRead: (changeId: string) => Promise<void>;
+}) {
+  const detailQuery = useQuery({
+    enabled: hasLoaded,
+    queryFn: () => readChangeDetail(item.id),
+    queryKey: ["change-detail", item.id],
+    staleTime: Number.POSITIVE_INFINITY
+  });
+
+  return (
+    <Card className={isOpen ? "border-primary/40 bg-muted/20" : "shadow-none"}>
+      <AccordionItem value={item.id} className="border-none">
+        <AccordionTrigger className="px-4 py-4 hover:no-underline">
+          <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-2 text-left">
+              <p className="break-words text-base font-semibold leading-snug">{item.title}</p>
+              <p className="break-words text-sm text-muted-foreground">{item.summary}</p>
+              <p className="text-sm text-muted-foreground">{formatDateTime(item.created_at)}</p>
+            </div>
+            <div className="shrink-0">
+              <StatusBadge value={item.is_read ? "read" : "unread"} />
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="px-4 pb-4">
+          <div
+            className="space-y-4 rounded-md border border-border bg-white p-4"
+            data-testid={`change-detail-card-${item.id}`}
+          >
+            <h4 className="text-base font-semibold">Change detail</h4>
+            {detailQuery.error instanceof ApiProblemError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load change detail</AlertTitle>
+                <AlertDescription>{detailQuery.error.problem.detail}</AlertDescription>
+              </Alert>
+            ) : !hasLoaded ? (
+              <p className="text-sm text-muted-foreground">
+                Expand this item to load its detail.
+              </p>
+            ) : detailQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading change detail…</p>
+            ) : detailQuery.data ? (
+              <>
+                <div className="space-y-3">
+                  <div className="flex min-w-0 items-start justify-between gap-4">
+                    <h5 className="min-w-0 flex-1 break-words text-lg font-semibold">
+                      {detailQuery.data.title}
+                    </h5>
+                    <div className="shrink-0">
+                      <StatusBadge value={detailQuery.data.is_read ? "read" : "unread"} />
+                    </div>
+                  </div>
+                  <p className="break-words">{detailQuery.data.summary}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Event type: {detailQuery.data.event_type} ·{" "}
+                    {formatDateTime(detailQuery.data.created_at)}
+                  </p>
+                  {detailQuery.data.payload ? (
+                    <pre className="max-w-full overflow-x-auto rounded-md border bg-slate-950 p-4 text-sm text-slate-100">
+                      {JSON.stringify(detailQuery.data.payload, null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => void onMarkRead(item.id)}
+                    disabled={isMarkingRead || detailQuery.data.is_read}
+                  >
+                    {detailQuery.data.is_read
+                      ? "Read"
+                      : isMarkingRead
+                        ? "Marking…"
+                        : "Mark read"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Change detail is unavailable right now.
+              </p>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Card>
+  );
+}
+
+function CorrectionAccordionItem({
+  hasLoaded,
+  isOpen,
+  isReviewing,
+  item,
+  onReview,
+  onReviewNotesChange,
+  reviewNotes
+}: {
+  hasLoaded: boolean;
+  isOpen: boolean;
+  isReviewing: "verify" | "reject" | null;
+  item: CorrectionRecordResponse;
+  onReview: (correctionId: string, action: "verify" | "reject") => Promise<void>;
+  onReviewNotesChange: (value: string) => void;
+  reviewNotes: string;
+}) {
+  const detailQuery = useQuery({
+    enabled: hasLoaded,
+    queryFn: () => readCorrectionDetail(item.id),
+    queryKey: ["correction-detail", item.id],
+    staleTime: Number.POSITIVE_INFINITY
+  });
+
+  return (
+    <Card className={isOpen ? "border-primary/40 bg-muted/20" : "shadow-none"}>
+      <AccordionItem value={item.id} className="border-none">
+        <AccordionTrigger className="px-4 py-4 hover:no-underline">
+          <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-2 text-left">
+              <p className="break-words text-base font-semibold leading-snug">
+                {item.proposed_value}
+              </p>
+              <p className="break-words text-sm text-muted-foreground">
+                {item.rationale ?? "No rationale provided"}
+              </p>
+              <p className="text-sm text-muted-foreground">{formatDateTime(item.created_at)}</p>
+            </div>
+            <div className="shrink-0">
+              <StatusBadge value={item.status} />
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="px-4 pb-4">
+          <div
+            className="space-y-4 rounded-md border border-border bg-white p-4"
+            data-testid={`correction-detail-card-${item.id}`}
+          >
+            <h4 className="text-base font-semibold">Correction detail</h4>
+            {detailQuery.error instanceof ApiProblemError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load correction detail</AlertTitle>
+                <AlertDescription>{detailQuery.error.problem.detail}</AlertDescription>
+              </Alert>
+            ) : !hasLoaded ? (
+              <p className="text-sm text-muted-foreground">
+                Expand this item to load its detail.
+              </p>
+            ) : detailQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading correction detail…</p>
+            ) : detailQuery.data ? (
+              <>
+                <div className="space-y-3">
+                  <div className="flex min-w-0 items-start justify-between gap-4">
+                    <h5 className="min-w-0 flex-1 break-words text-lg font-semibold">
+                      {detailQuery.data.proposed_value}
+                    </h5>
+                    <div className="shrink-0">
+                      <StatusBadge value={detailQuery.data.status} />
+                    </div>
+                  </div>
+                  <p className="break-words">
+                    {detailQuery.data.rationale ?? "No rationale provided."}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Submitted {formatDateTime(detailQuery.data.created_at)}
+                  </p>
+                  <p className="break-words text-sm text-muted-foreground">
+                    Citation: {formatCitationLabel(detailQuery.data.citation)} ·{" "}
+                    {formatSourceTier(detailQuery.data.citation.source_tier)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor={`review-notes-${item.id}`}>
+                    Review notes
+                  </label>
+                  <Textarea
+                    id={`review-notes-${item.id}`}
+                    rows={4}
+                    value={reviewNotes}
+                    onChange={(event) => onReviewNotesChange(event.currentTarget.value)}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => void onReview(item.id, "reject")}
+                    disabled={isReviewing !== null}
+                  >
+                    {isReviewing === "reject" ? "Rejecting…" : "Reject"}
+                  </Button>
+                  <Button
+                    onClick={() => void onReview(item.id, "verify")}
+                    disabled={isReviewing !== null}
+                  >
+                    {isReviewing === "verify" ? "Verifying…" : "Verify"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Correction detail is unavailable right now.
+              </p>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Card>
   );
 }
