@@ -269,6 +269,7 @@ async def test_readiness_payload_marks_queue_not_configured_without_database_con
             database_url=None,
             supabase_db_url=None,
             supabase_test_db_url=None,
+            document_processing_queue_backend="sql",
             _env_file=None,
         )
     )
@@ -277,7 +278,11 @@ async def test_readiness_payload_marks_queue_not_configured_without_database_con
 
 @pytest.mark.asyncio
 async def test_readiness_payload_marks_queue_healthy_with_database_runtime(monkeypatch):
-    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres", _env_file=None)
+    settings = Settings(
+        database_url="postgresql://postgres:secret@db.example:5432/postgres",
+        document_processing_queue_backend="sql",
+        _env_file=None,
+    )
 
     monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
     payload = await build_readiness_payload(settings)

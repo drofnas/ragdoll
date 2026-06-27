@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import event
 
 from ragdoll.api import dependencies as dependency_module
 from ragdoll.core.exceptions import StorageUnavailableError
@@ -49,6 +50,16 @@ class FailingUploadStorage:
     def delete_derived_artifacts(self, document_id, *, storage_prefix: str | None = None) -> bool:
         del document_id, storage_prefix
         raise NotImplementedError
+
+
+class RecordingVectorCleanupService(InMemoryVectorCleanupService):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__()
+        self._events = events
+
+    def cleanup_document(self, document_id: UUID) -> bool:
+        self._events.append("cleanup_vectors")
+        return super().cleanup_document(document_id)
 
 
 def register_and_login(api_client, *, email: str = "user@example.com", password: str = "testpass123") -> str:
@@ -609,6 +620,81 @@ def test_reprocess_queues_one_follow_up_behind_an_active_job(api_client, db_sess
     assert document_id in vector_cleanup.cleaned_document_ids
     assert document_id in graph_cleanup.cleaned_document_ids
     assert f"derived/{document_id}" not in storage.derived_prefixes
+
+
+def test_reprocess_cleans_derived_artifacts_before_replacing_chunks(api_client, db_session, ingestion_runtime):
+    storage, queue, _, graph_cleanup, embedding_service, entity_extraction_service = ingestion_runtime
+    token = register_and_login(api_client, email="reprocess-lock-order@example.com")
+    events: list[str] = []
+
+    upload = api_client.post(
+        "/api/v1/ingestion/uploads",
+        headers=auth_headers(token),
+        files={
+            "file": (
+                "lock-order.txt",
+                BytesIO(b"Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu"),
+                "text/plain",
+            )
+        },
+    )
+    assert upload.status_code == 201, upload.text
+    document_id = UUID(upload.json()["document_id"])
+
+    assert (
+        drain_document_jobs(
+            queue=queue,
+            storage=storage,
+            embedding_service=embedding_service,
+            entity_extraction_service=entity_extraction_service,
+            vector_cleanup=InMemoryVectorCleanupService(),
+            graph_cleanup=graph_cleanup,
+        )
+        == 1
+    )
+    assert db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).count() > 0
+    db_session.rollback()
+
+    document = db_session.get(Document, document_id)
+    assert document is not None
+    storage.store_original_file(document.storage_key, b"Updated Alpha Beta Gamma Delta")
+
+    reprocess = api_client.post(
+        f"/api/v1/ingestion/documents/{document_id}/reprocess",
+        headers=auth_headers(token),
+    )
+    assert reprocess.status_code == 200, reprocess.text
+
+    engine = db_session.get_bind()
+
+    def record_chunk_delete(_conn, _cursor, statement, _parameters, _context, _executemany):
+        if "DELETE FROM document_chunks" in statement:
+            events.append("delete_chunks")
+
+    event.listen(engine, "before_cursor_execute", record_chunk_delete)
+    try:
+        assert (
+            drain_document_jobs(
+                queue=queue,
+                storage=storage,
+                embedding_service=embedding_service,
+                entity_extraction_service=entity_extraction_service,
+                vector_cleanup=RecordingVectorCleanupService(events),
+                graph_cleanup=graph_cleanup,
+            )
+            == 1
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_chunk_delete)
+
+    db_session.expire_all()
+    refreshed = db_session.get(Document, document_id)
+    assert refreshed is not None
+    assert refreshed.processing_status["overall"] == "completed", refreshed.processing_status
+    assert db_session.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).count() > 0
+    assert "cleanup_vectors" in events
+    assert "delete_chunks" in events
+    assert events.index("cleanup_vectors") < events.index("delete_chunks")
 
 
 def test_reprocess_reconciles_stale_processing_before_enqueuing_fresh_job(api_client, db_session, ingestion_runtime):

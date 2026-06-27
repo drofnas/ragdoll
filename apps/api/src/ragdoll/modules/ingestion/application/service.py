@@ -102,13 +102,6 @@ def _prepare_document_for_job(
     )
     if payload.cleanup_derived_artifacts:
         storage.delete_derived_artifacts(document.id)
-    if payload.reset_document_content:
-        document.preview_text = None
-        document.original_text_content = None
-        document.chunk_count = 0
-        document.indexed_chunk_count = 0
-    if payload.clear_existing_chunks:
-        repo.replace_chunks(document, [])
     if payload.cleanup_vectors:
         vector_cleanup.cleanup_document(document.id)
     if payload.cleanup_graph:
@@ -116,6 +109,13 @@ def _prepare_document_for_job(
     if payload.clear_existing_entities:
         repo.clear_entities_for_document(document.id)
         repo.prune_orphan_canonical_entities()
+    if payload.reset_document_content:
+        document.preview_text = None
+        document.original_text_content = None
+        document.chunk_count = 0
+        document.indexed_chunk_count = 0
+    if payload.clear_existing_chunks:
+        repo.replace_chunks(document, [])
     session.commit()
 
 

@@ -81,8 +81,9 @@ def test_sql_queue_claims_and_marks_completion(db_session):
 
 
 class FakeRedisClient:
-    def __init__(self, *, fail_xadd: bool = False) -> None:
+    def __init__(self, *, fail_xadd: bool = False, autoclaim_response=None) -> None:
         self.fail_xadd = fail_xadd
+        self.autoclaim_response = autoclaim_response
         self.group_creates: list[tuple[str, str, str, bool]] = []
         self.messages: list[tuple[str, dict[str, str]]] = []
         self.acked: list[tuple[str, str, str]] = []
@@ -111,7 +112,7 @@ class FakeRedisClient:
 
     def xautoclaim(self, stream, group, consumer, *, min_idle_time, start_id, count):
         del stream, group, consumer, min_idle_time, start_id, count
-        return ("0-0", [])
+        return self.autoclaim_response if self.autoclaim_response is not None else ["0-0", [], []]
 
     def xack(self, stream, group, message_id):
         self.acked.append((stream, group, message_id))
@@ -200,6 +201,19 @@ def test_redis_queue_skips_and_acks_duplicate_messages_for_non_queued_jobs(db_se
 
     assert queue.claim_next_job() is None
     assert redis_client.acked == [("ragdoll:queues:document-vector", "document-vector", "duplicate-1")]
+
+
+def test_redis_queue_accepts_empty_redis_py_autoclaim_envelope():
+    redis_client = FakeRedisClient(autoclaim_response=["0-0", [], []])
+    queue = RedisDocumentProcessingQueue(
+        settings=_redis_queue_settings(),
+        client=redis_client,
+        monotonic_fn=lambda: 0.0,
+        consumer_name="worker-c",
+    )
+
+    assert queue.claim_next_job() is None
+    assert redis_client.acked == []
 
 
 def test_redis_queue_raises_when_enqueue_fails(db_session):

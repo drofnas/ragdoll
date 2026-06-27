@@ -338,7 +338,7 @@ class RedisDocumentProcessingQueue:
             raise QueueUnavailableError("Redis queue pending-claim failed.") from exc
 
         messages: object
-        if isinstance(response, tuple) and len(response) >= 2:
+        if isinstance(response, (list, tuple)) and len(response) >= 2 and isinstance(response[0], (bytes, str)):
             messages = response[1]
         else:
             messages = response

@@ -215,13 +215,6 @@ def requeue_document_processing(
     else:
         _ensure_document_is_requeueable(active_job, queued_job_count)
         document.processing_status = reset_processing_status_for_stage(document.processing_status, requested_stage=stage)
-        if reset_document_content:
-            document.preview_text = None
-            document.original_text_content = None
-            document.chunk_count = 0
-            document.indexed_chunk_count = 0
-        if clear_existing_chunks:
-            session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
         if vector_cleanup is not None and stage == "vector":
             vector_cleanup.cleanup_document(document.id)
         if graph_cleanup is not None and stage in {"extraction", "graph"}:
@@ -229,6 +222,13 @@ def requeue_document_processing(
         if clear_existing_entities:
             repo.clear_entities_for_document(document.id)
             repo.prune_orphan_canonical_entities()
+        if reset_document_content:
+            document.preview_text = None
+            document.original_text_content = None
+            document.chunk_count = 0
+            document.indexed_chunk_count = 0
+        if clear_existing_chunks:
+            session.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
 
     job = _build_job(
         document,
