@@ -9,10 +9,17 @@ from pydantic import BaseModel, Field, model_validator
 from ragdoll.api.shared_schemas import Citation
 
 
-PinnedFactStatus = Literal["active", "pending_update", "conflicted", "unknown"]
+PinnedFactStatus = Literal["active", "pending_update", "conflicted", "missing_evidence", "unknown"]
 PinnedFactValueKind = Literal["text", "json"]
-PinnedFactCandidateChangeType = Literal["same", "update", "conflict", "unknown"]
+PinnedFactCandidateChangeType = Literal["same", "update", "evidence_update", "conflict", "unknown"]
 PinnedFactCandidateStatus = Literal["pending", "accepted", "rejected", "auto_applied"]
+PinnedFactSortKey = Literal["name", "status", "created_by", "updated_by", "created_at", "updated_at"]
+
+
+class PinnedFactActor(BaseModel):
+    id: UUID
+    email: str
+    full_name: str | None = None
 
 
 class PinnedFactEvidence(BaseModel):
@@ -56,6 +63,30 @@ class PinnedFactUpdateRequest(BaseModel):
     description: str | None = Field(default=None, min_length=1)
     entity_type_hint: str | None = Field(default=None, max_length=80)
     is_active: bool | None = None
+    value_kind: PinnedFactValueKind | None = None
+    value_text: str | None = None
+    value_json: dict[str, Any] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    source_document_id: UUID | None = None
+    evidence: list[PinnedFactEvidence] | None = None
+    update_note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_optional_value_shape(self) -> "PinnedFactUpdateRequest":
+        if self.value_kind is None:
+            self.value_text = None
+            self.value_json = None
+            return self
+        if self.value_kind == "text":
+            if not (self.value_text or "").strip():
+                raise ValueError("value_text is required when updating a pinned fact with text.")
+            self.value_text = self.value_text.strip()
+            self.value_json = None
+        else:
+            if self.value_json is None:
+                raise ValueError("value_json is required when updating a pinned fact with json.")
+            self.value_text = None
+        return self
 
 
 class PinnedFactSummary(BaseModel):
@@ -76,6 +107,8 @@ class PinnedFactSummary(BaseModel):
     last_checked_at: datetime | None = None
     pending_candidate_count: int = Field(default=0, ge=0)
     conflict_count: int = Field(default=0, ge=0)
+    created_by: PinnedFactActor | None = None
+    updated_by: PinnedFactActor | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -129,6 +162,7 @@ class PinnedFactHistoryEntry(BaseModel):
     new_value_json: dict[str, Any] | None = None
     old_evidence: list[PinnedFactEvidence] = Field(default_factory=list)
     new_evidence: list[PinnedFactEvidence] = Field(default_factory=list)
+    update_note: str | None = None
     created_at: datetime
 
 

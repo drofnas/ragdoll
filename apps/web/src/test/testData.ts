@@ -248,6 +248,26 @@ export const chatSessionDetail: ChatSessionDetail = {
       content: "The backend uses FastAPI and exposes versioned routes under /api/v1.",
       created_at: "2026-06-22T17:12:00Z",
       degraded: true,
+      evidence: [
+        {
+          citations: [
+            {
+              document_id: documentDetail.id,
+              line_number: 12,
+              locator: "chunk:1",
+              source_tier: "document",
+              title: documentDetail.title
+            }
+          ],
+          created_at: "2026-06-22T17:12:00Z",
+          id: "E1",
+          score: 0.97,
+          source_tier: "document",
+          source_type: "document_chunk",
+          text: "FastAPI powers the backend runtime for the rebuilt product.",
+          title: documentDetail.title
+        }
+      ],
       id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
       retrieval_mode: "combined",
       role: "assistant",
@@ -372,6 +392,11 @@ export const entityGraph: GraphResponse = {
 export const pinnedFactDetail: PinnedFactDetail = {
   confidence: 0.95,
   conflict_count: 1,
+  created_by: {
+    email: userProfile.email,
+    full_name: userProfile.full_name,
+    id: userProfile.id
+  },
   created_at: "2026-06-22T17:00:00Z",
   description: "What backend framework powers this repo today?",
   entity_type_hint: "framework",
@@ -399,6 +424,11 @@ export const pinnedFactDetail: PinnedFactDetail = {
   space_id: spaces[0].id,
   status: "active",
   title: "Current backend framework",
+  updated_by: {
+    email: userProfile.email,
+    full_name: userProfile.full_name,
+    id: userProfile.id
+  },
   updated_at: "2026-06-22T17:05:00Z",
   value_json: null,
   value_kind: "text",
@@ -465,7 +495,8 @@ export const pinnedFactHistory: PinnedFactHistoryResponse = {
       old_value_text: null,
       pinned_fact_id: pinnedFactDetail.id,
       reason: "created",
-      restored_from_history_id: null
+      restored_from_history_id: null,
+      update_note: null
     }
   ]
 };

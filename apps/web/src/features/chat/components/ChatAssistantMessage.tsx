@@ -17,6 +17,19 @@ import { formatDateTime } from "@/shared/lib/formatting";
 
 type ChatAssistantMessageProps = {
   messageById: ReadonlyMap<string, ChatMessageRecord>;
+  pinDraftByMessageId: ReadonlyMap<
+    string,
+    {
+      description: string;
+      evidence: Array<Record<string, unknown>>;
+      origin_label?: string | null;
+      source_document_id?: string | null;
+      title?: string | null;
+      value_kind: "json" | "text";
+      value_json?: Record<string, unknown> | null;
+      value_text?: string | null;
+    }
+  >;
   onOpenCorrection: (message: ChatMessageRecord) => void;
 };
 
@@ -59,10 +72,12 @@ function DocumentCitationsHoverCard({
 
 export function ChatAssistantMessage({
   messageById,
+  pinDraftByMessageId,
   onOpenCorrection
 }: ChatAssistantMessageProps) {
   const messageId = useAuiState((s) => s.message.id);
   const messageRecord = messageById.get(messageId);
+  const pinDraft = pinDraftByMessageId.get(messageId);
   const documentCitations =
     messageRecord?.citations?.filter((citation) => citation.document_id) ?? [];
 
@@ -92,6 +107,13 @@ export function ChatAssistantMessage({
             citations={documentCitations}
             messageId={messageRecord.id}
           />
+        ) : null}
+        {messageRecord && pinDraft ? (
+          <Button asChild size="sm" type="button" variant="outline">
+            <Link to="/pinned-facts/create" state={{ draft: pinDraft }}>
+              Pin as fact
+            </Link>
+          </Button>
         ) : null}
         {messageRecord ? (
           <Button

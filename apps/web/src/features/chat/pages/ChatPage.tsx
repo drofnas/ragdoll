@@ -193,6 +193,47 @@ export function ChatPage() {
       ),
     [detailQuery.data?.messages]
   );
+  const pinDraftByMessageId = useMemo(() => {
+    const drafts = new Map<string, {
+      description: string;
+      evidence: Array<Record<string, unknown>>;
+      origin_label?: string | null;
+      source_document_id?: string | null;
+      title?: string | null;
+      value_kind: "json" | "text";
+      value_json?: Record<string, unknown> | null;
+      value_text?: string | null;
+    }>();
+    const messages = detailQuery.data?.messages ?? [];
+    for (let index = 0; index < messages.length; index += 1) {
+      const messageRecord = messages[index];
+      if (messageRecord.role !== "assistant" || !messageRecord.content.trim()) {
+        continue;
+      }
+      const previousUserMessage = [...messages.slice(0, index)].reverse().find((item) => item.role === "user");
+      const evidence = (messageRecord.evidence ?? []).map((item) => ({
+        citations: item.citations,
+        quote: item.text,
+        source_chunk_ids: item.citations
+          .map((citation) => citation.chunk_id)
+          .filter((value): value is string => Boolean(value))
+      }));
+      if (evidence.length === 0) {
+        continue;
+      }
+      drafts.set(messageRecord.id, {
+        description: previousUserMessage?.content.trim() || "What fact should this answer keep current?",
+        evidence,
+        origin_label: "this chat answer",
+        source_document_id:
+          messageRecord.citations.find((citation) => citation.document_id)?.document_id ?? null,
+        title: null,
+        value_kind: "text",
+        value_text: messageRecord.content.trim()
+      });
+    }
+    return drafts;
+  }, [detailQuery.data?.messages]);
   const selectedCorrectionMessage = openCorrectionMessageId
     ? messageById.get(openCorrectionMessageId) ?? null
     : null;
@@ -327,6 +368,7 @@ export function ChatPage() {
                         AssistantMessage: () => (
                           <ChatAssistantMessage
                             messageById={messageById}
+                            pinDraftByMessageId={pinDraftByMessageId}
                             onOpenCorrection={handleOpenCorrection}
                           />
                         )

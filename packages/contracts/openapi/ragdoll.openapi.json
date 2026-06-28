@@ -2539,12 +2539,43 @@
         "title": "MutationResult",
         "type": "object"
       },
+      "PinnedFactActor": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "PinnedFactActor",
+        "type": "object"
+      },
       "PinnedFactCandidate": {
         "properties": {
           "change_type": {
             "enum": [
               "same",
               "update",
+              "evidence_update",
               "conflict",
               "unknown"
             ],
@@ -2843,6 +2874,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PinnedFactActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -2924,6 +2965,7 @@
               "active",
               "pending_update",
               "conflicted",
+              "missing_evidence",
               "unknown"
             ],
             "title": "Status",
@@ -2937,6 +2979,16 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PinnedFactActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "value_json": {
             "anyOf": [
@@ -3187,6 +3239,17 @@
               }
             ],
             "title": "Restored From History Id"
+          },
+          "update_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Update Note"
           }
         },
         "required": [
@@ -3276,6 +3339,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PinnedFactActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -3351,6 +3424,7 @@
               "active",
               "pending_update",
               "conflicted",
+              "missing_evidence",
               "unknown"
             ],
             "title": "Status",
@@ -3364,6 +3438,16 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PinnedFactActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "value_json": {
             "anyOf": [
@@ -3419,6 +3503,19 @@
       },
       "PinnedFactUpdateRequest": {
         "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
           "description": {
             "anyOf": [
               {
@@ -3443,6 +3540,20 @@
             ],
             "title": "Entity Type Hint"
           },
+          "evidence": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PinnedFactEvidence-Input"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
           "is_active": {
             "anyOf": [
               {
@@ -3453,6 +3564,18 @@
               }
             ],
             "title": "Is Active"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
           },
           "title": {
             "anyOf": [
@@ -3466,6 +3589,55 @@
               }
             ],
             "title": "Title"
+          },
+          "update_note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Update Note"
+          },
+          "value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Json"
+          },
+          "value_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Kind"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
           }
         },
         "title": "PinnedFactUpdateRequest",
@@ -8072,6 +8244,132 @@
       "get": {
         "operationId": "read_pinned_facts_api_v1_pinned_facts_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "updated_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Updated By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "updated_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Updated Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_key",
+            "required": false,
+            "schema": {
+              "default": "name",
+              "enum": [
+                "name",
+                "status",
+                "created_by",
+                "updated_by",
+                "created_at",
+                "updated_at"
+              ],
+              "title": "Sort Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "descending",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Descending",
+              "type": "boolean"
+            }
+          },
           {
             "in": "query",
             "name": "page",

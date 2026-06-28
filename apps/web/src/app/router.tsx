@@ -16,6 +16,7 @@ import { DocumentDetailPage } from "../features/documents/pages/DocumentDetailPa
 import { DocumentsPage } from "../features/documents/pages/DocumentsPage";
 import { EntitiesPage } from "../features/entities/pages/EntitiesPage";
 import { EntityDetailPage } from "../features/entities/pages/EntityDetailPage";
+import { PinnedFactCreatePage } from "../features/pinned-facts/pages/PinnedFactCreatePage";
 import { PinnedFactDetailPage } from "../features/pinned-facts/pages/PinnedFactDetailPage";
 import { PinnedFactsPage } from "../features/pinned-facts/pages/PinnedFactsPage";
 import { SearchPage } from "../features/search/pages/SearchPage";
@@ -49,6 +50,7 @@ export const appRoutes: RouteObject[] = [
       { path: "/entities", element: <EntitiesPage /> },
       { path: "/entities/:entityId", element: <EntityDetailPage /> },
       { path: "/pinned-facts", element: <PinnedFactsPage /> },
+      { path: "/pinned-facts/create", element: <PinnedFactCreatePage /> },
       { path: "/pinned-facts/:factId", element: <PinnedFactDetailPage /> },
       { path: "/changes", element: <ChangesPage /> },
       { path: "/account", element: <AccountPage /> }

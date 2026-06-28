@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,9 +13,11 @@ import {
   pinnedFactDetail,
   pinnedFactHistory,
   pinnedFactsListResponse,
+  searchResponse,
   spaceListResponse,
   userProfile
 } from "../../../test/testData";
+import { PinnedFactCreatePage } from "../pages/PinnedFactCreatePage";
 import { PinnedFactDetailPage } from "../pages/PinnedFactDetailPage";
 import { PinnedFactsPage } from "../pages/PinnedFactsPage";
 
@@ -49,18 +51,137 @@ vi.mock("../../../shared/state/spaceScope", async () => {
   };
 });
 
-describe("PinnedFactsPage", () => {
+function renderPinnedFactRoutes(initialEntries: Array<string | { pathname: string; state?: unknown }>) {
+  render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <AppProviders>
+        <Routes>
+          <Route path="/pinned-facts" element={<PinnedFactsPage />} />
+          <Route path="/pinned-facts/create" element={<PinnedFactCreatePage />} />
+          <Route path="/pinned-facts/:factId" element={<PinnedFactDetailPage />} />
+        </Routes>
+      </AppProviders>
+    </MemoryRouter>
+  );
+}
+
+describe("Pinned facts routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     window.localStorage.clear();
   });
 
-  it("creates a pinned fact from selected search evidence and renders the list", async () => {
+  it("renders list sorting and filtering controls and sorts by name by default", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
 
-    let createCalled = false;
+    const secondFact = {
+      ...pinnedFactDetail,
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      title: "API runtime",
+      updated_at: "2026-06-23T17:05:00Z"
+    };
 
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        const requestUrl = new URL(url, "http://localhost");
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/pinned-facts")) {
+          expect(requestUrl.searchParams.get("sort_key")).toBe("name");
+          const nameFilter = requestUrl.searchParams.get("name")?.toLowerCase() ?? "";
+          const items = [secondFact, pinnedFactDetail].filter((item) =>
+            nameFilter ? item.title.toLowerCase().includes(nameFilter) : true
+          );
+          return jsonResponse({
+            ...pinnedFactsListResponse,
+            items,
+            total: items.length
+          });
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderPinnedFactRoutes(["/pinned-facts"]);
+
+    await screen.findByText("API runtime");
+    expect(screen.getByText("Current backend framework")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Filter by name"), "backend");
+    expect(screen.queryByText("API runtime")).not.toBeInTheDocument();
+    expect(screen.getByText("Current backend framework")).toBeInTheDocument();
+  });
+
+  it("creates a pinned fact from test-query results and includes all evidence", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let createPayload: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/v1/auth/me")) {
+        return jsonResponse(userProfile);
+      }
+      if (url.includes("/api/v1/spaces")) {
+        return jsonResponse(spaceListResponse);
+      }
+      if (url.includes("/api/v1/search")) {
+        return jsonResponse({
+          ...searchResponse,
+          items: [
+            {
+              ...searchResponse.items[0],
+              matched_modes: ["combined"],
+              preview_text: "FastAPI powers the API service."
+            },
+            {
+              ...searchResponse.items[0],
+              result_id: "second-result",
+              matched_modes: ["combined"],
+              preview_text: "FastAPI runs the backend today."
+            }
+          ],
+          page_size: 5,
+          total: 2
+        });
+      }
+      if (url.includes("/api/v1/pinned-facts") && init?.method === "POST") {
+        createPayload = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return jsonResponse(pinnedFactDetail);
+      }
+      if (url.includes("/api/v1/pinned-facts")) {
+        return jsonResponse(pinnedFactsListResponse);
+      }
+      return jsonResponse({}, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPinnedFactRoutes(["/pinned-facts/create"]);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Name"), "Project color scheme");
+    await user.type(screen.getByLabelText("Key"), "project_color_scheme");
+    await user.type(screen.getByLabelText("Detection query"), "What is the current project color scheme?");
+    await user.type(screen.getByLabelText("Stored value"), "Atlas");
+    await user.click(screen.getByRole("button", { name: "Test Query" }));
+
+    await waitFor(() => expect(screen.getAllByText("Included as evidence")).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(createPayload).not.toBeNull());
+    expect((createPayload?.evidence as Array<unknown>).length).toBe(2);
+  });
+
+  it("creates a pinned fact from chat-seeded evidence without rerunning the query", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let createPayload: Record<string, unknown> | null = null;
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,33 +192,8 @@ describe("PinnedFactsPage", () => {
         if (url.includes("/api/v1/spaces")) {
           return jsonResponse(spaceListResponse);
         }
-        if (url.includes("/api/v1/search")) {
-          return jsonResponse({
-            items: [
-              {
-                citations: pinnedFactDetail.evidence[0].citations,
-                document: {
-                  created_at: "2026-06-22T17:00:00Z",
-                  file_type: "pdf",
-                  id: pinnedFactDetail.source_document_id,
-                  space_id: pinnedFactDetail.space_id,
-                  title: "Implementation Plan"
-                },
-                entity: null,
-                matched_modes: ["combined"],
-                preview_text: pinnedFactDetail.evidence[0].quote,
-                result_id: "result-1",
-                result_kind: "document_chunk",
-                score: 10
-              }
-            ],
-            page: 1,
-            page_size: 5,
-            total: 1
-          });
-        }
         if (url.includes("/api/v1/pinned-facts") && init?.method === "POST") {
-          createCalled = true;
+          createPayload = JSON.parse(String(init.body)) as Record<string, unknown>;
           return jsonResponse(pinnedFactDetail);
         }
         if (url.includes("/api/v1/pinned-facts")) {
@@ -107,38 +203,44 @@ describe("PinnedFactsPage", () => {
       })
     );
 
-    render(
-      <MemoryRouter initialEntries={["/pinned-facts"]}>
-        <AppProviders>
-          <Routes>
-            <Route path="/pinned-facts" element={<PinnedFactsPage />} />
-          </Routes>
-        </AppProviders>
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(screen.getByText("Current backend framework")).toBeInTheDocument());
-    expect(screen.getByText("FastAPI")).toBeInTheDocument();
+    renderPinnedFactRoutes([
+      {
+        pathname: "/pinned-facts/create",
+        state: {
+          draft: {
+            description: "What backend framework powers this repo today?",
+            evidence: pinnedFactDetail.evidence,
+            origin_label: "this chat answer",
+            source_document_id: pinnedFactDetail.source_document_id,
+            title: "Current backend framework",
+            value_kind: "text",
+            value_text: "FastAPI"
+          }
+        }
+      }
+    ]);
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Key"), "project_color_scheme");
-    await user.type(screen.getByLabelText("Title"), "Project color scheme");
-    await user.type(screen.getByLabelText("Description / detection query"), "What is the project color scheme?");
-    await user.type(screen.getByLabelText("Current value"), "Atlas");
-    await user.type(screen.getByPlaceholderText("Search for the source evidence you want to pin"), "FastAPI");
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    await user.click(await screen.findByRole("button", { name: "Use result" }));
-    await user.click(screen.getByRole("button", { name: "Create pinned fact" }));
+    await screen.findByText("Seeded from chat");
+    expect(screen.getByLabelText("Stored value")).toHaveValue("FastAPI");
+    await user.type(screen.getByLabelText("Key"), "current_backend_framework");
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(createCalled).toBe(true));
+    await waitFor(() => expect(createPayload).not.toBeNull());
+    expect(createPayload).toMatchObject({
+      description: "What backend framework powers this repo today?",
+      source_document_id: pinnedFactDetail.source_document_id,
+      title: "Current backend framework",
+      value_text: "FastAPI"
+    });
   });
 
-  it("renders detail review actions and reverts from history", async () => {
+  it("renders pending update review and manual edit actions on the detail page", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
     window.localStorage.setItem(ACTIVE_SPACE_STORAGE_KEY, spaceListResponse.items[0].id);
 
+    let patchPayload: Record<string, unknown> | null = null;
     let accepted = false;
-    let reverted = false;
 
     vi.stubGlobal(
       "fetch",
@@ -154,40 +256,55 @@ describe("PinnedFactsPage", () => {
           accepted = true;
           return jsonResponse(pinnedFactDetail);
         }
-        if (url.includes("/revert")) {
-          reverted = true;
-          return jsonResponse({ ...pinnedFactDetail, value_text: "FastAPI" });
+        if (url.includes(`/api/v1/pinned-facts/${pinnedFactDetail.id}`) && init?.method === "PATCH") {
+          patchPayload = JSON.parse(String(init.body)) as Record<string, unknown>;
+          return jsonResponse({
+            ...pinnedFactDetail,
+            value_text: "Starlette"
+          });
         }
         if (url.includes("/candidates")) {
-          return jsonResponse(pinnedFactCandidates);
+          return jsonResponse({
+            items: [
+              {
+                ...pinnedFactCandidates.items[0],
+                change_type: "evidence_update"
+              }
+            ]
+          });
         }
         if (url.includes("/history")) {
           return jsonResponse(pinnedFactHistory);
         }
         if (url.includes(`/api/v1/pinned-facts/${pinnedFactDetail.id}`)) {
-          return jsonResponse(pinnedFactDetail);
+          return jsonResponse({
+            ...pinnedFactDetail,
+            status: "pending_update"
+          });
         }
         return jsonResponse({}, { status: 404 });
       })
     );
 
-    render(
-      <MemoryRouter initialEntries={[`/pinned-facts/${pinnedFactDetail.id}`]}>
-        <AppProviders>
-          <Routes>
-            <Route path="/pinned-facts/:factId" element={<PinnedFactDetailPage />} />
-          </Routes>
-        </AppProviders>
-      </MemoryRouter>
-    );
+    renderPinnedFactRoutes([`/pinned-facts/${pinnedFactDetail.id}`]);
 
-    const acceptButton = await screen.findByRole("button", { name: "Accept" });
-    fireEvent.click(acceptButton);
+    const user = userEvent.setup();
+    await screen.findByText("Pending update detected");
+    await screen.findByText("Review update");
+    await user.click(screen.getByRole("button", { name: "Accept update" }));
     await waitFor(() => expect(accepted).toBe(true));
 
-    const restoreButton = screen.getByRole("button", { name: "Restore this version" });
-    fireEvent.click(restoreButton);
-    await waitFor(() => expect(reverted).toBe(true));
+    await user.click(screen.getByRole("button", { name: "Edit stored value" }));
+    await user.clear(screen.getByLabelText("Stored value"));
+    await user.type(screen.getByLabelText("Stored value"), "Starlette");
+    await user.type(screen.getByLabelText("Update note"), "Verified manually");
+    await user.click(screen.getByRole("button", { name: "Save edit" }));
+    await waitFor(() => expect(patchPayload).not.toBeNull());
+    expect(patchPayload).toMatchObject({
+      update_note: "Verified manually",
+      value_kind: "text",
+      value_text: "Starlette"
+    });
   });
 
   it("disables pinned-fact writes while all-spaces mode is active", async () => {
@@ -211,21 +328,15 @@ describe("PinnedFactsPage", () => {
       })
     );
 
-    render(
-      <MemoryRouter initialEntries={["/pinned-facts"]}>
-        <AppProviders>
-          <Routes>
-            <Route path="/pinned-facts" element={<PinnedFactsPage />} />
-          </Routes>
-        </AppProviders>
-      </MemoryRouter>
-    );
+    renderPinnedFactRoutes(["/pinned-facts"]);
 
     await waitFor(() =>
       expect(
         screen.getByText("Choose one active Space before creating or editing pinned facts.")
       ).toBeInTheDocument()
     );
-    expect(screen.getByRole("button", { name: "Create pinned fact" })).toBeDisabled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Create Fact" })).toBeDisabled()
+    );
   });
 });

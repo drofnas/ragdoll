@@ -434,6 +434,12 @@ export interface MutationResult {
   message?: string | null;
 }
 
+export interface PinnedFactActor {
+  id: string;
+  email: string;
+  full_name?: string | null;
+}
+
 export interface PinnedFactCandidate {
   id: string;
   pinned_fact_id: string;
@@ -442,7 +448,7 @@ export interface PinnedFactCandidate {
   proposed_value_kind: "text" | "json";
   proposed_value_text?: string | null;
   proposed_value_json?: Record<string, unknown> | null;
-  change_type: "same" | "update" | "conflict" | "unknown";
+  change_type: "same" | "update" | "evidence_update" | "conflict" | "unknown";
   confidence?: number | null;
   evidence?: Array<PinnedFactEvidenceOutput>;
   status: "pending" | "accepted" | "rejected" | "auto_applied";
@@ -478,7 +484,7 @@ export interface PinnedFactDetail {
   description: string;
   entity_type_hint?: string | null;
   is_active: boolean;
-  status: "active" | "pending_update" | "conflicted" | "unknown";
+  status: "active" | "pending_update" | "conflicted" | "missing_evidence" | "unknown";
   confidence?: number | null;
   value_kind?: "text" | "json" | null;
   value_text?: string | null;
@@ -488,6 +494,8 @@ export interface PinnedFactDetail {
   last_checked_at?: string | null;
   pending_candidate_count?: number;
   conflict_count?: number;
+  created_by?: PinnedFactActor | null;
+  updated_by?: PinnedFactActor | null;
   created_at: string;
   updated_at: string;
   history_count?: number;
@@ -521,6 +529,7 @@ export interface PinnedFactHistoryEntry {
   new_value_json?: Record<string, unknown> | null;
   old_evidence?: Array<PinnedFactEvidenceOutput>;
   new_evidence?: Array<PinnedFactEvidenceOutput>;
+  update_note?: string | null;
   created_at: string;
 }
 
@@ -543,7 +552,7 @@ export interface PinnedFactSummary {
   description: string;
   entity_type_hint?: string | null;
   is_active: boolean;
-  status: "active" | "pending_update" | "conflicted" | "unknown";
+  status: "active" | "pending_update" | "conflicted" | "missing_evidence" | "unknown";
   confidence?: number | null;
   value_kind?: "text" | "json" | null;
   value_text?: string | null;
@@ -553,6 +562,8 @@ export interface PinnedFactSummary {
   last_checked_at?: string | null;
   pending_candidate_count?: number;
   conflict_count?: number;
+  created_by?: PinnedFactActor | null;
+  updated_by?: PinnedFactActor | null;
   created_at: string;
   updated_at: string;
 }
@@ -562,6 +573,13 @@ export interface PinnedFactUpdateRequest {
   description?: string | null;
   entity_type_hint?: string | null;
   is_active?: boolean | null;
+  value_kind?: "text" | "json" | null;
+  value_text?: string | null;
+  value_json?: Record<string, unknown> | null;
+  confidence?: number | null;
+  source_document_id?: string | null;
+  evidence?: Array<PinnedFactEvidenceInput> | null;
+  update_note?: string | null;
 }
 
 export interface ProblemResponse {
@@ -1565,6 +1583,14 @@ export interface ReadPinnedFactsApiV1PinnedFactsGetOperation {
   path: "/api/v1/pinned-facts";
   pathParams: never;
   queryParams: {
+  name?: string | null;
+  status?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_date?: string | null;
+  updated_date?: string | null;
+  sort_key?: "name" | "status" | "created_by" | "updated_by" | "created_at" | "updated_at";
+  descending?: boolean;
   page?: number;
   page_size?: number;
   space_id?: string | null;

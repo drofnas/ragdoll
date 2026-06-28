@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from ragdoll.api.dependencies import CurrentUserDep, DatabaseSessionDep, PaginationDep, SpaceScopeDep
 from ragdoll.api.shared_schemas import ProblemResponse
@@ -14,6 +15,7 @@ from ragdoll.modules.pinned_facts.api.schemas import (
     PinnedFactDetail,
     PinnedFactHistoryResponse,
     PinnedFactListResponse,
+    PinnedFactSortKey,
     PinnedFactUpdateRequest,
     RejectPinnedFactCandidateRequest,
 )
@@ -52,8 +54,29 @@ def read_pinned_facts(
     db: DatabaseSessionDep,
     pagination: PaginationDep,
     space_scope: SpaceScopeDep,
+    name: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    created_by: str | None = Query(default=None),
+    updated_by: str | None = Query(default=None),
+    created_date: date | None = Query(default=None),
+    updated_date: date | None = Query(default=None),
+    sort_key: PinnedFactSortKey = Query(default="name"),
+    descending: bool = Query(default=False),
 ) -> PinnedFactListResponse:
-    return list_pinned_facts(db, current_user.subject, pagination, space_scope=space_scope)
+    return list_pinned_facts(
+        db,
+        current_user.subject,
+        pagination,
+        space_scope=space_scope,
+        name=name,
+        status=status,
+        created_by=created_by,
+        updated_by=updated_by,
+        created_date=created_date,
+        updated_date=updated_date,
+        sort_key=sort_key,
+        descending=descending,
+    )
 
 
 @router.post("", response_model=PinnedFactDetail, responses=COMMON_RESPONSES)
@@ -87,7 +110,7 @@ def patch_pinned_fact(
 ) -> PinnedFactDetail:
     repo = PinnedFactsRepository(db)
     fact = repo.get_visible_or_404(resolve_owned_space_ids(db, UUID(current_user.subject), space_scope), fact_id)
-    updated = update_pinned_fact(db, fact, payload=payload)
+    updated = update_pinned_fact(db, current_user.subject, fact, payload=payload)
     return build_fact_detail(db, updated)
 
 

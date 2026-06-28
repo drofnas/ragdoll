@@ -1,4 +1,5 @@
 import type {
+  Citation,
   PinnedFactCandidate,
   PinnedFactCandidateListResponse,
   PinnedFactDetail,
@@ -10,13 +11,21 @@ import { apiClient } from "../../../shared/api/client";
 
 export interface FactScopeQuery {
   all_spaces?: boolean;
+  created_by?: string;
+  created_date?: string;
+  descending?: boolean;
+  name?: string;
   page?: number;
   page_size?: number;
+  sort_key?: "created_at" | "created_by" | "name" | "status" | "updated_at" | "updated_by";
   space_id?: string;
+  status?: string;
+  updated_by?: string;
+  updated_date?: string;
 }
 
 export interface PinnedFactEvidencePayload {
-  citations: Array<Record<string, unknown>>;
+  citations: Citation[];
   quote: string;
   source_chunk_ids: string[];
 }
@@ -37,9 +46,16 @@ export interface CreatePinnedFactPayload {
 
 export interface UpdatePinnedFactPayload {
   description?: string | null;
+  evidence?: PinnedFactEvidencePayload[] | null;
+  confidence?: number | null;
   entity_type_hint?: string | null;
   is_active?: boolean;
+  source_document_id?: string | null;
   title?: string | null;
+  update_note?: string | null;
+  value_json?: Record<string, unknown> | null;
+  value_kind?: "json" | "text" | null;
+  value_text?: string | null;
 }
 
 export interface AcceptPinnedFactCandidatePayload {

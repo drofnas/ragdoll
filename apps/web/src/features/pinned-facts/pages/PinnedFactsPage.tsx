@@ -1,5 +1,5 @@
-import type { SearchResult } from "@contracts";
-import { useState, type FormEvent } from "react";
+import type { PinnedFactSummary } from "@contracts";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -8,135 +8,71 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ApiProblemError } from "@/shared/api/client";
-import { formatCitationLabel, formatDateTime } from "@/shared/lib/formatting";
+import { formatDateTime } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
-import { readSearchResults } from "../../search/api/searchApi";
-import { createPinnedFact, listPinnedFacts } from "../api/pinnedFactsApi";
+import { listPinnedFacts } from "../api/pinnedFactsApi";
+
+type SortKey = "name" | "status" | "created_by" | "updated_by" | "created_at" | "updated_at";
+
+function actorLabel(fact: PinnedFactSummary["created_by"] | PinnedFactSummary["updated_by"]) {
+  return fact?.full_name?.trim() || fact?.email || "Unknown";
+}
+
+function valueLabel(fact: PinnedFactSummary) {
+  return fact.value_text ?? JSON.stringify(fact.value_json) ?? "Not set";
+}
 
 export function PinnedFactsPage() {
   const { activeSpace, allSpaces, buildReadScopeParams, isReady } = useSpaceScope();
   const readScopeQuery = buildReadScopeParams();
-  const writeScopeQuery = !allSpaces && activeSpace ? { space_id: activeSpace.id } : null;
   const writeDisabledReason = allSpaces
     ? "Choose one active Space before creating or editing pinned facts."
     : activeSpace === null
       ? "Choose an active Space before creating or editing pinned facts."
       : null;
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [descending, setDescending] = useState(false);
+  const [nameFilter, setNameFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [createdByFilter, setCreatedByFilter] = useState("");
+  const [updatedByFilter, setUpdatedByFilter] = useState("");
+  const [createdDateFilter, setCreatedDateFilter] = useState("");
+  const [updatedDateFilter, setUpdatedDateFilter] = useState("");
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [key, setKey] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [entityTypeHint, setEntityTypeHint] = useState("");
-  const [valueKind, setValueKind] = useState<"json" | "text">("text");
-  const [valueInput, setValueInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [submittedSearchQuery, setSubmittedSearchQuery] = useState("");
-  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const listQuery = useMemo(() => ({
+    created_by: createdByFilter.trim() || undefined,
+    created_date: createdDateFilter.trim() || undefined,
+    descending,
+    name: nameFilter.trim() || undefined,
+    page: 1,
+    page_size: 200,
+    sort_key: sortKey,
+    status: statusFilter.trim() || undefined,
+    updated_by: updatedByFilter.trim() || undefined,
+    updated_date: updatedDateFilter.trim() || undefined,
+    ...readScopeQuery
+  }), [
+    createdByFilter,
+    createdDateFilter,
+    descending,
+    nameFilter,
+    readScopeQuery,
+    sortKey,
+    statusFilter,
+    updatedByFilter,
+    updatedDateFilter
+  ]);
 
   const factsQuery = useQuery({
     enabled: isReady,
-    queryFn: () => listPinnedFacts({ page: 1, page_size: 50, ...readScopeQuery }),
-    queryKey: ["pinned-facts", readScopeQuery]
+    queryFn: () => listPinnedFacts(listQuery),
+    queryKey: ["pinned-facts", listQuery]
   });
 
-  const evidenceQuery = useQuery({
-    enabled: isReady && submittedSearchQuery.trim().length > 0,
-    queryFn: () =>
-      readSearchResults({
-        mode: "combined",
-        page: 1,
-        page_size: 5,
-        q: submittedSearchQuery,
-        ...readScopeQuery
-      }),
-    queryKey: ["pinned-facts-evidence-search", submittedSearchQuery, readScopeQuery]
-  });
-
-  const selectedResult =
-    evidenceQuery.data?.items.find((item) => item.result_id === selectedResultId) ?? null;
-
-  function submitEvidenceSearch() {
-    setSubmittedSearchQuery(searchQuery.trim());
-    setSelectedResultId(null);
-  }
-
-  async function handleCreateFact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!writeScopeQuery) {
-      setErrorMessage(writeDisabledReason);
-      return;
-    }
-    if (!selectedResult) {
-      setErrorMessage("Choose one search result as supporting evidence before creating the fact.");
-      return;
-    }
-
-    setErrorMessage(null);
-    setFeedbackMessage(null);
-    setIsCreating(true);
-
-    try {
-      const payload =
-        valueKind === "json"
-          ? {
-              value_json: JSON.parse(valueInput) as Record<string, unknown>,
-              value_kind: "json" as const,
-              value_text: null
-            }
-          : {
-              value_json: null,
-              value_kind: "text" as const,
-              value_text: valueInput
-            };
-
-      await createPinnedFact(
-        {
-          confidence: 0.95,
-          description,
-          entity_type_hint: entityTypeHint || null,
-          evidence: [
-            {
-              citations: selectedResult.citations,
-              quote: selectedResult.preview_text,
-              source_chunk_ids: selectedResult.citations
-                .map((citation) => citation.chunk_id)
-                .filter((value): value is string => Boolean(value))
-            }
-          ],
-          is_active: true,
-          key,
-          source_document_id: selectedResult.document?.id ?? selectedResult.citations[0]?.document_id ?? null,
-          title,
-          ...payload
-        },
-        writeScopeQuery
-      );
-      setFeedbackMessage("Pinned fact created.");
-      setKey("");
-      setTitle("");
-      setDescription("");
-      setEntityTypeHint("");
-      setValueInput("");
-      await factsQuery.refetch();
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        setErrorMessage("JSON values must be valid JSON before the fact can be created.");
-      } else if (error instanceof ApiProblemError) {
-        setErrorMessage(error.problem.detail);
-      } else {
-        setErrorMessage("Unable to create that pinned fact right now.");
-      }
-    } finally {
-      setIsCreating(false);
-    }
-  }
+  const visibleFacts = factsQuery.data?.items ?? [];
 
   return (
     <Page>
@@ -153,189 +89,6 @@ export function PinnedFactsPage() {
         </Alert>
       ) : null}
 
-      {errorMessage ? (
-        <Alert variant="destructive">
-          <AlertTitle>Pinned-fact action failed</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {feedbackMessage ? (
-        <Alert variant="success">
-          <AlertTitle>Saved</AlertTitle>
-          <AlertDescription>{feedbackMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Create pinned fact</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <form className="space-y-5" onSubmit={handleCreateFact}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="pinned-fact-key">
-                  Key
-                </label>
-                <Input
-                  id="pinned-fact-key"
-                  required
-                  disabled={!writeScopeQuery || isCreating}
-                  placeholder="project_color_scheme"
-                  value={key}
-                  onChange={(event) => setKey(event.currentTarget.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="pinned-fact-title">
-                  Title
-                </label>
-                <Input
-                  id="pinned-fact-title"
-                  required
-                  disabled={!writeScopeQuery || isCreating}
-                  placeholder="Project color scheme"
-                  value={title}
-                  onChange={(event) => setTitle(event.currentTarget.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="pinned-fact-description">
-                Description / detection query
-              </label>
-              <Textarea
-                id="pinned-fact-description"
-                required
-                disabled={!writeScopeQuery || isCreating}
-                rows={3}
-                placeholder="What is the current project color scheme?"
-                value={description}
-                onChange={(event) => setDescription(event.currentTarget.value)}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[minmax(0,160px)_1fr]">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="pinned-fact-value-kind">
-                  Value type
-                </label>
-                <Input
-                  id="pinned-fact-value-kind"
-                  disabled
-                  value={valueKind}
-                  onFocus={() => undefined}
-                />
-                <div className="flex gap-2">
-                  <Button type="button" variant={valueKind === "text" ? "default" : "outline"} onClick={() => setValueKind("text")}>
-                    Text
-                  </Button>
-                  <Button type="button" variant={valueKind === "json" ? "default" : "outline"} onClick={() => setValueKind("json")}>
-                    JSON
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="pinned-fact-value">
-                  Current value
-                </label>
-                <Textarea
-                  id="pinned-fact-value"
-                  required
-                  disabled={!writeScopeQuery || isCreating}
-                  rows={4}
-                  placeholder={valueKind === "json" ? '{ "primary": "#2563eb" }' : "Atlas"}
-                  value={valueInput}
-                  onChange={(event) => setValueInput(event.currentTarget.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="pinned-fact-entity-type">
-                Entity type hint
-              </label>
-              <Input
-                id="pinned-fact-entity-type"
-                disabled={!writeScopeQuery || isCreating}
-                placeholder="Optional entity type"
-                value={entityTypeHint}
-                onChange={(event) => setEntityTypeHint(event.currentTarget.value)}
-              />
-            </div>
-
-            <Card className="bg-background/70 shadow-none">
-              <CardHeader>
-                <CardTitle className="text-base">Select supporting evidence</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-3">
-                  <Input
-                    placeholder="Search for the source evidence you want to pin"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                  />
-                  <Button type="button" onClick={submitEvidenceSearch}>
-                    Search
-                  </Button>
-                </div>
-
-                {evidenceQuery.error instanceof ApiProblemError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Unable to search evidence</AlertTitle>
-                    <AlertDescription>{evidenceQuery.error.problem.detail}</AlertDescription>
-                  </Alert>
-                ) : evidenceQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Searching evidence…</p>
-                ) : evidenceQuery.data?.items.length ? (
-                  <div className="space-y-3">
-                    {evidenceQuery.data.items.map((item) => (
-                      <Card
-                        key={item.result_id}
-                        className={selectedResultId === item.result_id ? "border-primary" : ""}
-                      >
-                        <CardContent className="space-y-3 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-medium">
-                                {item.document?.title ?? item.entity?.display_name ?? "Result"}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{item.preview_text}</p>
-                            </div>
-                            <Button type="button" variant={selectedResultId === item.result_id ? "default" : "outline"} onClick={() => setSelectedResultId(item.result_id)}>
-                              {selectedResultId === item.result_id ? "Selected" : "Use result"}
-                            </Button>
-                          </div>
-                          {item.citations.map((citation, index) => (
-                            <p key={`${item.result_id}-${index}`} className="text-sm text-muted-foreground">
-                              {formatCitationLabel(citation)}
-                            </p>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : submittedSearchQuery ? (
-                  <p className="text-sm text-muted-foreground">No evidence matched that search yet.</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Run a search and select one result to attach evidence to the fact.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-end">
-              <Button disabled={!writeScopeQuery || !selectedResult} type="submit">
-                {isCreating ? "Creating…" : "Create pinned fact"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
       {factsQuery.error instanceof ApiProblemError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load pinned facts</AlertTitle>
@@ -345,12 +98,84 @@ export function PinnedFactsPage() {
         <p className="text-sm text-muted-foreground">Loading pinned facts…</p>
       ) : (
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-2xl font-semibold tracking-tight">Pinned facts</h2>
-            <Badge variant="outline">{factsQuery.data?.total ?? 0} facts</Badge>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-semibold tracking-tight">Pinned facts</h2>
+              <Badge variant="outline">{visibleFacts.length} visible</Badge>
+              <Badge variant="secondary">{factsQuery.data?.total ?? 0} total</Badge>
+            </div>
+            <div className="flex gap-3">
+              <select
+                aria-label="Sort pinned facts"
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={sortKey}
+                onChange={(event) => setSortKey(event.currentTarget.value as SortKey)}
+              >
+                <option value="name">Name</option>
+                <option value="status">Status</option>
+                <option value="created_by">Created by</option>
+                <option value="updated_by">Updated by</option>
+                <option value="created_at">Created date</option>
+                <option value="updated_at">Updated date</option>
+              </select>
+              <Button type="button" variant="outline" onClick={() => setDescending((current) => !current)}>
+                {descending ? "Reverse: on" : "Reverse: off"}
+              </Button>
+              {writeDisabledReason ? (
+                <Button type="button" disabled>
+                  Create Fact
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link to="/pinned-facts/create">Create Fact</Link>
+                </Button>
+              )}
+            </div>
           </div>
-          {factsQuery.data?.items.length ? (
-            factsQuery.data.items.map((fact) => (
+
+          <Card>
+            <CardContent className="grid gap-3 p-6 md:grid-cols-2 xl:grid-cols-3">
+              <Input
+                aria-label="Filter by name"
+                placeholder="Filter by name"
+                value={nameFilter}
+                onChange={(event) => setNameFilter(event.currentTarget.value)}
+              />
+              <Input
+                aria-label="Filter by status"
+                placeholder="Filter by status"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.currentTarget.value)}
+              />
+              <Input
+                aria-label="Filter by created by"
+                placeholder="Filter by created by"
+                value={createdByFilter}
+                onChange={(event) => setCreatedByFilter(event.currentTarget.value)}
+              />
+              <Input
+                aria-label="Filter by updated by"
+                placeholder="Filter by updated by"
+                value={updatedByFilter}
+                onChange={(event) => setUpdatedByFilter(event.currentTarget.value)}
+              />
+              <Input
+                aria-label="Filter by created date"
+                placeholder="Filter by created date (YYYY-MM-DD)"
+                value={createdDateFilter}
+                onChange={(event) => setCreatedDateFilter(event.currentTarget.value)}
+              />
+              <Input
+                aria-label="Filter by updated date"
+                placeholder="Filter by updated date (YYYY-MM-DD)"
+                value={updatedDateFilter}
+                onChange={(event) => setUpdatedDateFilter(event.currentTarget.value)}
+              />
+            </CardContent>
+          </Card>
+
+          {visibleFacts.length ? (
+            visibleFacts.map((fact) => (
               <Card key={fact.id}>
                 <CardContent className="space-y-4 p-6">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -361,20 +186,47 @@ export function PinnedFactsPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge value={fact.status} />
+                      {fact.pending_candidate_count > 0 ? (
+                        <Badge variant="secondary">{fact.pending_candidate_count} pending</Badge>
+                      ) : null}
+                      {fact.status === "missing_evidence" ? <Badge variant="destructive">Missing evidence</Badge> : null}
                       {fact.is_active ? <Badge variant="outline">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                     </div>
                   </div>
+
+                  {(fact.status === "pending_update" || fact.status === "conflicted" || fact.status === "missing_evidence") && (
+                    <Alert variant={fact.status === "missing_evidence" ? "destructive" : "info"}>
+                      <AlertTitle>
+                        {fact.status === "pending_update"
+                          ? "Pending update"
+                          : fact.status === "conflicted"
+                            ? "Conflicting updates"
+                            : "Evidence missing"}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {fact.status === "pending_update"
+                          ? "The stored value stays live until you review and accept a proposed update."
+                          : fact.status === "conflicted"
+                            ? "Multiple proposed values were detected. Review the candidates before changing the stored value."
+                            : "The current stored value is still shown, but the latest rerun did not find supporting evidence."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="grid gap-4 md:grid-cols-3">
                     <Card className="bg-background/65 shadow-none">
                       <CardContent className="space-y-2 p-4">
                         <p className="text-sm font-semibold">Current value</p>
-                        <p className="text-sm">{fact.value_text ?? JSON.stringify(fact.value_json) ?? "Not set"}</p>
+                        <p className="text-sm">{valueLabel(fact)}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-background/65 shadow-none">
                       <CardContent className="space-y-2 p-4">
-                        <p className="text-sm font-semibold">Pending review</p>
-                        <p className="text-sm">{fact.pending_candidate_count} candidates</p>
+                        <p className="text-sm font-semibold">Created / updated</p>
+                        <p className="text-sm">{actorLabel(fact.created_by)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(fact.created_at)}</p>
+                        <p className="text-sm">{actorLabel(fact.updated_by)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(fact.updated_at)}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-background/65 shadow-none">
@@ -394,7 +246,7 @@ export function PinnedFactsPage() {
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No pinned facts are configured for this scope yet.
+              No pinned facts match the current filters.
             </p>
           )}
         </section>

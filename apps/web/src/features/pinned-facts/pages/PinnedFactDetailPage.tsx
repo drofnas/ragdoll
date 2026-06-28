@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Page, PageHeader } from "@/components/app/page";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,15 +21,20 @@ import {
   readPinnedFactHistory,
   recheckPinnedFact,
   rejectPinnedFactCandidate,
-  revertPinnedFactHistory
+  revertPinnedFactHistory,
+  updatePinnedFact
 } from "../api/pinnedFactsApi";
 
+function valueLabel(valueText: string | null | undefined, valueJson: Record<string, unknown> | null | undefined) {
+  return valueText ?? JSON.stringify(valueJson, null, 2) ?? "Not set";
+}
+
 function candidateValue(candidate: PinnedFactCandidate) {
-  return candidate.proposed_value_text ?? JSON.stringify(candidate.proposed_value_json);
+  return valueLabel(candidate.proposed_value_text, candidate.proposed_value_json);
 }
 
 function historyValue(entry: PinnedFactHistoryEntry) {
-  return entry.new_value_text ?? JSON.stringify(entry.new_value_json);
+  return valueLabel(entry.new_value_text, entry.new_value_json);
 }
 
 export function PinnedFactDetailPage() {
@@ -37,15 +43,19 @@ export function PinnedFactDetailPage() {
   const readScopeQuery = buildReadScopeParams();
   const writeScopeQuery = !allSpaces && activeSpace ? { space_id: activeSpace.id } : null;
   const writeDisabledReason = allSpaces
-    ? "Choose one active Space before reviewing or reverting pinned facts."
+    ? "Choose one active Space before reviewing or editing pinned facts."
     : activeSpace === null
-      ? "Choose an active Space before reviewing or reverting pinned facts."
+      ? "Choose an active Space before reviewing or editing pinned facts."
       : null;
 
   const [candidateDrafts, setCandidateDrafts] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [manualValueKind, setManualValueKind] = useState<"json" | "text">("text");
+  const [manualValueInput, setManualValueInput] = useState("");
+  const [manualUpdateNote, setManualUpdateNote] = useState("");
 
   const detailQuery = useQuery({
     enabled: Boolean(factId),
@@ -77,6 +87,14 @@ export function PinnedFactDetailPage() {
     });
   }, [candidatesQuery.data]);
 
+  useEffect(() => {
+    if (!detailQuery.data || isEditing) {
+      return;
+    }
+    setManualValueKind(detailQuery.data.value_kind === "json" ? "json" : "text");
+    setManualValueInput(valueLabel(detailQuery.data.value_text, detailQuery.data.value_json));
+  }, [detailQuery.data, isEditing]);
+
   if (!factId) {
     return <Navigate to="/pinned-facts" replace />;
   }
@@ -107,7 +125,7 @@ export function PinnedFactDetailPage() {
             : { review_notes: "Accepted after edit.", value_kind: "text" as const, value_text: draft }
           : { review_notes: "Accepted." };
       await acceptPinnedFactCandidate(candidate.id, payload, writeScopeQuery);
-      setFeedbackMessage("Candidate accepted.");
+      setFeedbackMessage("Update accepted.");
       await refetchAll();
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -132,7 +150,7 @@ export function PinnedFactDetailPage() {
     setFeedbackMessage(null);
     try {
       await rejectPinnedFactCandidate(candidate.id, { review_notes: "Rejected." }, writeScopeQuery);
-      setFeedbackMessage("Candidate rejected.");
+      setFeedbackMessage("Update rejected. The current stored value was preserved.");
       await refetchAll();
     } catch (error) {
       if (error instanceof ApiProblemError) {
@@ -155,13 +173,52 @@ export function PinnedFactDetailPage() {
     setFeedbackMessage(null);
     try {
       await recheckPinnedFact(factId, writeScopeQuery);
-      setFeedbackMessage("Pinned fact rechecked.");
+      setFeedbackMessage("Pinned fact rerun complete.");
       await refetchAll();
     } catch (error) {
       if (error instanceof ApiProblemError) {
         setErrorMessage(error.problem.detail);
       } else {
-        setErrorMessage("Unable to recheck that fact right now.");
+        setErrorMessage("Unable to rerun that fact right now.");
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSaveManualEdit() {
+    if (!writeScopeQuery || !detailQuery.data) {
+      setErrorMessage(writeDisabledReason);
+      return;
+    }
+    setBusyAction("manual-edit");
+    setErrorMessage(null);
+    setFeedbackMessage(null);
+    try {
+      const payload =
+        manualValueKind === "json"
+          ? {
+              update_note: manualUpdateNote.trim() || null,
+              value_json: JSON.parse(manualValueInput) as Record<string, unknown>,
+              value_kind: "json" as const
+            }
+          : {
+              update_note: manualUpdateNote.trim() || null,
+              value_kind: "text" as const,
+              value_text: manualValueInput
+            };
+      await updatePinnedFact(factId, payload, writeScopeQuery);
+      setIsEditing(false);
+      setManualUpdateNote("");
+      setFeedbackMessage("Stored value updated.");
+      await refetchAll();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        setErrorMessage("JSON stored values must be valid JSON before saving.");
+      } else if (error instanceof ApiProblemError) {
+        setErrorMessage(error.problem.detail);
+      } else {
+        setErrorMessage("Unable to save that edit right now.");
       }
     } finally {
       setBusyAction(null);
@@ -178,13 +235,13 @@ export function PinnedFactDetailPage() {
     setFeedbackMessage(null);
     try {
       await revertPinnedFactHistory(factId, entry.id, writeScopeQuery);
-      setFeedbackMessage("Pinned fact reverted to that historical version.");
+      setFeedbackMessage("Pinned fact restored to that historical version.");
       await refetchAll();
     } catch (error) {
       if (error instanceof ApiProblemError) {
         setErrorMessage(error.problem.detail);
       } else {
-        setErrorMessage("Unable to revert that pinned fact right now.");
+        setErrorMessage("Unable to restore that pinned fact right now.");
       }
     } finally {
       setBusyAction(null);
@@ -234,24 +291,50 @@ export function PinnedFactDetailPage() {
         <p className="text-sm text-muted-foreground">Loading pinned fact…</p>
       ) : detailQuery.data ? (
         <>
+          {(detailQuery.data.status === "pending_update" ||
+            detailQuery.data.status === "conflicted" ||
+            detailQuery.data.status === "missing_evidence") && (
+            <Alert variant={detailQuery.data.status === "missing_evidence" ? "destructive" : "info"}>
+              <AlertTitle>
+                {detailQuery.data.status === "pending_update"
+                  ? "Pending update detected"
+                  : detailQuery.data.status === "conflicted"
+                    ? "Review conflicting updates"
+                    : "Missing evidence warning"}
+              </AlertTitle>
+              <AlertDescription>
+                {detailQuery.data.status === "pending_update"
+                  ? "The current stored value remains active until you explicitly accept a proposed update."
+                  : detailQuery.data.status === "conflicted"
+                    ? "Multiple candidate values were found. Review and accept exactly the one you want to make current."
+                    : "The current stored value remains visible, but the latest rerun did not find supporting evidence."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card>
             <CardContent className="space-y-4 p-6">
               <div className="grid gap-4 md:grid-cols-3">
                 <Card className="bg-background/65 shadow-none">
                   <CardContent className="space-y-2 p-4">
                     <p className="text-sm font-semibold">Current value</p>
-                    <p className="text-sm">{detailQuery.data.value_text ?? JSON.stringify(detailQuery.data.value_json)}</p>
+                    <p className="whitespace-pre-wrap text-sm">
+                      {valueLabel(detailQuery.data.value_text, detailQuery.data.value_json)}
+                    </p>
                   </CardContent>
                 </Card>
                 <Card className="bg-background/65 shadow-none">
                   <CardContent className="space-y-2 p-4">
-                    <p className="text-sm font-semibold">Confidence</p>
-                    <p className="text-sm">{detailQuery.data.confidence ?? "Unknown"}</p>
+                    <p className="text-sm font-semibold">Updated by</p>
+                    <p className="text-sm">
+                      {detailQuery.data.updated_by?.full_name || detailQuery.data.updated_by?.email || "Unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(detailQuery.data.updated_at)}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-background/65 shadow-none">
                   <CardContent className="space-y-2 p-4">
-                    <p className="text-sm font-semibold">Last checked</p>
+                    <p className="text-sm font-semibold">Last rerun</p>
                     <p className="text-sm">{formatDateTime(detailQuery.data.last_checked_at)}</p>
                   </CardContent>
                 </Card>
@@ -277,75 +360,164 @@ export function PinnedFactDetailPage() {
                 )}
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button type="button" disabled={!writeScopeQuery} variant="outline" onClick={() => setIsEditing((current) => !current)}>
+                  {isEditing ? "Cancel edit" : "Edit stored value"}
+                </Button>
                 <Button disabled={!writeScopeQuery} variant="outline" onClick={() => void handleRecheck()}>
-                  {busyAction === "recheck" ? "Rechecking…" : "Recheck fact"}
+                  {busyAction === "recheck" ? "Rerunning…" : "Rerun detection"}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
 
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight">Pending candidates</h2>
-            {candidatesQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading candidates…</p>
-            ) : candidatesQuery.data?.items.length ? (
-              candidatesQuery.data.items.map((candidate) => (
-                <Card key={candidate.id}>
+              {isEditing ? (
+                <Card className="border-dashed">
                   <CardHeader>
-                    <CardTitle className="text-base">Candidate {candidate.change_type}</CardTitle>
+                    <CardTitle className="text-base">Manual edit</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge value={candidate.status} />
-                    </div>
-                    {candidate.proposed_value_kind === "json" ? (
-                      <Textarea
-                        rows={5}
-                        value={candidateDrafts[candidate.id] ?? ""}
-                        onChange={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setCandidateDrafts((current) => ({ ...current, [candidate.id]: nextValue }));
-                        }}
-                      />
-                    ) : (
-                      <Input
-                        value={candidateDrafts[candidate.id] ?? ""}
-                        onChange={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setCandidateDrafts((current) => ({ ...current, [candidate.id]: nextValue }));
-                        }}
-                      />
-                    )}
-                    {candidate.evidence.map((evidence, index) => (
-                      <Card key={`${candidate.id}-evidence-${index}`} className="bg-background/65 shadow-none">
-                        <CardContent className="space-y-2 p-4">
-                          <p className="text-sm">{evidence.quote}</p>
-                          {evidence.citations.map((citation, citationIndex) => (
-                            <p key={`${candidate.id}-${index}-${citationIndex}`} className="text-sm text-muted-foreground">
-                              {formatCitationLabel(citation)}
-                            </p>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    ))}
-                    <div className="flex justify-end gap-3">
+                    <div className="flex gap-2">
                       <Button
-                        disabled={!writeScopeQuery}
-                        variant="ghost"
-                        onClick={() => void handleReject(candidate)}
+                        type="button"
+                        variant={manualValueKind === "text" ? "default" : "outline"}
+                        onClick={() => setManualValueKind("text")}
                       >
-                        {busyAction === `reject-${candidate.id}` ? "Rejecting…" : "Reject"}
+                        Text
                       </Button>
-                      <Button disabled={!writeScopeQuery} onClick={() => void handleAccept(candidate)}>
-                        {busyAction === `accept-${candidate.id}` ? "Accepting…" : "Accept"}
+                      <Button
+                        type="button"
+                        variant={manualValueKind === "json" ? "default" : "outline"}
+                        onClick={() => setManualValueKind("json")}
+                      >
+                        JSON
+                      </Button>
+                    </div>
+                    {manualValueKind === "json" ? (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="manual-value-input">
+                          Stored value
+                        </label>
+                        <Textarea
+                          id="manual-value-input"
+                          rows={8}
+                          value={manualValueInput}
+                          onChange={(event) => setManualValueInput(event.currentTarget.value)}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor="manual-value-input">
+                          Stored value
+                        </label>
+                        <Textarea
+                          id="manual-value-input"
+                          rows={5}
+                          value={manualValueInput}
+                          onChange={(event) => setManualValueInput(event.currentTarget.value)}
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="manual-update-note">
+                        Update note
+                      </label>
+                      <Textarea
+                        id="manual-update-note"
+                        rows={3}
+                        placeholder="Optional context for this change"
+                        value={manualUpdateNote}
+                        onChange={(event) => setManualUpdateNote(event.currentTarget.value)}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button disabled={!writeScopeQuery} onClick={() => void handleSaveManualEdit()}>
+                        {busyAction === "manual-edit" ? "Saving…" : "Save edit"}
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
-              ))
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <section className="space-y-4">
+            <h2 className="text-2xl font-semibold tracking-tight">Pending updates</h2>
+            {candidatesQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading pending updates…</p>
+            ) : candidatesQuery.data?.items.filter((candidate) => candidate.status === "pending").length ? (
+              candidatesQuery.data.items
+                .filter((candidate) => candidate.status === "pending")
+                .map((candidate) => (
+                  <Card key={candidate.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        Review update
+                        <Badge variant="secondary">{candidate.change_type.replace("_", " ")}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <Card className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-4">
+                            <p className="text-sm font-semibold">Current value</p>
+                            <p className="whitespace-pre-wrap text-sm">
+                              {valueLabel(detailQuery.data.value_text, detailQuery.data.value_json)}
+                            </p>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-background/65 shadow-none">
+                          <CardContent className="space-y-2 p-4">
+                            <p className="text-sm font-semibold">Proposed value</p>
+                            {candidate.proposed_value_kind === "json" ? (
+                              <Textarea
+                                rows={8}
+                                value={candidateDrafts[candidate.id] ?? ""}
+                                onChange={(event) => {
+                                  const nextValue = event.currentTarget.value;
+                                  setCandidateDrafts((current) => ({ ...current, [candidate.id]: nextValue }));
+                                }}
+                              />
+                            ) : (
+                              <Input
+                                value={candidateDrafts[candidate.id] ?? ""}
+                                onChange={(event) => {
+                                  const nextValue = event.currentTarget.value;
+                                  setCandidateDrafts((current) => ({ ...current, [candidate.id]: nextValue }));
+                                }}
+                              />
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">Proposed evidence</p>
+                        {candidate.evidence.map((evidence, index) => (
+                          <Card key={`${candidate.id}-evidence-${index}`} className="bg-background/65 shadow-none">
+                            <CardContent className="space-y-2 p-4">
+                              <p className="text-sm">{evidence.quote}</p>
+                              {evidence.citations.map((citation, citationIndex) => (
+                                <p key={`${candidate.id}-${index}-${citationIndex}`} className="text-sm text-muted-foreground">
+                                  {formatCitationLabel(citation)}
+                                </p>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-end gap-3">
+                        <Button disabled={!writeScopeQuery} variant="ghost" onClick={() => void handleReject(candidate)}>
+                          {busyAction === `reject-${candidate.id}` ? "Rejecting…" : "Reject"}
+                        </Button>
+                        <Button disabled={!writeScopeQuery} onClick={() => void handleAccept(candidate)}>
+                          {busyAction === `accept-${candidate.id}` ? "Accepting…" : "Accept update"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
             ) : (
-              <p className="text-sm text-muted-foreground">No pending candidates are waiting for review.</p>
+              <p className="text-sm text-muted-foreground">No pending updates are waiting for review.</p>
             )}
           </section>
 
@@ -362,9 +534,12 @@ export function PinnedFactDetailPage() {
                       <p className="text-sm text-muted-foreground">
                         {entry.reason} · {formatDateTime(entry.created_at)}
                       </p>
+                      {entry.update_note ? (
+                        <p className="text-sm text-muted-foreground">{entry.update_note}</p>
+                      ) : null}
                     </div>
                     <Button disabled={!writeScopeQuery} variant="outline" onClick={() => void handleRevert(entry)}>
-                      {busyAction === `revert-${entry.id}` ? "Reverting…" : "Restore this version"}
+                      {busyAction === `revert-${entry.id}` ? "Restoring…" : "Restore this version"}
                     </Button>
                   </CardContent>
                 </Card>

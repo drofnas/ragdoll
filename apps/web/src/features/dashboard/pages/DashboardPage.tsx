@@ -10,6 +10,7 @@ import { formatDateTime } from "@/shared/lib/formatting";
 import { useSpaceScope } from "@/shared/state/spaceScope";
 import { readUsageSummary } from "../../account/api/accountApi";
 import { listDocuments } from "../../documents/api/documentsApi";
+import { listPinnedFacts } from "../../pinned-facts/api/pinnedFactsApi";
 
 export function DashboardPage() {
   const { buildReadScopeParams, isReady } = useSpaceScope();
@@ -30,6 +31,19 @@ export function DashboardPage() {
     queryFn: readUsageSummary,
     queryKey: ["dashboard-usage"]
   });
+  const pinnedFactsQuery = useQuery({
+    enabled: isReady,
+    queryFn: () =>
+      listPinnedFacts({
+        descending: true,
+        page: 1,
+        page_size: 5,
+        sort_key: "updated_at",
+        ...scopeQuery
+      }),
+    queryKey: ["dashboard-pinned-facts", scopeQuery]
+  });
+  const recentPinnedFacts = pinnedFactsQuery.data?.items ?? [];
 
   return (
     <Page>
@@ -127,6 +141,47 @@ export function DashboardPage() {
           ) : (
             <p className="text-sm text-muted-foreground">
               Upload a document to start filling in the dashboard.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div className="space-y-2">
+            <CardTitle>Pinned facts</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              The most recently updated pinned facts inside the current read scope.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/pinned-facts">Open pinned facts</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {pinnedFactsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading pinned facts…</p>
+          ) : recentPinnedFacts.length > 0 ? (
+            <div className="space-y-3">
+              {recentPinnedFacts.map((fact) => (
+                <div
+                  key={fact.id}
+                  className="flex flex-col gap-2 rounded-md border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">{fact.title}</p>
+                    <p className="text-sm text-muted-foreground">{fact.value_text ?? JSON.stringify(fact.value_json)}</p>
+                  </div>
+                  <div className="space-y-1 text-left sm:text-right">
+                    <p className="text-sm font-medium text-foreground">{fact.status}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(fact.updated_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Create a pinned fact to track evidence-backed values here.
             </p>
           )}
         </CardContent>

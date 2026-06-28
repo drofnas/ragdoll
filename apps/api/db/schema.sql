@@ -3305,6 +3305,7 @@ CREATE TABLE public.pinned_fact_history (
     new_value_json json,
     old_evidence json,
     new_evidence json,
+    update_note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
