@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -12,15 +13,15 @@ from ragdoll.api.shared_schemas import Citation, SourceTier, SpaceScope
 from ragdoll.modules.corrections.application.service import correction_citation, correction_matches_query
 from ragdoll.modules.corrections.infrastructure.repository import CorrectionsRepository
 from ragdoll.modules.knowledge_graph.infrastructure.repository import KnowledgeGraphRepository
+from ragdoll.modules.pinned_facts.infrastructure.repository import PinnedFactsRepository
 from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
 from ragdoll.modules.search.application.evidence import retrieve_search_results
-from ragdoll.modules.tracked_state.infrastructure.repository import TrackedStateRepository
 from ragdoll.platform.db.models import ChatMessage, ChatSession, Document, DocumentChunk
 
 
 SOURCE_QUOTAS = {
     "correction": 3,
-    "tracked_state": 5,
+    "pinned_fact": 5,
     "document_chunk": 8,
     "graph_entity": 4,
     "graph_relationship": 6,
@@ -210,7 +211,7 @@ def _dedupe_and_rank(items: list[ChatEvidenceItem]) -> list[ChatEvidenceItem]:
         quota_limited,
         key=lambda item: (
             item.source_tier == SourceTier.VERIFIED,
-            item.source_type == "tracked_state",
+            item.source_type == "pinned_fact",
             item.answerability,
             _tier_rank(item.source_tier),
             item.score,
@@ -243,31 +244,42 @@ def _correction_evidence(session: Session, *, space_id: UUID, query_text: str) -
     return items
 
 
-def _tracked_state_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
-    repo = TrackedStateRepository(session)
+def _value_text(kind: str | None, text: str | None, json_value: object) -> str | None:
+    if kind == "json" and json_value is not None:
+        return json.dumps(json_value, sort_keys=True)
+    if kind == "text":
+        return text
+    return None
+
+
+def _pinned_fact_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
+    repo = PinnedFactsRepository(session)
     terms = _query_terms(query_text)
     items: list[ChatEvidenceItem] = []
-    for index, field in enumerate(repo.list_active_fields_for_space(space_id), start=1):
-        current_value = repo.get_current_value(field.id)
-        if current_value is None:
+    for index, fact in enumerate(repo.list_active_facts_for_space(space_id), start=1):
+        current_value_text = _value_text(fact.value_kind, fact.value_text, fact.value_json)
+        if not current_value_text:
             continue
-        citations = [
-            citation
-            for citation in (_citation_from_raw(raw) for raw in current_value.citations or [])
-            if citation is not None
-        ]
-        text = f"{field.label}: {current_value.value_text}"
-        searchable = " ".join([field.key, field.label, field.prompt, current_value.value_text])
+        citations: list[Citation] = []
+        for raw in fact.evidence or []:
+            if not isinstance(raw, dict):
+                continue
+            for nested in raw.get("citations") or []:
+                citation = _citation_from_raw(nested)
+                if citation is not None:
+                    citations.append(citation)
+        text = f"{fact.title}: {current_value_text}"
+        searchable = " ".join([fact.key, fact.title, fact.description, current_value_text])
         items.append(
             ChatEvidenceItem(
                 id=f"tracked-{index}",
-                source_type="tracked_state",
-                source_tier=SourceTier(current_value.source_tier),
+                source_type="pinned_fact",
+                source_tier=SourceTier.VERIFIED if fact.status == "active" else SourceTier.USER,
                 text=text,
                 citations=citations,
                 score=800.0 + _overlap_score(terms, searchable),
-                title=field.label,
-                created_at=current_value.created_at,
+                title=fact.title,
+                created_at=fact.updated_at,
                 answer_intent=classify_answer_intent(query_text),
                 answerability=800.0 + _overlap_score(terms, searchable),
             )
@@ -442,7 +454,7 @@ def _answerability_score(
 ) -> float:
     if source_type == "correction":
         return 1000.0 + _overlap_score(query_terms, text)
-    if source_type == "tracked_state":
+    if source_type == "pinned_fact":
         return 800.0 + _overlap_score(query_terms, text)
     if answer_intent == "technology_stack" and source_type == "document_chunk":
         return _technology_stack_answerability(text, query_terms)
@@ -589,7 +601,7 @@ def gather_chat_evidence(
 
     evidence_items = [
         *_correction_evidence(session, space_id=chat_session.space_id, query_text=query_text),
-        *_tracked_state_evidence(session, space_id=chat_session.space_id, query_text=query_text),
+        *_pinned_fact_evidence(session, space_id=chat_session.space_id, query_text=query_text),
         *_search_result_evidence(session, retrieval_results, query_text=query_text, answer_intent=answer_intent),
         *_graph_relationship_evidence(
             session,

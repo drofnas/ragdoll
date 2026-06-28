@@ -4,6 +4,13 @@
 
 // Do not edit by hand.
 
+export interface AcceptPinnedFactCandidateRequest {
+  value_kind?: "text" | "json" | null;
+  value_text?: string | null;
+  value_json?: Record<string, unknown> | null;
+  review_notes?: string | null;
+}
+
 export interface AdminEffectiveLimitsResponse {
   documents?: number | null;
   max_file_size_bytes?: number | null;
@@ -61,7 +68,7 @@ export interface ChangeEventDetail {
   title: string;
   summary: string;
   document_id?: string | null;
-  tracked_field_id?: string | null;
+  pinned_fact_id?: string | null;
   correction_id?: string | null;
   chat_session_id?: string | null;
   created_at: string;
@@ -81,7 +88,7 @@ export interface ChangeEventSummary {
   title: string;
   summary: string;
   document_id?: string | null;
-  tracked_field_id?: string | null;
+  pinned_fact_id?: string | null;
   correction_id?: string | null;
   chat_session_id?: string | null;
   created_at: string;
@@ -174,7 +181,7 @@ export interface Citation {
 }
 
 export interface CorrectionCreateRequest {
-  tracked_field_id?: string | null;
+  pinned_fact_id?: string | null;
   chat_session_id?: string | null;
   chat_message_id?: string | null;
   document_id?: string | null;
@@ -197,7 +204,7 @@ export interface CorrectionRecordResponse {
   submitted_by: string;
   chat_session_id?: string | null;
   chat_message_id?: string | null;
-  tracked_field_id?: string | null;
+  pinned_fact_id?: string | null;
   document_id?: string | null;
   entity_id?: string | null;
   locator_text?: string | null;
@@ -428,6 +435,136 @@ export interface MutationResult {
   message?: string | null;
 }
 
+export interface PinnedFactCandidate {
+  id: string;
+  pinned_fact_id: string;
+  space_id: string;
+  source_document_id?: string | null;
+  proposed_value_kind: "text" | "json";
+  proposed_value_text?: string | null;
+  proposed_value_json?: Record<string, unknown> | null;
+  change_type: "same" | "update" | "conflict" | "unknown";
+  confidence?: number | null;
+  evidence?: Array<PinnedFactEvidenceOutput>;
+  status: "pending" | "accepted" | "rejected" | "auto_applied";
+  review_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+}
+
+export interface PinnedFactCandidateListResponse {
+  items: Array<PinnedFactCandidate>;
+}
+
+export interface PinnedFactCreateRequest {
+  value_kind: "text" | "json";
+  value_text?: string | null;
+  value_json?: Record<string, unknown> | null;
+  key: string;
+  title: string;
+  description: string;
+  entity_type_hint?: string | null;
+  is_active?: boolean;
+  confidence?: number | null;
+  source_document_id?: string | null;
+  evidence: Array<PinnedFactEvidenceInput>;
+}
+
+export interface PinnedFactDetail {
+  id: string;
+  space_id: string;
+  key: string;
+  title: string;
+  description: string;
+  entity_type_hint?: string | null;
+  is_active: boolean;
+  status: "active" | "pending_update" | "conflicted" | "unknown";
+  confidence?: number | null;
+  value_kind?: "text" | "json" | null;
+  value_text?: string | null;
+  value_json?: Record<string, unknown> | null;
+  source_document_id?: string | null;
+  evidence?: Array<PinnedFactEvidenceOutput>;
+  last_checked_at?: string | null;
+  pending_candidate_count?: number;
+  conflict_count?: number;
+  created_at: string;
+  updated_at: string;
+  history_count?: number;
+}
+
+export interface PinnedFactEvidenceInput {
+  quote: string;
+  citations?: Array<Citation>;
+  source_chunk_ids?: Array<string>;
+}
+
+export interface PinnedFactEvidenceOutput {
+  quote: string;
+  citations?: Array<Citation>;
+  source_chunk_ids?: Array<string>;
+}
+
+export interface PinnedFactHistoryEntry {
+  id: string;
+  pinned_fact_id: string;
+  candidate_id?: string | null;
+  restored_from_history_id?: string | null;
+  actor_user_id?: string | null;
+  actor_type: string;
+  reason: string;
+  old_value_kind?: "text" | "json" | null;
+  old_value_text?: string | null;
+  old_value_json?: Record<string, unknown> | null;
+  new_value_kind: "text" | "json";
+  new_value_text?: string | null;
+  new_value_json?: Record<string, unknown> | null;
+  old_evidence?: Array<PinnedFactEvidenceOutput>;
+  new_evidence?: Array<PinnedFactEvidenceOutput>;
+  created_at: string;
+}
+
+export interface PinnedFactHistoryResponse {
+  items: Array<PinnedFactHistoryEntry>;
+}
+
+export interface PinnedFactListResponse {
+  items: Array<PinnedFactSummary>;
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PinnedFactSummary {
+  id: string;
+  space_id: string;
+  key: string;
+  title: string;
+  description: string;
+  entity_type_hint?: string | null;
+  is_active: boolean;
+  status: "active" | "pending_update" | "conflicted" | "unknown";
+  confidence?: number | null;
+  value_kind?: "text" | "json" | null;
+  value_text?: string | null;
+  value_json?: Record<string, unknown> | null;
+  source_document_id?: string | null;
+  evidence?: Array<PinnedFactEvidenceOutput>;
+  last_checked_at?: string | null;
+  pending_candidate_count?: number;
+  conflict_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PinnedFactUpdateRequest {
+  title?: string | null;
+  description?: string | null;
+  entity_type_hint?: string | null;
+  is_active?: boolean | null;
+}
+
 export interface ProblemResponse {
   type?: string;
   title?: string;
@@ -453,6 +590,10 @@ export interface RegisterRequest {
   email: string;
   password: string;
   full_name?: string | null;
+}
+
+export interface RejectPinnedFactCandidateRequest {
+  review_notes?: string | null;
 }
 
 export interface SearchEntitySummary {
@@ -509,7 +650,7 @@ export interface SpaceResponse {
   description?: string | null;
   is_default: boolean;
   document_count: number;
-  tracked_field_count: number;
+  pinned_fact_count: number;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -520,81 +661,6 @@ export interface SpaceUpdateRequest {
   description?: string | null;
   archived?: boolean | null;
   is_default?: boolean | null;
-}
-
-export interface TrackedFieldCreateRequest {
-  key: string;
-  label: string;
-  prompt: string;
-  entity_type_hint?: string | null;
-  is_active?: boolean;
-}
-
-export interface TrackedFieldDefinition {
-  id: string;
-  space_id: string;
-  key: string;
-  label: string;
-  prompt: string;
-  entity_type_hint?: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TrackedFieldDefinitionListResponse {
-  items: Array<TrackedFieldDefinition>;
-  total: number;
-  page: number;
-  page_size: number;
-}
-
-export interface TrackedFieldSummary {
-  id: string;
-  space_id: string;
-  key: string;
-  label: string;
-  prompt: string;
-  entity_type_hint?: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  status: "empty" | "resolved" | "conflict";
-  current_value?: string | null;
-  current_source_tier?: SourceTier | null;
-  current_value_updated_at?: string | null;
-  conflict_count?: number;
-  pending_correction_count?: number;
-}
-
-export interface TrackedFieldUpdateRequest {
-  label?: string | null;
-  prompt?: string | null;
-  entity_type_hint?: string | null;
-  is_active?: boolean | null;
-}
-
-export interface TrackedStateConflict {
-  field: TrackedFieldDefinition;
-  status: "empty" | "resolved" | "conflict";
-  candidates?: Array<TrackedValueCandidate>;
-}
-
-export interface TrackedStateConflictResponse {
-  items: Array<TrackedStateConflict>;
-}
-
-export interface TrackedStateSummaryResponse {
-  items: Array<TrackedFieldSummary>;
-}
-
-export interface TrackedValueCandidate {
-  value_text: string;
-  source_tier: SourceTier;
-  correction_id?: string | null;
-  citations?: Array<Citation>;
-  created_at?: string | null;
-  status: string;
 }
 
 export interface UpdateCurrentUserRequest {
@@ -719,18 +785,23 @@ export interface ApiOperations {
   "create_upload_api_v1_ingestion_uploads_post": CreateUploadApiV1IngestionUploadsPostOperation;
   "read_document_graph_api_v1_knowledge_graph_documents__document_id__get": ReadDocumentGraphApiV1KnowledgeGraphDocumentsDocumentIdGetOperation;
   "read_entity_subgraph_api_v1_knowledge_graph_entities__entity_id__subgraph_get": ReadEntitySubgraphApiV1KnowledgeGraphEntitiesEntityIdSubgraphGetOperation;
+  "read_pinned_facts_api_v1_pinned_facts_get": ReadPinnedFactsApiV1PinnedFactsGetOperation;
+  "post_pinned_fact_api_v1_pinned_facts_post": PostPinnedFactApiV1PinnedFactsPostOperation;
+  "read_pinned_fact_candidate_detail_api_v1_pinned_facts_candidates__candidate_id__get": ReadPinnedFactCandidateDetailApiV1PinnedFactsCandidatesCandidateIdGetOperation;
+  "post_accept_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__accept_post": PostAcceptPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdAcceptPostOperation;
+  "post_reject_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__reject_post": PostRejectPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdRejectPostOperation;
+  "read_pinned_fact_detail_api_v1_pinned_facts__fact_id__get": ReadPinnedFactDetailApiV1PinnedFactsFactIdGetOperation;
+  "patch_pinned_fact_api_v1_pinned_facts__fact_id__patch": PatchPinnedFactApiV1PinnedFactsFactIdPatchOperation;
+  "read_pinned_fact_candidates_api_v1_pinned_facts__fact_id__candidates_get": ReadPinnedFactCandidatesApiV1PinnedFactsFactIdCandidatesGetOperation;
+  "read_pinned_fact_history_api_v1_pinned_facts__fact_id__history_get": ReadPinnedFactHistoryApiV1PinnedFactsFactIdHistoryGetOperation;
+  "post_revert_pinned_fact_history_api_v1_pinned_facts__fact_id__history__history_id__revert_post": PostRevertPinnedFactHistoryApiV1PinnedFactsFactIdHistoryHistoryIdRevertPostOperation;
+  "post_recheck_pinned_fact_api_v1_pinned_facts__fact_id__recheck_post": PostRecheckPinnedFactApiV1PinnedFactsFactIdRecheckPostOperation;
   "read_search_results_api_v1_search_get": ReadSearchResultsApiV1SearchGetOperation;
   "read_spaces_api_v1_spaces_get": ReadSpacesApiV1SpacesGetOperation;
   "post_space_api_v1_spaces_post": PostSpaceApiV1SpacesPostOperation;
   "delete_space_api_v1_spaces__space_id__delete": DeleteSpaceApiV1SpacesSpaceIdDeleteOperation;
   "read_space_api_v1_spaces__space_id__get": ReadSpaceApiV1SpacesSpaceIdGetOperation;
   "patch_space_api_v1_spaces__space_id__patch": PatchSpaceApiV1SpacesSpaceIdPatchOperation;
-  "read_tracked_conflicts_api_v1_tracked_state_conflicts_get": ReadTrackedConflictsApiV1TrackedStateConflictsGetOperation;
-  "read_tracked_fields_api_v1_tracked_state_fields_get": ReadTrackedFieldsApiV1TrackedStateFieldsGetOperation;
-  "post_tracked_field_api_v1_tracked_state_fields_post": PostTrackedFieldApiV1TrackedStateFieldsPostOperation;
-  "patch_tracked_field_api_v1_tracked_state_fields__field_id__patch": PatchTrackedFieldApiV1TrackedStateFieldsFieldIdPatchOperation;
-  "post_recompute_tracked_field_api_v1_tracked_state_fields__field_id__recompute_post": PostRecomputeTrackedFieldApiV1TrackedStateFieldsFieldIdRecomputePostOperation;
-  "read_tracked_summary_api_v1_tracked_state_summary_get": ReadTrackedSummaryApiV1TrackedStateSummaryGetOperation;
   "read_my_usage_api_v1_usage_me_get": ReadMyUsageApiV1UsageMeGetOperation;
   "health_liveness_health_get": HealthLivenessHealthGetOperation;
   "runtime_status_status_get": RuntimeStatusStatusGetOperation;
@@ -1496,6 +1567,236 @@ export interface ReadEntitySubgraphApiV1KnowledgeGraphEntitiesEntityIdSubgraphGe
   successResponse: GraphResponse;
 }
 
+export interface ReadPinnedFactsApiV1PinnedFactsGetOperation {
+  method: "get";
+  path: "/api/v1/pinned-facts";
+  pathParams: never;
+  queryParams: {
+  page?: number;
+  page_size?: number;
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactListResponse;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactListResponse;
+}
+
+export interface PostPinnedFactApiV1PinnedFactsPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts";
+  pathParams: never;
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: PinnedFactCreateRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
+export interface ReadPinnedFactCandidateDetailApiV1PinnedFactsCandidatesCandidateIdGetOperation {
+  method: "get";
+  path: "/api/v1/pinned-facts/candidates/{candidate_id}";
+  pathParams: {
+  candidate_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactCandidate;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactCandidate;
+}
+
+export interface PostAcceptPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdAcceptPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts/candidates/{candidate_id}/accept";
+  pathParams: {
+  candidate_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: AcceptPinnedFactCandidateRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
+export interface PostRejectPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdRejectPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts/candidates/{candidate_id}/reject";
+  pathParams: {
+  candidate_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: RejectPinnedFactCandidateRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: PinnedFactCandidate;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactCandidate;
+}
+
+export interface ReadPinnedFactDetailApiV1PinnedFactsFactIdGetOperation {
+  method: "get";
+  path: "/api/v1/pinned-facts/{fact_id}";
+  pathParams: {
+  fact_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
+export interface PatchPinnedFactApiV1PinnedFactsFactIdPatchOperation {
+  method: "patch";
+  path: "/api/v1/pinned-facts/{fact_id}";
+  pathParams: {
+  fact_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: PinnedFactUpdateRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
+export interface ReadPinnedFactCandidatesApiV1PinnedFactsFactIdCandidatesGetOperation {
+  method: "get";
+  path: "/api/v1/pinned-facts/{fact_id}/candidates";
+  pathParams: {
+  fact_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactCandidateListResponse;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactCandidateListResponse;
+}
+
+export interface ReadPinnedFactHistoryApiV1PinnedFactsFactIdHistoryGetOperation {
+  method: "get";
+  path: "/api/v1/pinned-facts/{fact_id}/history";
+  pathParams: {
+  fact_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactHistoryResponse;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactHistoryResponse;
+}
+
+export interface PostRevertPinnedFactHistoryApiV1PinnedFactsFactIdHistoryHistoryIdRevertPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts/{fact_id}/history/{history_id}/revert";
+  pathParams: {
+  fact_id: string;
+  history_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
+export interface PostRecheckPinnedFactApiV1PinnedFactsFactIdRecheckPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts/{fact_id}/recheck";
+  pathParams: {
+  fact_id: string;
+};
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: never;
+  requestContentType: never;
+  responses: {
+  200: PinnedFactDetail;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetail;
+}
+
 export interface ReadSearchResultsApiV1SearchGetOperation {
   method: "get";
   path: "/api/v1/search";
@@ -1608,126 +1909,6 @@ export interface PatchSpaceApiV1SpacesSpaceIdPatchOperation {
   422: ProblemResponse;
 };
   successResponse: SpaceResponse;
-}
-
-export interface ReadTrackedConflictsApiV1TrackedStateConflictsGetOperation {
-  method: "get";
-  path: "/api/v1/tracked-state/conflicts";
-  pathParams: never;
-  queryParams: {
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: never;
-  requestContentType: never;
-  responses: {
-  200: TrackedStateConflictResponse;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedStateConflictResponse;
-}
-
-export interface ReadTrackedFieldsApiV1TrackedStateFieldsGetOperation {
-  method: "get";
-  path: "/api/v1/tracked-state/fields";
-  pathParams: never;
-  queryParams: {
-  page?: number;
-  page_size?: number;
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: never;
-  requestContentType: never;
-  responses: {
-  200: TrackedFieldDefinitionListResponse;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedFieldDefinitionListResponse;
-}
-
-export interface PostTrackedFieldApiV1TrackedStateFieldsPostOperation {
-  method: "post";
-  path: "/api/v1/tracked-state/fields";
-  pathParams: never;
-  queryParams: {
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: TrackedFieldCreateRequest;
-  requestContentType: "application/json";
-  responses: {
-  200: TrackedFieldDefinition;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedFieldDefinition;
-}
-
-export interface PatchTrackedFieldApiV1TrackedStateFieldsFieldIdPatchOperation {
-  method: "patch";
-  path: "/api/v1/tracked-state/fields/{field_id}";
-  pathParams: {
-  field_id: string;
-};
-  queryParams: {
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: TrackedFieldUpdateRequest;
-  requestContentType: "application/json";
-  responses: {
-  200: TrackedFieldDefinition;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedFieldDefinition;
-}
-
-export interface PostRecomputeTrackedFieldApiV1TrackedStateFieldsFieldIdRecomputePostOperation {
-  method: "post";
-  path: "/api/v1/tracked-state/fields/{field_id}/recompute";
-  pathParams: {
-  field_id: string;
-};
-  queryParams: {
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: never;
-  requestContentType: never;
-  responses: {
-  200: TrackedFieldSummary;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedFieldSummary;
-}
-
-export interface ReadTrackedSummaryApiV1TrackedStateSummaryGetOperation {
-  method: "get";
-  path: "/api/v1/tracked-state/summary";
-  pathParams: never;
-  queryParams: {
-  space_id?: string | null;
-  all_spaces?: boolean;
-};
-  requestBody: never;
-  requestContentType: never;
-  responses: {
-  200: TrackedStateSummaryResponse;
-  401: ProblemResponse;
-  404: ProblemResponse;
-  422: ProblemResponse;
-};
-  successResponse: TrackedStateSummaryResponse;
 }
 
 export interface ReadMyUsageApiV1UsageMeGetOperation {

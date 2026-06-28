@@ -1,6 +1,60 @@
 {
   "components": {
     "schemas": {
+      "AcceptPinnedFactCandidateRequest": {
+        "properties": {
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          },
+          "value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Json"
+          },
+          "value_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Kind"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
+          }
+        },
+        "title": "AcceptPinnedFactCandidateRequest",
+        "type": "object"
+      },
       "AdminEffectiveLimitsResponse": {
         "properties": {
           "chunks": {
@@ -349,6 +403,18 @@
             ],
             "title": "Payload"
           },
+          "pinned_fact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned Fact Id"
+          },
           "space_id": {
             "format": "uuid",
             "title": "Space Id",
@@ -361,18 +427,6 @@
           "title": {
             "title": "Title",
             "type": "string"
-          },
-          "tracked_field_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracked Field Id"
           }
         },
         "required": [
@@ -463,6 +517,18 @@
             "title": "Is Read",
             "type": "boolean"
           },
+          "pinned_fact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned Fact Id"
+          },
           "space_id": {
             "format": "uuid",
             "title": "Space Id",
@@ -475,18 +541,6 @@
           "title": {
             "title": "Title",
             "type": "string"
-          },
-          "tracked_field_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracked Field Id"
           }
         },
         "required": [
@@ -1041,6 +1095,18 @@
             ],
             "title": "Locator Text"
           },
+          "pinned_fact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned Fact Id"
+          },
           "proposed_value": {
             "minLength": 1,
             "title": "Proposed Value",
@@ -1056,18 +1122,6 @@
               }
             ],
             "title": "Rationale"
-          },
-          "tracked_field_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracked Field Id"
           }
         },
         "required": [
@@ -1184,6 +1238,18 @@
             ],
             "title": "Locator Text"
           },
+          "pinned_fact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned Fact Id"
+          },
           "proposed_value": {
             "title": "Proposed Value",
             "type": "string"
@@ -1247,18 +1313,6 @@
             "format": "uuid",
             "title": "Submitted By",
             "type": "string"
-          },
-          "tracked_field_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracked Field Id"
           },
           "updated_at": {
             "format": "date-time",
@@ -2489,6 +2543,938 @@
         "title": "MutationResult",
         "type": "object"
       },
+      "PinnedFactCandidate": {
+        "properties": {
+          "change_type": {
+            "enum": [
+              "same",
+              "update",
+              "conflict",
+              "unknown"
+            ],
+            "title": "Change Type",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Output"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pinned_fact_id": {
+            "format": "uuid",
+            "title": "Pinned Fact Id",
+            "type": "string"
+          },
+          "proposed_value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Value Json"
+          },
+          "proposed_value_kind": {
+            "enum": [
+              "text",
+              "json"
+            ],
+            "title": "Proposed Value Kind",
+            "type": "string"
+          },
+          "proposed_value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Value Text"
+          },
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "space_id": {
+            "format": "uuid",
+            "title": "Space Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected",
+              "auto_applied"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pinned_fact_id",
+          "space_id",
+          "proposed_value_kind",
+          "change_type",
+          "status",
+          "created_at"
+        ],
+        "title": "PinnedFactCandidate",
+        "type": "object"
+      },
+      "PinnedFactCandidateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactCandidate"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PinnedFactCandidateListResponse",
+        "type": "object"
+      },
+      "PinnedFactCreateRequest": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity_type_hint": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type Hint"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Input"
+            },
+            "minItems": 1,
+            "title": "Evidence",
+            "type": "array"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "key": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Json"
+          },
+          "value_kind": {
+            "enum": [
+              "text",
+              "json"
+            ],
+            "title": "Value Kind",
+            "type": "string"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
+          }
+        },
+        "required": [
+          "value_kind",
+          "key",
+          "title",
+          "description",
+          "evidence"
+        ],
+        "title": "PinnedFactCreateRequest",
+        "type": "object"
+      },
+      "PinnedFactDetail": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "conflict_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "entity_type_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type Hint"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Output"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "history_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "History Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "pending_candidate_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Pending Candidate Count",
+            "type": "integer"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "space_id": {
+            "format": "uuid",
+            "title": "Space Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "pending_update",
+              "conflicted",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Json"
+          },
+          "value_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Kind"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "key",
+          "title",
+          "description",
+          "is_active",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PinnedFactDetail",
+        "type": "object"
+      },
+      "PinnedFactEvidence-Input": {
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "quote": {
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "source_chunk_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Chunk Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quote"
+        ],
+        "title": "PinnedFactEvidence",
+        "type": "object"
+      },
+      "PinnedFactEvidence-Output": {
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "quote": {
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "source_chunk_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Chunk Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quote"
+        ],
+        "title": "PinnedFactEvidence",
+        "type": "object"
+      },
+      "PinnedFactHistoryEntry": {
+        "properties": {
+          "actor_type": {
+            "title": "Actor Type",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Output"
+            },
+            "title": "New Evidence",
+            "type": "array"
+          },
+          "new_value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value Json"
+          },
+          "new_value_kind": {
+            "enum": [
+              "text",
+              "json"
+            ],
+            "title": "New Value Kind",
+            "type": "string"
+          },
+          "new_value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value Text"
+          },
+          "old_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Output"
+            },
+            "title": "Old Evidence",
+            "type": "array"
+          },
+          "old_value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value Json"
+          },
+          "old_value_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value Kind"
+          },
+          "old_value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value Text"
+          },
+          "pinned_fact_id": {
+            "format": "uuid",
+            "title": "Pinned Fact Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "restored_from_history_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restored From History Id"
+          }
+        },
+        "required": [
+          "id",
+          "pinned_fact_id",
+          "actor_type",
+          "reason",
+          "new_value_kind",
+          "created_at"
+        ],
+        "title": "PinnedFactHistoryEntry",
+        "type": "object"
+      },
+      "PinnedFactHistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactHistoryEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PinnedFactHistoryResponse",
+        "type": "object"
+      },
+      "PinnedFactListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "PinnedFactListResponse",
+        "type": "object"
+      },
+      "PinnedFactSummary": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "conflict_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "entity_type_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type Hint"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedFactEvidence-Output"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "pending_candidate_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Pending Candidate Count",
+            "type": "integer"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "space_id": {
+            "format": "uuid",
+            "title": "Space Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "pending_update",
+              "conflicted",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "value_json": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Json"
+          },
+          "value_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Kind"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "key",
+          "title",
+          "description",
+          "is_active",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PinnedFactSummary",
+        "type": "object"
+      },
+      "PinnedFactUpdateRequest": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "entity_type_hint": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type Hint"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "PinnedFactUpdateRequest",
+        "type": "object"
+      },
       "ProblemResponse": {
         "description": "Stable problem+json response body.",
         "example": {
@@ -2653,6 +3639,23 @@
           "password"
         ],
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RejectPinnedFactCandidateRequest": {
+        "properties": {
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          }
+        },
+        "title": "RejectPinnedFactCandidateRequest",
         "type": "object"
       },
       "SearchEntitySummary": {
@@ -2949,9 +3952,9 @@
             "title": "Owner User Id",
             "type": "string"
           },
-          "tracked_field_count": {
+          "pinned_fact_count": {
             "minimum": 0.0,
-            "title": "Tracked Field Count",
+            "title": "Pinned Fact Count",
             "type": "integer"
           },
           "updated_at": {
@@ -2966,7 +3969,7 @@
           "name",
           "is_default",
           "document_count",
-          "tracked_field_count",
+          "pinned_fact_count",
           "created_at",
           "updated_at"
         ],
@@ -3022,434 +4025,6 @@
           }
         },
         "title": "SpaceUpdateRequest",
-        "type": "object"
-      },
-      "TrackedFieldCreateRequest": {
-        "properties": {
-          "entity_type_hint": {
-            "anyOf": [
-              {
-                "maxLength": 80,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entity Type Hint"
-          },
-          "is_active": {
-            "default": true,
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "key": {
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Key",
-            "type": "string"
-          },
-          "label": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Label",
-            "type": "string"
-          },
-          "prompt": {
-            "minLength": 1,
-            "title": "Prompt",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "label",
-          "prompt"
-        ],
-        "title": "TrackedFieldCreateRequest",
-        "type": "object"
-      },
-      "TrackedFieldDefinition": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "entity_type_hint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entity Type Hint"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "prompt": {
-            "title": "Prompt",
-            "type": "string"
-          },
-          "space_id": {
-            "format": "uuid",
-            "title": "Space Id",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "space_id",
-          "key",
-          "label",
-          "prompt",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "TrackedFieldDefinition",
-        "type": "object"
-      },
-      "TrackedFieldDefinitionListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TrackedFieldDefinition"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "page": {
-            "minimum": 1.0,
-            "title": "Page",
-            "type": "integer"
-          },
-          "page_size": {
-            "minimum": 1.0,
-            "title": "Page Size",
-            "type": "integer"
-          },
-          "total": {
-            "minimum": 0.0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "TrackedFieldDefinitionListResponse",
-        "type": "object"
-      },
-      "TrackedFieldSummary": {
-        "properties": {
-          "conflict_count": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Conflict Count",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "current_source_tier": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SourceTier"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "current_value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Value"
-          },
-          "current_value_updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Value Updated At"
-          },
-          "entity_type_hint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entity Type Hint"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "pending_correction_count": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Pending Correction Count",
-            "type": "integer"
-          },
-          "prompt": {
-            "title": "Prompt",
-            "type": "string"
-          },
-          "space_id": {
-            "format": "uuid",
-            "title": "Space Id",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "empty",
-              "resolved",
-              "conflict"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "space_id",
-          "key",
-          "label",
-          "prompt",
-          "is_active",
-          "created_at",
-          "updated_at",
-          "status"
-        ],
-        "title": "TrackedFieldSummary",
-        "type": "object"
-      },
-      "TrackedFieldUpdateRequest": {
-        "properties": {
-          "entity_type_hint": {
-            "anyOf": [
-              {
-                "maxLength": 80,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entity Type Hint"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
-          "label": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
-          "prompt": {
-            "anyOf": [
-              {
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt"
-          }
-        },
-        "title": "TrackedFieldUpdateRequest",
-        "type": "object"
-      },
-      "TrackedStateConflict": {
-        "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/TrackedValueCandidate"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
-          "field": {
-            "$ref": "#/components/schemas/TrackedFieldDefinition"
-          },
-          "status": {
-            "enum": [
-              "empty",
-              "resolved",
-              "conflict"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "field",
-          "status"
-        ],
-        "title": "TrackedStateConflict",
-        "type": "object"
-      },
-      "TrackedStateConflictResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TrackedStateConflict"
-            },
-            "title": "Items",
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "TrackedStateConflictResponse",
-        "type": "object"
-      },
-      "TrackedStateSummaryResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TrackedFieldSummary"
-            },
-            "title": "Items",
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "TrackedStateSummaryResponse",
-        "type": "object"
-      },
-      "TrackedValueCandidate": {
-        "properties": {
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "title": "Citations",
-            "type": "array"
-          },
-          "correction_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correction Id"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "source_tier": {
-            "$ref": "#/components/schemas/SourceTier"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "value_text": {
-            "title": "Value Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "value_text",
-          "source_tier",
-          "status"
-        ],
-        "title": "TrackedValueCandidate",
         "type": "object"
       },
       "UpdateCurrentUserRequest": {
@@ -7520,6 +8095,1100 @@
         ]
       }
     },
+    "/api/v1/pinned-facts": {
+      "get": {
+        "operationId": "read_pinned_facts_api_v1_pinned_facts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Pinned Facts",
+        "tags": [
+          "pinned_facts"
+        ]
+      },
+      "post": {
+        "operationId": "post_pinned_fact_api_v1_pinned_facts_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinnedFactCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Pinned Fact",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/candidates/{candidate_id}": {
+      "get": {
+        "operationId": "read_pinned_fact_candidate_detail_api_v1_pinned_facts_candidates__candidate_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactCandidate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Pinned Fact Candidate Detail",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/candidates/{candidate_id}/accept": {
+      "post": {
+        "operationId": "post_accept_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptPinnedFactCandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Accept Pinned Fact Candidate",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/candidates/{candidate_id}/reject": {
+      "post": {
+        "operationId": "post_reject_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPinnedFactCandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactCandidate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Reject Pinned Fact Candidate",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/{fact_id}": {
+      "get": {
+        "operationId": "read_pinned_fact_detail_api_v1_pinned_facts__fact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Pinned Fact Detail",
+        "tags": [
+          "pinned_facts"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_pinned_fact_api_v1_pinned_facts__fact_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinnedFactUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Pinned Fact",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/{fact_id}/candidates": {
+      "get": {
+        "operationId": "read_pinned_fact_candidates_api_v1_pinned_facts__fact_id__candidates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactCandidateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Pinned Fact Candidates",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/{fact_id}/history": {
+      "get": {
+        "operationId": "read_pinned_fact_history_api_v1_pinned_facts__fact_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Pinned Fact History",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/{fact_id}/history/{history_id}/revert": {
+      "post": {
+        "operationId": "post_revert_pinned_fact_history_api_v1_pinned_facts__fact_id__history__history_id__revert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "history_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "History Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Revert Pinned Fact History",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/{fact_id}/recheck": {
+      "post": {
+        "operationId": "post_recheck_pinned_fact_api_v1_pinned_facts__fact_id__recheck_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Recheck Pinned Fact",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
     "/api/v1/search": {
       "get": {
         "operationId": "read_search_results_api_v1_search_get",
@@ -8040,577 +9709,6 @@
         "summary": "Patch Space",
         "tags": [
           "spaces"
-        ]
-      }
-    },
-    "/api/v1/tracked-state/conflicts": {
-      "get": {
-        "operationId": "read_tracked_conflicts_api_v1_tracked_state_conflicts_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedStateConflictResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Read Tracked Conflicts",
-        "tags": [
-          "tracked_state"
-        ]
-      }
-    },
-    "/api/v1/tracked-state/fields": {
-      "get": {
-        "operationId": "read_tracked_fields_api_v1_tracked_state_fields_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1,
-              "title": "Page",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page_size",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedFieldDefinitionListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Read Tracked Fields",
-        "tags": [
-          "tracked_state"
-        ]
-      },
-      "post": {
-        "operationId": "post_tracked_field_api_v1_tracked_state_fields_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrackedFieldCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedFieldDefinition"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Post Tracked Field",
-        "tags": [
-          "tracked_state"
-        ]
-      }
-    },
-    "/api/v1/tracked-state/fields/{field_id}": {
-      "patch": {
-        "operationId": "patch_tracked_field_api_v1_tracked_state_fields__field_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "field_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Field Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrackedFieldUpdateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedFieldDefinition"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Patch Tracked Field",
-        "tags": [
-          "tracked_state"
-        ]
-      }
-    },
-    "/api/v1/tracked-state/fields/{field_id}/recompute": {
-      "post": {
-        "operationId": "post_recompute_tracked_field_api_v1_tracked_state_fields__field_id__recompute_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "field_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Field Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedFieldSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Post Recompute Tracked Field",
-        "tags": [
-          "tracked_state"
-        ]
-      }
-    },
-    "/api/v1/tracked-state/summary": {
-      "get": {
-        "operationId": "read_tracked_summary_api_v1_tracked_state_summary_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "space_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Space Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "all_spaces",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "All Spaces",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrackedStateSummaryResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Authentication required."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Requested tracked field was not found."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemResponse"
-                }
-              }
-            },
-            "description": "Request validation failed."
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Read Tracked Summary",
-        "tags": [
-          "tracked_state"
         ]
       }
     },

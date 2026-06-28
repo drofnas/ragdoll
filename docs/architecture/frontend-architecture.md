@@ -28,7 +28,7 @@ apps/web/src/
     chat/
     search/
     entities/
-    tracked-state/
+    pinned-facts/
     changes/
     corrections/
     admin/
@@ -76,7 +76,7 @@ features/<feature>/
 - `chat`: sessions, message flow, citations, correction entrypoint
 - `search`: query form, filters, related results, list/graph result presentation
 - `entities`: list, detail, history, provenance, graph explorer
-- `tracked-state`: fields, summaries, conflicts, resolution controls
+- `pinned-facts`: fields, summaries, conflicts, resolution controls
 - `changes`: feed, detail, read-state actions
 - `corrections`: verification dashboard
 - `admin`: user management, readiness, runtime status, and effective-instance-policy reads
@@ -100,7 +100,7 @@ features/<feature>/
 3. Feature pages load typed data through feature-local API clients.
 4. Shared transport injects auth, handles request cancellation, and normalizes errors.
 5. Feature hooks maintain local query or mutation behavior without centralizing product logic in global utilities.
-6. Graph visualizations, citations, and tracked-state summaries reuse shared primitives but remain owned by their features.
+6. Graph visualizations, citations, and pinned-facts summaries reuse shared primitives but remain owned by their features.
 
 ## Failure Modes and Edge Cases
 

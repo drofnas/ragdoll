@@ -13,7 +13,7 @@ def build_space_response(
     space: Space,
     *,
     document_count: int = 0,
-    tracked_field_count: int = 0,
+    pinned_fact_count: int = 0,
 ) -> SpaceResponse:
     return SpaceResponse(
         id=space.id,
@@ -22,7 +22,7 @@ def build_space_response(
         description=space.description,
         is_default=space.is_default,
         document_count=document_count,
-        tracked_field_count=tracked_field_count,
+        pinned_fact_count=pinned_fact_count,
         archived_at=space.archived_at,
         created_at=space.created_at,
         updated_at=space.updated_at,
@@ -30,11 +30,11 @@ def build_space_response(
 
 
 def build_space_response_with_counts(session: Session, space: Space) -> SpaceResponse:
-    document_count, tracked_field_count = SpacesRepository(session).counts_for_space(space.id)
+    document_count, pinned_fact_count = SpacesRepository(session).counts_for_space(space.id)
     return build_space_response(
         space,
         document_count=document_count,
-        tracked_field_count=tracked_field_count,
+        pinned_fact_count=pinned_fact_count,
     )
 
 
@@ -46,9 +46,9 @@ def list_spaces(session: Session, owner_user_id: UUID, *, include_archived: bool
             build_space_response(
                 space,
                 document_count=document_count,
-                tracked_field_count=tracked_field_count,
+                pinned_fact_count=pinned_fact_count,
             )
-            for space, document_count, tracked_field_count in spaces
+            for space, document_count, pinned_fact_count in spaces
         ]
     )
 

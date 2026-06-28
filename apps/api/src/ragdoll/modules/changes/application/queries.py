@@ -19,7 +19,7 @@ def _build_summary(event, *, is_read: bool) -> ChangeEventSummary:
         title=event.title,
         summary=event.summary,
         document_id=event.document_id,
-        tracked_field_id=event.tracked_field_id,
+        pinned_fact_id=event.pinned_fact_id,
         correction_id=event.correction_id,
         chat_session_id=event.chat_session_id,
         created_at=event.created_at,

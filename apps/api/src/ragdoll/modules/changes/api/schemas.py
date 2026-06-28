@@ -14,7 +14,7 @@ class ChangeEventSummary(BaseModel):
     title: str
     summary: str
     document_id: UUID | None = None
-    tracked_field_id: UUID | None = None
+    pinned_fact_id: UUID | None = None
     correction_id: UUID | None = None
     chat_session_id: UUID | None = None
     created_at: datetime

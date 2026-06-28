@@ -26,9 +26,10 @@ from ragdoll.platform.db.models import (
     Entity,
     GraphEdge,
     GraphNode,
+    PinnedFact,
+    PinnedFactCandidate,
+    PinnedFactHistory,
     Space,
-    TrackedField,
-    TrackedFieldValue,
     UsageEvent,
     User,
     UserUsageSnapshot,
@@ -109,7 +110,8 @@ def reset_user_workspace(
             )
         )
         session.execute(delete(ChangeEventRead).where(ChangeEventRead.user_id == user.id))
-        session.execute(delete(TrackedFieldValue).where(TrackedFieldValue.space_id.in_(space_ids)))
+        session.execute(delete(PinnedFactHistory).where(PinnedFactHistory.space_id.in_(space_ids)))
+        session.execute(delete(PinnedFactCandidate).where(PinnedFactCandidate.space_id.in_(space_ids)))
         session.execute(delete(ChatMessage).where(ChatMessage.space_id.in_(space_ids)))
         session.execute(delete(GraphEdge).where(GraphEdge.space_id.in_(space_ids)))
         session.execute(delete(DocumentChunkVector).where(DocumentChunkVector.space_id.in_(space_ids)))
@@ -117,7 +119,7 @@ def reset_user_workspace(
         session.execute(delete(DocumentProcessingJob).where(DocumentProcessingJob.space_id.in_(space_ids)))
         session.execute(delete(ChangeEvent).where(ChangeEvent.space_id.in_(space_ids)))
         session.execute(delete(CorrectionRecord).where(CorrectionRecord.space_id.in_(space_ids)))
-        session.execute(delete(TrackedField).where(TrackedField.space_id.in_(space_ids)))
+        session.execute(delete(PinnedFact).where(PinnedFact.space_id.in_(space_ids)))
         session.execute(delete(ChatSession).where(ChatSession.space_id.in_(space_ids)))
         session.execute(delete(GraphNode).where(GraphNode.space_id.in_(space_ids)))
         session.execute(delete(CanonicalEntity).where(CanonicalEntity.space_id.in_(space_ids)))

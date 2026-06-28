@@ -19,7 +19,7 @@ Planned nearby ownership:
 
 Still deferred:
 
-- retrieval-heavy web features such as search, chat, entities, tracked state, changes, and corrections
+- retrieval-heavy web features such as search, chat, entities, pinned facts, changes, and corrections
 - deeper admin tooling and public marketing pages
 - fuller E2E critical-path coverage beyond the current repo-owned test suite
 

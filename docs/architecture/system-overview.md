@@ -42,7 +42,7 @@ Ragdoll includes these capability areas:
 - Knowledge graph storage and exploration
 - Unified search and hybrid retrieval
 - Chat sessions with citations and corrections
-- Tracked state and conflict resolution
+- Pinned facts and conflict resolution
 - Change feed and read state
 - Admin tooling, usage, effective instance policy, and runtime status
 - Self-hosted public login, registration, and system status
@@ -89,7 +89,7 @@ Ragdoll locks in these public seams:
 
 - Canonical backend namespace: `/api/v1`
 - Optional compatibility alias: `/api` during migration only
-- Shared contracts for auth, spaces, documents, search, chat, entities, tracked state, changes, admin, usage, and future extensions
+- Shared contracts for auth, spaces, documents, search, chat, entities, pinned facts, changes, admin, usage, and future extensions
 - Cross-cutting shared types: `SpaceScope`, `Citation`, `ProcessingStatus`, `PaginatedResponse`, `ProblemResponse`, `MutationResult`
 
 ## Primary Workflows
@@ -98,7 +98,7 @@ Ragdoll locks in these public seams:
 2. User uploads documents into a Space.
 3. Background workers parse content, store originals, chunk text, create embeddings, extract entities, and populate graph structures.
 4. Search and chat query vector, graph, and relational projections through application services.
-5. Users review current state, history, citations, tracked fields, and corrections from scoped product surfaces.
+5. Users review current state, history, citations, pinned facts, and corrections from scoped product surfaces.
 6. Admins manage users, inspect effective instance policy, and review runtime readiness without bypassing shared policy layers.
 
 ## Failure Modes and Edge Cases

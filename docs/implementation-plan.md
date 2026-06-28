@@ -99,7 +99,7 @@ Depends on: Phase 1
   - [x] Verify contract directories match the architecture docs
 - [x] Define the initial schema set
   - [x] Add shared public wire primitives for `ProblemResponse`, `MutationResult`, `PaginatedResponse`, `HealthStatusResponse`, `SpaceScope`, `ProcessingStatus`, `PlanTier`, `FeatureFlags`, `SourceTier`, and `Citation`
-  - [x] Add auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, tracked state, changes, corrections, admin, and usage schema placeholders
+  - [x] Add auth, users, spaces, documents, ingestion, search, chat, entities, knowledge graph, pinned facts, changes, corrections, admin, and usage schema placeholders
 - [x] Define contract generation strategy
   - [x] Add OpenAPI generation workflow notes
   - [x] Add TypeScript type generation workflow notes
@@ -354,7 +354,7 @@ Depends on: Phase 8
 
 ## Phase 10 - Retrieval Answering And State Workflows
 
-Goal: build the interaction and current-state layers that consume the new retrieval reads for tracked-state, changes, corrections, and chat experiences.
+Goal: build the interaction and current-state layers that consume the new retrieval reads for pinned-facts, changes, corrections, and chat experiences.
 
 Depends on: Phase 9
 
@@ -366,16 +366,16 @@ Depends on: Phase 9
   - [x] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
 - [x] Add the remaining relational schema foundations
   - [x] Define chat session and message fields
-  - [x] Define tracked field and tracked value fields
+  - [x] Define pinned-fact, candidate, and history fields
   - [x] Define changes feed fields
   - [x] Define correction and verification fields
   - [x] Verify stable IDs and audit timestamps are present where required
-- [x] Implement tracked state
-  - [x] Complete the tracked-state backend module
-  - [x] Add tracked field definition behavior
-  - [x] Add tracked summary and conflict behavior
-  - [x] Add tracked-state endpoint tests
-  - [x] Update tracked-state contracts
+- [x] Implement pinned facts
+  - [x] Complete the pinned-facts backend module
+  - [x] Add pinned-fact definition behavior
+  - [x] Add pinned-fact summary, candidate review, and conflict behavior
+  - [x] Add pinned-facts endpoint tests
+  - [x] Update pinned-facts contracts
   - [x] Verify conflict resolution and provenance behavior
 - [x] Implement changes feed
   - [x] Complete the changes backend module
@@ -446,7 +446,7 @@ Depends on: Phase 10
 
 ## Phase 12 - Retrieval And Interaction Web Surfaces
 
-Goal: add the first retrieval-heavy frontend experiences on top of the completed workspace foundations so search, chat, entities, tracked state, changes, and corrections become usable in the web app without widening the earlier auth, scope, and document slice.
+Goal: add the first retrieval-heavy frontend experiences on top of the completed workspace foundations so search, chat, entities, pinned facts, changes, and corrections become usable in the web app without widening the earlier auth, scope, and document slice.
 
 Depends on: Phase 11
 
@@ -472,13 +472,13 @@ Depends on: Phase 11
   - [x] Add loading, empty, and error states
   - [x] Add entities feature tests
   - [x] Verify entity and graph contract alignment
-- [x] Implement the tracked state feature
-  - [x] Add tracked-state page scaffolds
+- [x] Implement the pinned facts feature
+  - [x] Add pinned-facts page scaffolds
   - [x] Add tracked summary and conflict UI behavior
-  - [x] Add tracked-state API client integration
+  - [x] Add pinned-facts API client integration
   - [x] Add loading, empty, and error states
-  - [x] Add tracked-state feature tests
-  - [x] Verify tracked-state contract alignment
+  - [x] Add pinned-facts feature tests
+  - [x] Verify pinned-facts contract alignment
 - [x] Implement the changes and corrections features
   - [x] Add changes page scaffolds
   - [x] Add changes API client integration
@@ -536,7 +536,7 @@ Depends on: Phase 13
   - [x] Add authentication flow E2E coverage
   - [x] Add Space-scoped upload and document flow E2E coverage
   - [ ] Add search and chat E2E coverage
-  - [ ] Add tracked-state or changes critical-path E2E coverage
+  - [ ] Add pinned-facts or changes critical-path E2E coverage
   - [ ] Add guarded admin E2E coverage where practical
   - [ ] Verify E2E tests cover stitched behavior rather than unit-level logic
 - [ ] Align docs and developer workflow for self-hosted use
@@ -558,8 +558,8 @@ Depends on: Phase 13
 | --- | --- |
 | Web feature work | API contracts, shared frontend runtime, and owning backend modules |
 | Chat | Search, retrieval contracts, session handling, and citation packaging |
-| Tracked state | Entities, provenance, search, and current-state conventions |
-| Changes feed | Ingestion events, tracked state updates, and history/provenance modeling |
+| Pinned facts | Entities, provenance, search, and current-state conventions |
+| Changes feed | Ingestion events, pinned facts updates, and history/provenance modeling |
 | Admin tooling | Auth, users, usage, shared guards, and readiness surfaces |
 | E2E coverage | Working app shells, stable API flows, and seedable local infrastructure |
 | Logged-out surface conversion | Auth pages, status surface, public shell wiring, and route guards |

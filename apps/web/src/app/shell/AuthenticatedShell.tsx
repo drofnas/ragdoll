@@ -16,7 +16,7 @@ const primaryLinks = [
   { label: "Search", to: "/search" },
   { label: "Chat", to: "/chat" },
   { label: "Entities", to: "/entities" },
-  { label: "Tracked state", to: "/tracked-state" },
+  { label: "Pinned facts", to: "/pinned-facts" },
   { label: "Changes", to: "/changes" },
   { label: "Account", to: "/account" }
 ] as const;

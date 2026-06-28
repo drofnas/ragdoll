@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from ragdoll.platform.db.models import Document, Space, TrackedField, User
+from ragdoll.platform.db.models import Document, PinnedFact, Space, User
 from ragdoll.platform.db.models.documents import default_processing_status_payload
 
 
@@ -53,22 +53,22 @@ def test_create_list_and_read_space(api_client):
     assert created_body["name"] == "Architecture"
     assert created_body["is_default"] is False
     assert created_body["document_count"] == 0
-    assert created_body["tracked_field_count"] == 0
+    assert created_body["pinned_fact_count"] == 0
 
     listed = api_client.get("/api/v1/spaces", headers=auth_headers(token))
     assert listed.status_code == 200, listed.text
     assert len(listed.json()["items"]) == 2
     assert all("document_count" in item for item in listed.json()["items"])
-    assert all("tracked_field_count" in item for item in listed.json()["items"])
+    assert all("pinned_fact_count" in item for item in listed.json()["items"])
 
     loaded = api_client.get(f"/api/v1/spaces/{created_body['id']}", headers=auth_headers(token))
     assert loaded.status_code == 200
     assert loaded.json()["id"] == created_body["id"]
     assert loaded.json()["document_count"] == 0
-    assert loaded.json()["tracked_field_count"] == 0
+    assert loaded.json()["pinned_fact_count"] == 0
 
 
-def test_spaces_list_includes_document_and_tracked_field_counts(api_client, db_session):
+def test_spaces_list_includes_document_and_pinned_fact_counts(api_client, db_session):
     token = register_and_login(api_client)
     owner = db_session.query(User).filter(User.email == "user@example.com").one()
     default_space = (
@@ -132,26 +132,35 @@ def test_spaces_list_includes_document_and_tracked_field_counts(api_client, db_s
                 source_kind="manual_upload",
                 processing_status=status,
             ),
-            TrackedField(
+            PinnedFact(
                 space_id=default_space.id,
                 owner_user_id=owner.id,
                 key="focus_project",
-                label="Focus Project",
-                prompt="Project",
+                title="Focus Project",
+                description="Project",
+                value_kind="text",
+                value_text="Atlas",
+                status="active",
             ),
-            TrackedField(
+            PinnedFact(
                 space_id=default_space.id,
                 owner_user_id=owner.id,
                 key="sponsor",
-                label="Sponsor",
-                prompt="Sponsor",
+                title="Sponsor",
+                description="Sponsor",
+                value_kind="text",
+                value_text="Acme",
+                status="active",
             ),
-            TrackedField(
+            PinnedFact(
                 space_id=second_space.id,
                 owner_user_id=owner.id,
                 key="release",
-                label="Release",
-                prompt="Release",
+                title="Release",
+                description="Release",
+                value_kind="text",
+                value_text="Soon",
+                status="active",
             ),
         ]
     )
@@ -162,14 +171,14 @@ def test_spaces_list_includes_document_and_tracked_field_counts(api_client, db_s
     by_id = {item["id"]: item for item in listed.json()["items"]}
 
     assert by_id[str(default_space.id)]["document_count"] == 2
-    assert by_id[str(default_space.id)]["tracked_field_count"] == 2
+    assert by_id[str(default_space.id)]["pinned_fact_count"] == 2
     assert by_id[str(second_space.id)]["document_count"] == 1
-    assert by_id[str(second_space.id)]["tracked_field_count"] == 1
+    assert by_id[str(second_space.id)]["pinned_fact_count"] == 1
 
     loaded = api_client.get(f"/api/v1/spaces/{default_space.id}", headers=auth_headers(token))
     assert loaded.status_code == 200, loaded.text
     assert loaded.json()["document_count"] == 2
-    assert loaded.json()["tracked_field_count"] == 2
+    assert loaded.json()["pinned_fact_count"] == 2
 
 
 def test_update_and_archive_non_default_space(api_client):

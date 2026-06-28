@@ -34,10 +34,10 @@ This repository currently implements:
 
 The clean repo now provides:
 
-- a bootable FastAPI runtime with auth, spaces, documents, ingestion, search, chat, entities, tracked state, changes, admin, and usage slices
+- a bootable FastAPI runtime with auth, spaces, documents, ingestion, search, chat, entities, pinned facts, changes, admin, and usage slices
 - a bootable Vite + React workspace with public login/register/status routes plus authenticated and admin shells
 - shared contracts and OpenAPI export tooling
-- DBmate-backed relational foundations for identity, spaces, documents, usage, chat, tracked state, changes, and corrections
+- DBmate-backed relational foundations for identity, spaces, documents, usage, chat, pinned facts, changes, and corrections
 - runnable local dev Docker wiring for the app stack plus Dockerized Supabase and Ollama dependencies
 - operator-facing readiness, health, and effective-instance-policy surfaces for self-hosted installs
 
@@ -128,7 +128,7 @@ The logged-out surface intentionally stays small for self-hosted installs:
 
 The following work is still deferred:
 
-- broader critical-path E2E coverage across search, chat, tracked state, and guarded admin workflows
+- broader critical-path E2E coverage across search, chat, pinned facts, and guarded admin workflows
 - final hardening and timeout cleanup for the slowest frontend and integration paths
 - additional operator documentation polish from clone to local production-style operation
 

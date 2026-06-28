@@ -150,7 +150,7 @@ export function ChatPage() {
           locator_text: citation?.locator ?? null,
           proposed_value: trimmedProposedValue,
           rationale: rationale.trim() || null,
-          tracked_field_id: null
+          pinned_fact_id: null
         },
         { space_id: detailQuery.data.space_id }
       );

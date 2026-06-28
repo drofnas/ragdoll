@@ -8,7 +8,7 @@ Define canonical data ownership across relational data, object storage, vector s
 
 ### Storage roles
 
-- Relational DB: authoritative product records, user data, Spaces, documents, entities, tracked state, changes, corrections, usage, and processing status
+- Relational DB: authoritative product records, user data, Spaces, documents, entities, pinned facts, changes, corrections, usage, and processing status
 - Object storage: original uploaded files and derived artifacts that must be re-opened or downloaded
 - Vector store: chunk embeddings and retrieval payloads
 - Graph store: relationship-first exploration and graph-native traversals
@@ -30,8 +30,9 @@ Define canonical data ownership across relational data, object storage, vector s
 - `CanonicalEntity`
 - `ChatSession`
 - `ChatMessage`
-- `TrackedField`
-- `TrackedFieldValue`
+- `PinnedFact`
+- `PinnedFactCandidate`
+- `PinnedFactHistory`
 - `ChangeEvent`
 - `CorrectionRecord`
 - `UsageRecord` or usage projection
@@ -114,12 +115,12 @@ Must not own:
 
 ### Current-state conventions
 
-- `TrackedFieldValue` history is append-only even when current truth changes
-- At most one `TrackedFieldValue.is_current=true` row exists per tracked field
-- Older tracked values are superseded by new rows instead of being edited in place
+- `PinnedFactHistory` is append-only even when current truth changes
+- Each `PinnedFact` stores one current value while older values remain preserved in history
+- Restores create new current versions instead of editing older rows in place
 - `ChangeEvent` is append-only and `ChangeEventRead` carries per-user read state
-- Chat sessions, tracked fields, corrections, and change events are all explicitly `space_id` scoped
-- Phase 10 chat, tracked-state, and correction writes require one concrete Space and do not accept `all_spaces=true`
+- Chat sessions, pinned facts, corrections, and change events are all explicitly `space_id` scoped
+- Phase 10 chat, pinned-facts, and correction writes require one concrete Space and do not accept `all_spaces=true`
 
 ## Primary Workflows
 
@@ -128,7 +129,7 @@ Must not own:
 3. Produce chunk projections and write embeddings to vector storage.
 4. Persist extracted entity mentions plus Space-scoped canonical entities in SQL.
 5. Project graph nodes and chunk-level co-occurrence edges from extracted or verified records.
-6. Resolve search, chat, tracked state, and history views by combining relational truth with vector or graph projections.
+6. Resolve search, chat, pinned facts, and history views by combining relational truth with vector or graph projections.
 
 ## Failure Modes and Edge Cases
 
@@ -142,7 +143,7 @@ Must not own:
 
 - Each record type has one primary store of truth.
 - Space scoping is relationally authoritative and available to derived stores.
-- Provenance survives search, chat, tracked state, and correction workflows.
+- Provenance survives search, chat, pinned facts, and correction workflows.
 - Derived stores are documented as rebuildable projections with idempotent update behavior.
 - Reprocessing identical content preserves deterministic chunk identity and does not duplicate vector, entity, or graph projections.
 

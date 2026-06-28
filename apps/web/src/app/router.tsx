@@ -16,9 +16,10 @@ import { DocumentDetailPage } from "../features/documents/pages/DocumentDetailPa
 import { DocumentsPage } from "../features/documents/pages/DocumentsPage";
 import { EntitiesPage } from "../features/entities/pages/EntitiesPage";
 import { EntityDetailPage } from "../features/entities/pages/EntityDetailPage";
+import { PinnedFactDetailPage } from "../features/pinned-facts/pages/PinnedFactDetailPage";
+import { PinnedFactsPage } from "../features/pinned-facts/pages/PinnedFactsPage";
 import { SearchPage } from "../features/search/pages/SearchPage";
 import { SpacesPage } from "../features/spaces/pages/SpacesPage";
-import { TrackedStatePage } from "../features/tracked-state/pages/TrackedStatePage";
 import { StatusPage } from "../features/marketing/pages/StatusPage";
 
 export const appRoutes: RouteObject[] = [
@@ -47,7 +48,8 @@ export const appRoutes: RouteObject[] = [
       { path: "/chat/:sessionId", element: <ChatPage /> },
       { path: "/entities", element: <EntitiesPage /> },
       { path: "/entities/:entityId", element: <EntityDetailPage /> },
-      { path: "/tracked-state", element: <TrackedStatePage /> },
+      { path: "/pinned-facts", element: <PinnedFactsPage /> },
+      { path: "/pinned-facts/:factId", element: <PinnedFactDetailPage /> },
       { path: "/changes", element: <ChangesPage /> },
       { path: "/account", element: <AccountPage /> }
     ]

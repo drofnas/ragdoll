@@ -52,10 +52,10 @@ ragdoll/
 
 ## Glossary
 
-- `Space`: User-owned workspace boundary for documents, entities, chat sessions, and tracked state.
+- `Space`: User-owned workspace boundary for documents, entities, chat sessions, and pinned facts.
 - `Current state`: The best current answer for a fact or architectural entity.
 - `Provenance`: The evidence trail linking a fact back to documents, graph relationships, and user actions.
-- `Tracked state`: User-defined fields whose values are recomputed from retrieved evidence.
+- `Pinned facts`: User-defined fields whose values are recomputed from retrieved evidence.
 - `Platform adapter`: Concrete implementation for storage, graph, vector, LLM, queue, or third-party integrations.
 - `Module`: Backend bounded context with its own API, application, domain, infrastructure, and tests.
 

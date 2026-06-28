@@ -9,7 +9,7 @@ from ragdoll.api.shared_schemas import Citation, SourceTier
 
 
 class CorrectionCreateRequest(BaseModel):
-    tracked_field_id: UUID | None = None
+    pinned_fact_id: UUID | None = None
     chat_session_id: UUID | None = None
     chat_message_id: UUID | None = None
     document_id: UUID | None = None
@@ -29,7 +29,7 @@ class CorrectionRecordResponse(BaseModel):
     submitted_by: UUID
     chat_session_id: UUID | None = None
     chat_message_id: UUID | None = None
-    tracked_field_id: UUID | None = None
+    pinned_fact_id: UUID | None = None
     document_id: UUID | None = None
     entity_id: UUID | None = None
     locator_text: str | None = None

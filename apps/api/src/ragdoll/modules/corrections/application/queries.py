@@ -20,7 +20,7 @@ def build_correction_response(correction) -> CorrectionRecordResponse:
         submitted_by=correction.submitted_by,
         chat_session_id=correction.chat_session_id,
         chat_message_id=correction.chat_message_id,
-        tracked_field_id=correction.tracked_field_id,
+        pinned_fact_id=correction.pinned_fact_id,
         document_id=correction.document_id,
         entity_id=correction.entity_id,
         locator_text=correction.locator_text,

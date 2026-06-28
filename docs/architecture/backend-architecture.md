@@ -38,7 +38,7 @@ apps/api/
       integrations/
     workers/
       document_pipeline.py
-      tracked_state_recompute.py
+      pinned_facts_recompute.py
       archivist.py
     modules/
       auth/
@@ -50,7 +50,7 @@ apps/api/
       chat/
       entities/
       knowledge_graph/
-      tracked_state/
+      pinned_facts/
       changes/
       corrections/
       admin/
@@ -115,7 +115,7 @@ modules/<module>/
 - `chat`: query orchestration, answer synthesis, citations, sessions, suggestions
 - `entities`: catalog, detail, provenance, history, visibility, canonicalization hooks
 - `knowledge_graph`: graph population, graph exploration, document or Space subgraph reads
-- `tracked_state`: field definitions, recompute, summaries, conflicts, resolution
+- `pinned_facts`: field definitions, recompute, summaries, conflicts, resolution
 - `changes`: timeline, detail, read-state mutation
 - `corrections`: submit, verify, reject, edit, delete, promote-to-fact behavior
 - `admin`: user operations, effective limit reads, readiness views, guarded operational mutations
@@ -142,7 +142,7 @@ modules/<module>/
 3. `documents` and `ingestion` accept file uploads or sync requests, persist metadata, and enqueue background jobs.
 4. The `document-vector` RQ worker invokes `workers/document_pipeline.py` to perform extraction, chunking, embedding, vector writes, graph writes, and processing status updates.
 5. `usage`, `ingestion`, and admin reads resolve effective self-hosted limits through shared instance-policy code instead of tier logic.
-6. `search`, `chat`, and `tracked_state` retrieve evidence through repositories and gateways, then compose user-facing outputs.
+6. `search`, `chat`, and `pinned_facts` retrieve evidence through repositories and gateways, then compose user-facing outputs.
 7. `changes` and `corrections` expose historical and human-in-the-loop surfaces without bypassing provenance rules.
 
 ## Failure Modes and Edge Cases
@@ -157,7 +157,7 @@ modules/<module>/
 
 - Every capability area has exactly one owning backend module.
 - No product logic is placed in `api/` or `platform/`.
-- Worker entrypoints exist for long-running document and tracked-state jobs.
+- Worker entrypoints exist for long-running document and pinned-facts jobs.
 - Shared config, auth, instance policy, and error handling have explicit `core/` homes.
 - `/api/v1` is the documented source of truth.
 

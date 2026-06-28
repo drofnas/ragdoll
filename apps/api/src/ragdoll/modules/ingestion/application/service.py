@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ragdoll.core.config import get_settings
 from ragdoll.core.logging import get_logger
+from ragdoll.modules.changes.application.service import record_change_event
 from ragdoll.modules.ingestion.domain.policies import (
     build_preview_text,
     chunk_text_with_lines,
@@ -21,7 +22,7 @@ from ragdoll.modules.ingestion.domain.policies import (
     validate_requested_stage,
 )
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository
-from ragdoll.modules.changes.application.service import record_change_event
+from ragdoll.modules.pinned_facts.application.service import recheck_space_facts
 from ragdoll.modules.users.application.queries import get_user_by_subject
 from ragdoll.platform.db.models import Document, DocumentChunk, DocumentProcessingJob, Entity
 from ragdoll.platform.db.session import get_session_factory
@@ -521,6 +522,7 @@ def process_job_payload(
             document_id=document.id,
             payload={"requested_stage": payload.requested_stage, "attempt": payload.attempt},
         )
+        recheck_space_facts(session, str(document.uploaded_by), space_id=document.space_id, document_id=document.id)
         session.commit()
     except Exception as exc:
         session.rollback()
