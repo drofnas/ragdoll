@@ -9,10 +9,10 @@ services:
     ports:
       - "8031:8000"
     volumes:
+      - ../../apps/api/db:/app/db
       - ../../apps/api/src:/app/src
       - ../../apps/api/tests:/app/tests
       - ../../apps/api/scripts:/app/scripts
-      - ../../apps/api/alembic.ini:/app/alembic.ini
       - ../../:/workspace
     healthcheck:
       test:
@@ -32,10 +32,10 @@ services:
     env_file:
       - ../../apps/api/.env
     volumes:
+      - ../../apps/api/db:/app/db
       - ../../apps/api/src:/app/src
       - ../../apps/api/tests:/app/tests
       - ../../apps/api/scripts:/app/scripts
-      - ../../apps/api/alembic.ini:/app/alembic.ini
       - ../../:/workspace
     depends_on:
       backend:
