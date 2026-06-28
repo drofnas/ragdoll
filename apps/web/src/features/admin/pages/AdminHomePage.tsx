@@ -123,12 +123,6 @@ export function AdminHomePage() {
                 <p>Per-document chunks: {limitsQuery.data.per_document_chunks}</p>
                 <p>Retrieval chunks: {limitsQuery.data.retrieval_chunks}</p>
                 <p>Output tokens: {limitsQuery.data.output_tokens}</p>
-                <p>
-                  Upload rate limit:{" "}
-                  {limitsQuery.data.upload_rate_limit.enabled
-                    ? `${limitsQuery.data.upload_rate_limit.requests} per ${limitsQuery.data.upload_rate_limit.window_seconds}s`
-                    : "disabled"}
-                </p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Loading limits…</p>

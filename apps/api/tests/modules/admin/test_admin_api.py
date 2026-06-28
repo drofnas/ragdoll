@@ -80,4 +80,3 @@ def test_admin_effective_limits_reflect_instance_policy(api_client, db_session):
     body = AdminEffectiveLimitsResponse.model_validate(response.json())
     assert body.documents is None
     assert body.max_file_size_bytes == 100 * 1024 * 1024
-    assert body.upload_rate_limit.enabled is True

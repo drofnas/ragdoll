@@ -21,7 +21,6 @@ export interface AdminEffectiveLimitsResponse {
   retrieval_chunks: number;
   output_tokens: number;
   per_document_chunks: number;
-  upload_rate_limit: UploadRateLimitPolicy;
 }
 
 export interface AdminManagedUserListResponse {
@@ -675,12 +674,6 @@ export interface UploadDocumentResponse {
   job_id: string;
   filename: string;
   processing_status: ProcessingStatus;
-}
-
-export interface UploadRateLimitPolicy {
-  enabled: boolean;
-  requests: number;
-  window_seconds: number;
 }
 
 export interface UsageAmounts {

@@ -32,12 +32,6 @@ class AdminUpdateUserRequest(BaseModel):
     must_change_password: bool | None = None
 
 
-class UploadRateLimitPolicy(BaseModel):
-    enabled: bool
-    requests: int
-    window_seconds: int
-
-
 class AdminEffectiveLimitsResponse(BaseModel):
     documents: int | None = None
     max_file_size_bytes: int | None = None
@@ -48,4 +42,3 @@ class AdminEffectiveLimitsResponse(BaseModel):
     retrieval_chunks: int
     output_tokens: int
     per_document_chunks: int
-    upload_rate_limit: UploadRateLimitPolicy

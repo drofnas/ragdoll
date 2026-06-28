@@ -134,16 +134,12 @@
               }
             ],
             "title": "Tokens Week"
-          },
-          "upload_rate_limit": {
-            "$ref": "#/components/schemas/UploadRateLimitPolicy"
           }
         },
         "required": [
           "retrieval_chunks",
           "output_tokens",
-          "per_document_chunks",
-          "upload_rate_limit"
+          "per_document_chunks"
         ],
         "title": "AdminEffectiveLimitsResponse",
         "type": "object"
@@ -4104,29 +4100,6 @@
           "processing_status"
         ],
         "title": "UploadDocumentResponse",
-        "type": "object"
-      },
-      "UploadRateLimitPolicy": {
-        "properties": {
-          "enabled": {
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "requests": {
-            "title": "Requests",
-            "type": "integer"
-          },
-          "window_seconds": {
-            "title": "Window Seconds",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "enabled",
-          "requests",
-          "window_seconds"
-        ],
-        "title": "UploadRateLimitPolicy",
         "type": "object"
       },
       "UsageAmounts": {
