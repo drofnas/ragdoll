@@ -81,3 +81,16 @@ class StorageUnavailableError(ApplicationError):
             type_uri="https://ragdoll.dev/problems/storage-unavailable",
             code="storage_unavailable",
         )
+
+
+class QueueUnavailableError(ApplicationError):
+    """Raised when the background queue backend cannot complete a request."""
+
+    def __init__(self, detail: str = "Document processing queue is temporarily unavailable.") -> None:
+        super().__init__(
+            detail,
+            status_code=503,
+            title="Queue unavailable",
+            type_uri="https://ragdoll.dev/problems/queue-unavailable",
+            code="queue_unavailable",
+        )

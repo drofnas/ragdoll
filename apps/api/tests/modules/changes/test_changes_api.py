@@ -4,9 +4,8 @@ from io import BytesIO
 
 import pytest
 
-from ragdoll.workers.document_pipeline import drain_document_jobs
-
 from tests.modules._phase10_helpers import auth_headers, build_processing_runtime, register_and_login
+from tests.support.document_processing import drain_test_document_jobs
 
 
 @pytest.fixture
@@ -29,7 +28,7 @@ def test_changes_capture_processing_and_read_state(api_client, processing_runtim
     )
     assert upload.status_code == 201, upload.text
 
-    processed = drain_document_jobs(
+    processed = drain_test_document_jobs(
         queue=queue,
         storage=storage,
         embedding_service=embedding_service,

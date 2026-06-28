@@ -111,12 +111,19 @@ class Settings(BaseSettings):
     upload_rate_limit_enabled: bool = True
     upload_rate_limit_requests: int = 10
     upload_rate_limit_window_seconds: int = 60
-    document_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
+    redis_url: str | None = "redis://redis:6379/0"
+    document_processing_queue_name: str = "document-processing"
+    document_processing_job_timeout_seconds: int = Field(default=2700, ge=30, le=86400)
+    document_processing_result_ttl_seconds: int = Field(default=86400, ge=30, le=604800)
+    document_processing_failure_ttl_seconds: int = Field(default=604800, ge=30, le=2592000)
     document_processing_timeout_seconds_default: float = Field(default=600.0, ge=30.0, le=86400.0)
     document_processing_timeout_seconds_extraction: float = Field(default=2700.0, ge=30.0, le=86400.0)
 
     e2e_shared_backends: bool = False
     e2e_memory_backends: bool = False
+    e2e_test_user_email: str | None = None
+    e2e_test_user_password: str = "testpass123"
+    e2e_test_user_full_name: str = "Ragdoll E2E Test User"
 
     model_config = SettingsConfigDict(
         env_file=".env",

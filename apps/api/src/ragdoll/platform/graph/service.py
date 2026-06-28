@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 from itertools import combinations
-from typing import Protocol
+from typing import Callable, Protocol
 from uuid import UUID
 
 from sqlalchemy import delete, exists, select
@@ -19,7 +19,13 @@ class GraphCleanupService(Protocol):
 
     def cleanup_document(self, document_id: UUID) -> bool: ...
 
-    def project_document_relationships(self, session: Session, *, document: Document) -> tuple[int, int]: ...
+    def project_document_relationships(
+        self,
+        session: Session,
+        *,
+        document: Document,
+        on_chunk_processed: Callable[[int, int], None] | None = None,
+    ) -> tuple[int, int]: ...
 
 
 @dataclass
@@ -33,8 +39,14 @@ class InMemoryGraphCleanupService:
         self.cleaned_document_ids.add(document_id)
         return not already_cleaned
 
-    def project_document_relationships(self, session: Session, *, document: Document) -> tuple[int, int]:
-        del session, document
+    def project_document_relationships(
+        self,
+        session: Session,
+        *,
+        document: Document,
+        on_chunk_processed: Callable[[int, int], None] | None = None,
+    ) -> tuple[int, int]:
+        del session, document, on_chunk_processed
         return 0, 0
 
 
@@ -50,9 +62,17 @@ class SqlGraphCleanupService:
         finally:
             session.close()
 
-    def project_document_relationships(self, session: Session, *, document: Document) -> tuple[int, int]:
+    def project_document_relationships(
+        self,
+        session: Session,
+        *,
+        document: Document,
+        on_chunk_processed: Callable[[int, int], None] | None = None,
+    ) -> tuple[int, int]:
         session.execute(delete(GraphEdge).where(GraphEdge.document_id == document.id))
 
+        chunks = sorted(list(document.chunks), key=lambda chunk: chunk.chunk_index)
+        total_chunks = len(chunks)
         mentions = list(
             session.scalars(
                 select(Entity)
@@ -60,18 +80,19 @@ class SqlGraphCleanupService:
                 .order_by(Entity.chunk_id.asc(), Entity.normalized_name.asc())
             )
         )
-        if not mentions:
-            return 0, 0
-
-        canonical_ids = {mention.canonical_entity_id for mention in mentions}
-        nodes_by_canonical = self._ensure_nodes(session, canonical_ids)
+        nodes_by_canonical: dict[UUID, GraphNode] = {}
+        if mentions:
+            canonical_ids = {mention.canonical_entity_id for mention in mentions}
+            nodes_by_canonical = self._ensure_nodes(session, canonical_ids)
 
         mentions_by_chunk: dict[UUID, list[Entity]] = {}
         for mention in mentions:
             mentions_by_chunk.setdefault(mention.chunk_id, []).append(mention)
 
         edge_count = 0
-        for chunk_id, chunk_mentions in mentions_by_chunk.items():
+        processed_chunk_count = 0
+        for chunk in chunks:
+            chunk_mentions = mentions_by_chunk.get(chunk.id, [])
             unique_nodes = sorted(
                 {
                     nodes_by_canonical[mention.canonical_entity_id].id
@@ -85,15 +106,18 @@ class SqlGraphCleanupService:
                     GraphEdge(
                         space_id=document.space_id,
                         document_id=document.id,
-                        chunk_id=chunk_id,
+                        chunk_id=chunk.id,
                         source_node_id=source_node_id,
                         target_node_id=target_node_id,
                         relation_type="co_occurs",
-                        provenance_locator=f"chunk:{chunk_id}",
+                        provenance_locator=f"chunk:{chunk.id}",
                         weight=1.0,
                     )
                 )
                 edge_count += 1
+            processed_chunk_count += 1
+            if on_chunk_processed is not None:
+                on_chunk_processed(processed_chunk_count, total_chunks)
 
         return len(nodes_by_canonical), edge_count
 

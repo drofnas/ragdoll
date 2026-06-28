@@ -24,6 +24,27 @@ services:
           sleep 2
         done
 
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    ports:
+      - "${REDIS_HOST_PORT:-16379}:6379"
+    volumes:
+      - ragdoll_redis_storage:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    networks:
+      default:
+        aliases:
+          - redis
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -105,3 +126,4 @@ services:
 
 volumes:
   ragdoll_ollama_storage:
+  ragdoll_redis_storage:

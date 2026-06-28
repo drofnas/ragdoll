@@ -60,6 +60,10 @@
     @apply border-border;
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply min-h-screen bg-background font-sans text-foreground antialiased;
     margin: 0;

@@ -244,13 +244,29 @@ def test_db_engine_module_does_not_create_engine_until_requested():
     assert hasattr(engine_module, "get_engine")
 
 
+def test_settings_parse_redis_queue_runtime_values():
+    settings = Settings(
+        redis_url="redis://redis:6379/0",
+        document_processing_queue_name="document-processing",
+        document_processing_job_timeout_seconds=2700,
+        document_processing_result_ttl_seconds=86400,
+        document_processing_failure_ttl_seconds=604800,
+        _env_file=None,
+    )
+
+    assert settings.redis_url == "redis://redis:6379/0"
+    assert settings.document_processing_queue_name == "document-processing"
+    assert settings.document_processing_job_timeout_seconds == 2700
+
+
 @pytest.mark.asyncio
-async def test_readiness_payload_marks_queue_not_configured_without_database_config():
+async def test_readiness_payload_marks_queue_not_configured_without_redis_url():
     payload = await build_readiness_payload(
         Settings(
             database_url=None,
             supabase_db_url=None,
             supabase_test_db_url=None,
+            redis_url="",
             _env_file=None,
         )
     )
@@ -258,14 +274,48 @@ async def test_readiness_payload_marks_queue_not_configured_without_database_con
 
 
 @pytest.mark.asyncio
-async def test_readiness_payload_marks_queue_healthy_with_database_runtime(monkeypatch):
-    settings = Settings(database_url="postgresql://postgres:secret@db.example:5432/postgres", _env_file=None)
+async def test_readiness_payload_marks_queue_healthy_with_redis_runtime(monkeypatch):
+    settings = Settings(
+        redis_url="redis://redis:6379/0",
+        _env_file=None,
+    )
 
-    monkeypatch.setattr(health_module, "get_engine", lambda: FakeEngine())
+    monkeypatch.setattr(health_module, "ping_redis_queue", lambda active_settings: None)
     payload = await build_readiness_payload(settings)
 
     assert payload.services["queue"].status == "healthy"
-    assert payload.services["queue"].backend == "sql"
+    assert payload.services["queue"].backend == "redis"
+
+
+@pytest.mark.asyncio
+async def test_readiness_payload_marks_queue_unhealthy_when_redis_ping_fails(monkeypatch):
+    settings = Settings(
+        redis_url="redis://redis:6379/0",
+        _env_file=None,
+    )
+
+    def fail_ping(active_settings):
+        del active_settings
+        raise RuntimeError("redis unavailable")
+
+    monkeypatch.setattr(health_module, "ping_redis_queue", fail_ping)
+    payload = await build_readiness_payload(settings)
+
+    assert payload.services["queue"].status == "unhealthy"
+    assert payload.services["queue"].backend == "redis"
+
+
+@pytest.mark.asyncio
+async def test_readiness_payload_marks_redis_queue_not_configured_without_url():
+    settings = Settings(
+        redis_url="",
+        _env_file=None,
+    )
+
+    payload = await build_readiness_payload(settings)
+
+    assert payload.services["queue"].status == "not_configured"
+    assert payload.services["queue"].backend == "redis"
 
 
 @pytest.mark.asyncio

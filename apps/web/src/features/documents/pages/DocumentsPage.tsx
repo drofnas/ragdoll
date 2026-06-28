@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Page, PageHeader } from "@/components/app/page";
-import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -49,7 +49,7 @@ import {
 } from "../components/DocumentUploadDropzone";
 import {
   buildStatusMap,
-  getDocumentStatusPresentation,
+  getDocumentChunkStatusPresentation,
   hasInFlightDocumentWork,
   isRefreshLocked
 } from "../lib/documentStatus";
@@ -63,6 +63,13 @@ const fileTypeOptions = [
   { label: "Markdown", value: "md" },
   { label: "Text", value: "txt" }
 ];
+
+const chunkProgressIndicatorClassNames = {
+  completed: "bg-primary",
+  failed: "bg-destructive",
+  idle: "bg-muted-foreground/30",
+  processing: "bg-sky-600"
+};
 
 function createUploadQueueItem(file: File, spaceId: string): DocumentUploadQueueItem {
   return {
@@ -332,8 +339,7 @@ export function DocumentsPage() {
                       <TableHead>Filename</TableHead>
                       <TableHead className="w-20">Type</TableHead>
                       <TableHead className="w-24">Size</TableHead>
-                      <TableHead className="w-20">Chunks</TableHead>
-                      <TableHead className="w-32">Status</TableHead>
+                      <TableHead className="w-52">Chunk Status</TableHead>
                       <TableHead className="w-36">Updated</TableHead>
                       <TableHead className="w-52 text-right">Actions</TableHead>
                     </TableRow>
@@ -341,14 +347,42 @@ export function DocumentsPage() {
                   <TableBody>
                     {documentsQuery.data.items.map((document) => {
                       const liveStatus = liveStatusById.get(document.id);
+                      const isRefreshingDocument = refreshingDocumentIds.includes(document.id);
                       const fallbackStatus = {
+                        chunk_count: document.chunk_count,
+                        indexed_chunk_count: document.indexed_chunk_count,
                         processing_status: document.processing_status,
                         queued_job_count: document.processing_status.overall === "pending" ? 1 : 0
                       };
-                      const statusPresentation = getDocumentStatusPresentation(liveStatus ?? fallbackStatus);
+                      const statusSource = liveStatus ?? fallbackStatus;
+                      const chunkStatusSource = isRefreshingDocument
+                        ? {
+                            ...statusSource,
+                            indexed_chunk_count: 0,
+                            queue_runtime: {
+                              ...statusSource.queue_runtime,
+                              chunk_progress_current: 0,
+                              chunk_progress_total: statusSource.chunk_count,
+                              queue_position: null,
+                              stage: "parsing",
+                              status: "started"
+                            },
+                            processing_status: {
+                              ...statusSource.processing_status,
+                              extraction: "pending" as const,
+                              graph: "pending" as const,
+                              overall: "processing" as const,
+                              parsing: "processing" as const,
+                              vector: "pending" as const
+                            }
+                          }
+                        : statusSource;
+                      const chunkStatusPresentation = getDocumentChunkStatusPresentation(
+                        chunkStatusSource
+                      );
                       const refreshDisabled = Boolean(
-                        refreshingDocumentIds.includes(document.id) ||
-                          isRefreshLocked(liveStatus ?? fallbackStatus)
+                        isRefreshingDocument ||
+                          isRefreshLocked(statusSource)
                       );
 
                       return (
@@ -360,12 +394,24 @@ export function DocumentsPage() {
                           </TableCell>
                           <TableCell>{document.file_type.toUpperCase()}</TableCell>
                           <TableCell>{formatFileSize(document.file_size)}</TableCell>
-                          <TableCell>{document.chunk_count}</TableCell>
                           <TableCell>
-                            <StatusBadge
-                              value={statusPresentation.badgeValue}
-                              label={statusPresentation.label}
-                            />
+                            <div className="w-full max-w-48 space-y-2">
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span className="font-medium">{chunkStatusPresentation.label}</span>
+                                <span className="tabular-nums text-muted-foreground">
+                                  {chunkStatusPresentation.valueLabel}
+                                </span>
+                              </div>
+                              <Progress
+                                aria-label={`${chunkStatusPresentation.label} chunk progress`}
+                                indicatorClassName={
+                                  chunkProgressIndicatorClassNames[
+                                    chunkStatusPresentation.progressTone
+                                  ]
+                                }
+                                value={chunkStatusPresentation.progressValue}
+                              />
+                            </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatDateTime(document.updated_at)}

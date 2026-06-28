@@ -4,16 +4,18 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from ragdoll.core.exceptions import ConfigurationError, QueueUnavailableError
 from ragdoll.modules.documents.infrastructure.repository import DocumentsRepository
 from ragdoll.modules.ingestion.api.schemas import (
     BatchDocumentStatusResponse,
     DocumentProcessingJobResponse,
+    DocumentQueueRuntimeResponse,
     DocumentProcessingStatusResponse,
 )
 from ragdoll.modules.ingestion.domain.policies import dedupe_document_ids
 from ragdoll.modules.ingestion.infrastructure.repository import IngestionRepository, VisibleStatusRecord
 from ragdoll.platform.db.models import DocumentProcessingJob
-from ragdoll.platform.queues import reconcile_stale_processing_jobs
+from ragdoll.platform.queues import get_document_processing_queue, reconcile_stale_processing_jobs
 
 
 def build_job_response(job: DocumentProcessingJob | None) -> DocumentProcessingJobResponse | None:
@@ -23,6 +25,15 @@ def build_job_response(job: DocumentProcessingJob | None) -> DocumentProcessingJ
 
 
 def build_status_response(record: VisibleStatusRecord) -> DocumentProcessingStatusResponse:
+    tracked_job = record.active_job
+    queue_runtime = None
+    try:
+        if tracked_job is not None:
+            queue_runtime = get_document_processing_queue().read_runtime(tracked_job.id)
+        elif record.next_queued_job is not None:
+            queue_runtime = get_document_processing_queue().read_runtime(record.next_queued_job.id)
+    except (ConfigurationError, QueueUnavailableError):
+        queue_runtime = None
     return DocumentProcessingStatusResponse(
         document_id=record.document.id,
         space_id=record.document.space_id,
@@ -32,6 +43,7 @@ def build_status_response(record: VisibleStatusRecord) -> DocumentProcessingStat
         indexed_chunk_count=record.document.indexed_chunk_count,
         latest_job=build_job_response(record.latest_job),
         active_job=build_job_response(record.active_job),
+        queue_runtime=DocumentQueueRuntimeResponse.model_validate(queue_runtime) if queue_runtime is not None else None,
         queued_job_count=record.queued_job_count,
         has_queued_reprocess=record.has_queued_reprocess,
         updated_at=record.document.updated_at,
@@ -49,6 +61,7 @@ def get_document_status(session: Session, subject: str, document_id: UUID) -> Do
             document=document,
             latest_job=latest_job,
             active_job=repo.active_job_for_document(document_id),
+            next_queued_job=repo.next_queued_job_for_document(document_id),
             queued_job_count=repo.queued_job_count_for_document(document_id),
             has_queued_reprocess=repo.has_queued_reprocess_for_document(document_id),
         )

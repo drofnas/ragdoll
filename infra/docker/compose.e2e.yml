@@ -4,7 +4,7 @@ services:
       ALLOWED_ORIGINS: http://frontend:3000,http://localhost:8030
       E2E_SHARED_BACKENDS: "true"
 
-  worker:
+  document-vector:
     environment:
       E2E_SHARED_BACKENDS: "true"
 
@@ -17,8 +17,11 @@ services:
       context: ../../tests/e2e
       dockerfile: Dockerfile.dev
     working_dir: /app
+    env_file:
+      - ../../apps/api/.env
     environment:
       E2E_BASE_URL: http://frontend:3000
+      E2E_API_BASE_URL: http://backend:8000
     depends_on:
       frontend:
         condition: service_started

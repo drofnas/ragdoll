@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from ragdoll.platform.db.models import User
+from ragdoll.api import dependencies as dependency_module
+from ragdoll.core.config import Settings
+from ragdoll.platform.db.models import CorrectionRecord, Document, Space, UsageEvent, User, UserUsageSnapshot
+from ragdoll.platform.graph.service import InMemoryGraphCleanupService
+from ragdoll.platform.storage.service import InMemoryDocumentStorage
+from ragdoll.platform.vector.service import InMemoryVectorCleanupService
 
 
 def register_user(api_client, *, email: str = "user@example.com", password: str = "testpass123", full_name: str = "Test User"):
@@ -147,3 +152,138 @@ def test_patch_me_rejects_incorrect_current_password(api_client):
 
     assert response.status_code == 400
     assert response.json()["code"] == "current_password_incorrect"
+
+
+def test_e2e_reset_workspace_requires_configuration(api_client):
+    api_client.app.dependency_overrides[dependency_module.get_app_settings] = lambda: Settings(
+        e2e_test_user_email=""
+    )
+    try:
+        register_user(api_client, email="tests@ragdoll.local")
+        token = login_user(api_client, email="tests@ragdoll.local").json()["access_token"]
+
+        response = api_client.post("/api/v1/auth/e2e/reset-workspace", headers=auth_headers(token))
+
+        assert response.status_code == 404
+        assert response.json()["code"] == "e2e_test_user_reset_not_enabled"
+    finally:
+        api_client.app.dependency_overrides.clear()
+
+
+def test_e2e_reset_workspace_rejects_non_configured_user(api_client):
+    api_client.app.dependency_overrides[dependency_module.get_app_settings] = lambda: Settings(
+        e2e_test_user_email="tests@ragdoll.local"
+    )
+    try:
+        register_user(api_client, email="other@example.com")
+        token = login_user(api_client, email="other@example.com").json()["access_token"]
+
+        response = api_client.post("/api/v1/auth/e2e/reset-workspace", headers=auth_headers(token))
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "forbidden"
+    finally:
+        api_client.app.dependency_overrides.clear()
+
+
+def test_e2e_reset_workspace_cleans_shared_user_state(api_client, db_session):
+    storage = InMemoryDocumentStorage()
+    vector_cleanup = InMemoryVectorCleanupService()
+    graph_cleanup = InMemoryGraphCleanupService()
+    api_client.app.dependency_overrides[dependency_module.get_app_settings] = lambda: Settings(
+        e2e_test_user_email="tests@ragdoll.local"
+    )
+    api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: storage
+    api_client.app.dependency_overrides[dependency_module.get_vector_cleanup] = lambda: vector_cleanup
+    api_client.app.dependency_overrides[dependency_module.get_graph_cleanup] = lambda: graph_cleanup
+
+    try:
+        register_user(api_client, email="tests@ragdoll.local")
+        token = login_user(api_client, email="tests@ragdoll.local").json()["access_token"]
+        user = db_session.query(User).filter(User.email == "tests@ragdoll.local").one()
+        default_space = (
+            db_session.query(Space).filter(Space.owner_user_id == user.id, Space.is_default.is_(True)).one()
+        )
+        extra_space = Space(owner_user_id=user.id, name="Extra Space", description="To be removed", is_default=False)
+        db_session.add(extra_space)
+        db_session.flush()
+
+        document = Document(
+            space_id=default_space.id,
+            uploaded_by=user.id,
+            title="Shared test doc",
+            original_filename="shared-test.txt",
+            mime_type="text/plain",
+            file_type="txt",
+            file_size=18,
+            storage_key="originals/tests/shared-test.txt",
+            source_kind="manual_upload",
+            processing_status={
+                "overall": "completed",
+                "upload": "completed",
+                "parsing": "completed",
+                "vector": "completed",
+                "extraction": "completed",
+                "graph": "completed",
+                "detail": None,
+            },
+            preview_text="shared test",
+            original_text_content="shared test"
+        )
+        db_session.add(document)
+        db_session.flush()
+        document_id = document.id
+        storage.seed_original_file(document.storage_key, b"shared test content")
+        storage.derived_prefixes.add(f"derived/{document_id}")
+
+        db_session.add(
+            CorrectionRecord(
+                space_id=default_space.id,
+                submitted_by=user.id,
+                document_id=document.id,
+                proposed_value="Updated shared value",
+                rationale="Cleanup should remove this row.",
+                status="pending",
+            )
+        )
+        db_session.add(
+            UsageEvent(
+                user_id=user.id,
+                event_type="document_uploaded",
+                quantity=1,
+                document_id=document.id,
+                space_id=default_space.id,
+            )
+        )
+        db_session.add(
+            UserUsageSnapshot(
+                user_id=user.id,
+                document_count=1,
+                chunk_count=4,
+                storage_bytes=18,
+                tokens_5h=0,
+                tokens_week=0,
+            )
+        )
+        db_session.commit()
+
+        response = api_client.post("/api/v1/auth/e2e/reset-workspace", headers=auth_headers(token))
+
+        assert response.status_code == 200, response.text
+        assert response.json()["success"] is True
+
+        db_session.expire_all()
+        spaces = db_session.query(Space).filter(Space.owner_user_id == user.id).all()
+        assert len(spaces) == 1
+        assert spaces[0].is_default is True
+        assert spaces[0].archived_at is None
+        assert db_session.query(Document).filter(Document.uploaded_by == user.id).count() == 0
+        assert db_session.query(CorrectionRecord).filter(CorrectionRecord.submitted_by == user.id).count() == 0
+        assert db_session.query(UsageEvent).filter(UsageEvent.user_id == user.id).count() == 0
+        assert db_session.get(UserUsageSnapshot, user.id) is None
+        assert storage.originals == {}
+        assert f"derived/{document_id}" not in storage.derived_prefixes
+        assert vector_cleanup.cleaned_document_ids == {document_id}
+        assert graph_cleanup.cleaned_document_ids == {document_id}
+    finally:
+        api_client.app.dependency_overrides.clear()

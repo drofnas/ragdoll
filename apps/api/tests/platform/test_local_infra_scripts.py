@@ -28,6 +28,7 @@ LOGFLARE_PRIVATE_ACCESS_TOKEN=your-super-secret-and-long-logflare-key-private
 S3_PROTOCOL_ACCESS_KEY_ID=replace-with-generated-s3-access-key-id
 S3_PROTOCOL_ACCESS_KEY_SECRET=replace-with-generated-s3-access-key-secret
 MINIO_ROOT_PASSWORD=replace-with-generated-minio-root-password
+REDIS_HOST_PORT=16379
 SUPABASE_STORAGE_BUCKET=documents
 OLLAMA_MODEL=qwen3.5:0.8b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
@@ -42,6 +43,8 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_WORKER_BASE_URL=http://host.docker.internal:11434
 OLLAMA_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=
+DOCUMENT_PROCESSING_QUEUE_NAME=
+REDIS_URL=
 """
 
 
@@ -95,6 +98,8 @@ def test_bootstrap_infra_env_creates_env_and_hydrates_api_placeholders(tmp_path)
     assert "SUPABASE_SERVICE_ROLE_KEY=replace-with-local-service-role-key" not in api_text
     assert "OLLAMA_BASE_URL=http://ollama:11434" in api_text
     assert "OLLAMA_WORKER_BASE_URL=http://ollama:11434" in api_text
+    assert "DOCUMENT_PROCESSING_QUEUE_NAME=document-processing" in api_text
+    assert "REDIS_URL=redis://redis:6379/0" in api_text
 
 
 def test_bootstrap_infra_env_restores_backup_when_env_missing(tmp_path):
@@ -145,6 +150,8 @@ def test_bootstrap_infra_env_hydrate_preserves_existing_real_api_values(tmp_path
                 "OLLAMA_WORKER_BASE_URL=http://custom-worker:11434",
                 "OLLAMA_MODEL=custom-model",
                 "OLLAMA_EMBEDDING_MODEL=custom-embedding",
+                "DOCUMENT_PROCESSING_QUEUE_NAME=custom-processing",
+                "REDIS_URL=redis://custom-redis:6379/2",
             ]
         )
         + "\n"
@@ -170,6 +177,8 @@ def test_bootstrap_infra_env_hydrate_preserves_existing_real_api_values(tmp_path
     assert "SUPABASE_SERVICE_ROLE_KEY=custom-service-role" in api_text
     assert "OLLAMA_BASE_URL=http://custom-ollama:11434" in api_text
     assert "OLLAMA_EMBEDDING_MODEL=custom-embedding" in api_text
+    assert "DOCUMENT_PROCESSING_QUEUE_NAME=custom-processing" in api_text
+    assert "REDIS_URL=redis://custom-redis:6379/2" in api_text
 
 
 def test_bootstrap_supabase_upstream_populates_missing_tree_from_overridden_git_remote(tmp_path):
@@ -219,3 +228,14 @@ def test_infra_script_selects_expected_ollama_compose_file(tmp_path):
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert result.stdout.strip().endswith("infra/docker/compose.ollama.amd.yml")
+
+
+def test_compose_and_docs_use_document_vector_service_name():
+    compose_dev = (REPO_ROOT / "infra/docker/compose.dev.yml").read_text()
+    compose_e2e = (REPO_ROOT / "infra/docker/compose.e2e.yml").read_text()
+    infra_readme = (REPO_ROOT / "infra/docker/README.md").read_text()
+
+    assert "  document-vector:\n" in compose_dev
+    assert "  worker:\n" not in compose_dev
+    assert "  document-vector:\n" in compose_e2e
+    assert "--scale document-vector=3" in infra_readme

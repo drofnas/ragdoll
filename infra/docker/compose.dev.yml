@@ -25,11 +25,10 @@ services:
       retries: 30
       start_period: 60s
 
-  worker:
+  document-vector:
     build:
       context: ../../apps/api
       dockerfile: Dockerfile.dev
-    container_name: ragdoll-worker-dev
     env_file:
       - ../../apps/api/.env
     volumes:
@@ -41,7 +40,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    command: sh /app/scripts/start-worker.sh
+    command: sh /app/scripts/start-document-vector.sh
 
   frontend:
     build:
