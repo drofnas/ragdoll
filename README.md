@@ -37,7 +37,7 @@ The clean repo now provides:
 - a bootable FastAPI runtime with auth, spaces, documents, ingestion, search, chat, entities, tracked state, changes, admin, and usage slices
 - a bootable Vite + React workspace with public login/register/status routes plus authenticated and admin shells
 - shared contracts and OpenAPI export tooling
-- Alembic-backed relational foundations for identity, spaces, documents, usage, chat, tracked state, changes, and corrections
+- DBmate-backed relational foundations for identity, spaces, documents, usage, chat, tracked state, changes, and corrections
 - runnable local dev Docker wiring for the app stack plus Dockerized Supabase and Ollama dependencies
 - operator-facing readiness, health, and effective-instance-policy surfaces for self-hosted installs
 
@@ -49,7 +49,7 @@ The rebuild currently preserves the original stack direction while the structure
 - Backend dependency convention: `requirements.txt` plus Docker-based local execution
 - Frontend runtime: Vite + React in `apps/web`
 - Frontend package manager: `npm`
-- Database migrations: Alembic
+- Database migrations: DBmate
 - Local development orchestration: Docker Compose
 - Shared contracts: exported from the backend and generated into `packages/contracts`
 - Script ownership: thin developer entrypoints under `scripts/dev`, `scripts/test`, and `scripts/ops`

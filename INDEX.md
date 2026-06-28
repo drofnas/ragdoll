@@ -27,7 +27,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 ## Root Structure
 
 - `apps/` - Application roots. Most product code lives here.
-- `apps/api/` - FastAPI backend app, tests, Docker dev image, and Alembic config.
+- `apps/api/` - FastAPI backend app, tests, Docker dev image, and DBmate schema assets.
 - `apps/web/` - Vite + React frontend app, app shell, feature pages, and shared browser code.
 - `packages/` - Shared contracts, config, and repo tooling.
 - `tests/` - Product-level E2E harness and Playwright project.
@@ -86,7 +86,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - `apps/api/src/ragdoll/platform/` - Shared infrastructure services for DB, storage, queues, graph, and vector concerns.
 - `apps/api/src/ragdoll/platform/queues/` - Redis-backed RQ queue helpers plus queue-runtime inspection for document processing.
 - `apps/api/src/ragdoll/platform/db/models/` - SQLAlchemy models.
-- `apps/api/src/ragdoll/platform/db/migrations/` - Alembic environment and migration versions.
+- `apps/api/db/` - DBmate schema snapshot and SQL migration ownership.
 - `apps/api/src/ragdoll/workers/` - RQ job callables and background pipeline wiring; `document_pipeline.py` is the document-processing job entrypoint used by the `document-vector` RQ worker service.
 - `apps/api/tests/platform/` - Platform and bootstrap coverage.
 - `apps/api/tests/modules/` - Module-level API and contract coverage.
@@ -103,7 +103,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - Put app-wide cross-cutting concerns in `apps/api/src/ragdoll/core/`, not inside a feature module.
 - Put shared runtime services in `apps/api/src/ragdoll/platform/` when they support multiple modules.
 - Put scalable local worker service changes in `infra/docker/compose.dev.yml` under the `document-vector` service.
-- Put DB models in `apps/api/src/ragdoll/platform/db/models/` and migrations in `apps/api/src/ragdoll/platform/db/migrations/versions/`.
+- Put DB models in `apps/api/src/ragdoll/platform/db/models/` and DBmate migrations in `apps/api/db/migrations/`.
 - Put backend tests in the matching area under `apps/api/tests/modules/` or `apps/api/tests/platform/`.
 
 ## Shared Packages

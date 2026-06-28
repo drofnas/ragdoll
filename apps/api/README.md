@@ -9,7 +9,8 @@ Phase 1 now includes the backend runtime and DB foundations:
 - clean liveness endpoint at `GET /health`
 - clean readiness contract at `GET /api/v1/health`
 - shared backend core services under `src/ragdoll/core/`
-- DB engine, session, and Alembic scaffolding under `src/ragdoll/platform/db/`
+- DB engine and session code under `src/ragdoll/platform/db/`
+- DBmate schema and SQL migrations under `db/`
 - backend platform bootstrap tests under `tests/platform/`
 - a Phase 2 `/api/v1` module registry scaffold across planned backend modules
 - a Phase 2 contract-export entrypoint in `packages/tooling/scripts/generate_contracts.py`
@@ -20,7 +21,7 @@ Current nearby ownership:
 - backend tests under `tests/`
 - background worker entrypoints under `src/ragdoll/workers/`
 - Python dependency manifest using `requirements.txt`
-- Alembic migrations owned by this app
+- DBmate migrations owned by this app
 
 Runtime notes:
 
@@ -39,4 +40,4 @@ Still deferred:
 - start document-vector worker: `rq worker --url "$REDIS_URL" "$DOCUMENT_PROCESSING_QUEUE_NAME"`
 - run platform tests: `../../scripts/test/backend.sh`
 - export OpenAPI + contract scaffold from Docker: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace backend python3 packages/tooling/scripts/generate_contracts.py`
-- run Alembic upgrades: `alembic upgrade head`
+- run DBmate migrations: `DATABASE_URL=postgresql://.../?sslmode=disable dbmate --migrations-dir db/migrations --schema-file db/schema.sql up`

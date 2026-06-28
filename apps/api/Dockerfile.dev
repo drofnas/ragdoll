@@ -3,16 +3,29 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
+    ca-certificates \
     gcc \
     git \
     postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN set -eu; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) dbmate_arch="amd64" ;; \
+      arm64) dbmate_arch="arm64" ;; \
+      *) echo "Unsupported architecture for dbmate: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-${dbmate_arch}" \
+      -o /usr/local/bin/dbmate; \
+    chmod +x /usr/local/bin/dbmate; \
+    dbmate --version
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY alembic.ini ./alembic.ini
+COPY db ./db
 COPY scripts ./scripts
 COPY src ./src
 COPY tests ./tests
