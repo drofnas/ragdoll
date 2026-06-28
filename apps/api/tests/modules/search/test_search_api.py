@@ -93,6 +93,7 @@ def _seed_retrieval_document(
     mime_type: str = "text/plain",
     entity_specs: list[tuple[str, str]] | None = None,
     deleted: bool = False,
+    start_line: int = 1,
 ) -> tuple[Document, DocumentChunk, list[CanonicalEntity]]:
     document = Document(
         space_id=space.id,
@@ -118,6 +119,7 @@ def _seed_retrieval_document(
         document_id=document.id,
         space_id=space.id,
         chunk_index=0,
+        start_line=start_line,
         text_content=text,
     )
     db_session.add(chunk)
@@ -302,6 +304,7 @@ def test_search_modes_return_ranked_results_with_citations(api_client, db_sessio
         title="atlas-notes.txt",
         text="Project Atlas works closely with Ragdoll.",
         entity_specs=[("Project Atlas", "project"), ("Ragdoll", "product")],
+        start_line=7,
     )
 
     boolean_response = api_client.get("/api/v1/search?q=atlas&mode=boolean", headers=auth_headers(token))
@@ -309,6 +312,7 @@ def test_search_modes_return_ranked_results_with_citations(api_client, db_sessio
     boolean_item = boolean_response.json()["items"][0]
     assert boolean_item["result_kind"] == "document_chunk"
     assert boolean_item["citations"][0]["source_tier"] == "document"
+    assert boolean_item["citations"][0]["line_number"] == 7
 
     vector_response = api_client.get("/api/v1/search?q=atlas&mode=vector", headers=auth_headers(token))
     assert vector_response.status_code == 200, vector_response.text
@@ -326,6 +330,66 @@ def test_search_modes_return_ranked_results_with_citations(api_client, db_sessio
     combined_items = combined_response.json()["items"]
     chunk_item = next(item for item in combined_items if item["result_kind"] == "document_chunk")
     assert set(chunk_item["matched_modes"]) >= {"boolean", "vector"}
+
+
+def test_combined_search_strips_low_signal_terms_and_ranks_matching_chunk_above_unrelated_graph_entities(
+    api_client,
+    db_session,
+):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+
+    _seed_retrieval_document(
+        db_session,
+        space=space,
+        uploader=owner,
+        title="filegogallery-prd.md",
+        text="FilegoGallery is an AI-powered desktop gallery application for local image libraries.",
+        entity_specs=[("FilegoGallery", "product")],
+    )
+    _seed_retrieval_document(
+        db_session,
+        space=space,
+        uploader=owner,
+        title="identity-plan.md",
+        text="API Access Control and lifecycle governance guidance.",
+        entity_specs=[("API", "topic"), ("Access Control", "topic")],
+    )
+
+    response = api_client.get(
+        "/api/v1/search?q=Tell+me+about+the+FileGo+application&mode=combined",
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200, response.text
+    items = response.json()["items"]
+    assert items[0]["result_kind"] == "document_chunk"
+    assert items[0]["document"]["title"] == "filegogallery-prd.md"
+    assert not any(
+        item["result_kind"] == "entity" and item["entity"]["display_name"] in {"API", "Access Control"}
+        for item in items[:1]
+    )
+
+
+def test_graph_search_requires_real_query_overlap_before_mention_count_can_help(api_client, db_session):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+
+    _seed_retrieval_document(
+        db_session,
+        space=default_space(db_session, owner),
+        uploader=owner,
+        title="identity-plan.md",
+        text="API Access Control and lifecycle governance guidance.",
+        entity_specs=[("API", "topic"), ("Access Control", "topic")],
+    )
+
+    response = api_client.get(
+        "/api/v1/search?q=Tell+me+about+the+FileGo+application&mode=graph",
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["items"] == []
 
 
 def test_processed_upload_becomes_searchable_entity_readable_and_graph_readable(

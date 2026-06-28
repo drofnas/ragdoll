@@ -45,6 +45,7 @@ def test_v1_router_builds_with_all_registered_modules():
 def test_contract_generation_script_exports_openapi_and_typescript_manifest(tmp_path: Path):
     openapi_output = tmp_path / "ragdoll.openapi.json"
     typescript_manifest = tmp_path / "typescript" / "manifest.json"
+    typescript_index = tmp_path / "typescript" / "index.ts"
 
     completed = subprocess.run(
         [
@@ -64,6 +65,7 @@ def test_contract_generation_script_exports_openapi_and_typescript_manifest(tmp_
     assert completed.returncode == 0, completed.stderr
     assert openapi_output.exists()
     assert typescript_manifest.exists()
+    assert typescript_index.exists()
 
     openapi_payload = json.loads(openapi_output.read_text(encoding="utf-8"))
     manifest_payload = json.loads(typescript_manifest.read_text(encoding="utf-8"))
@@ -75,4 +77,6 @@ def test_contract_generation_script_exports_openapi_and_typescript_manifest(tmp_
     assert "/api/v1/usage/me" in openapi_payload["paths"]
     assert "ProcessingStatus" in openapi_payload["components"]["schemas"]
     assert "deferred" in openapi_payload["components"]["schemas"]["ProcessingStageStatus"]["enum"]
-    assert manifest_payload["status"] == "scaffold_only"
+    assert manifest_payload["status"] == "generated"
+    assert manifest_payload["entrypoint"] == str(typescript_index)
+    assert "export interface UserProfileResponse" in typescript_index.read_text(encoding="utf-8")

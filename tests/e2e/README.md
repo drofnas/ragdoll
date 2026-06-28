@@ -2,12 +2,15 @@
 
 Canonical home for product-level end-to-end verification.
 
-The initial clean-room E2E suite is intentionally minimal and smoke-focused.
+The self-hosted E2E suite starts with the public/auth shell and expands into real workspace journeys over time.
 
 Current coverage:
 
-- public shell renders the known scaffold title
-- anonymous access to `/dashboard` redirects to `/login`
+- anonymous `/` renders login
+- registration redirects back to login with a success state
+- login reaches the authenticated dashboard
+- authenticated upload reaches document detail
+- the public `Status` link targets a live backend `/status` page
 
 Current structure:
 

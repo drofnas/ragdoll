@@ -1,19 +1,97 @@
-:root {
-  color-scheme: light;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
-  background: #f4f8fb;
-  color: #1d2b36;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@source "../**/*.{ts,tsx}";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(70, 136, 156, 0.18), transparent 32%),
-    linear-gradient(180deg, #f7fbfd 0%, #eef4f7 100%);
+@layer base {
+  :root {
+    --background: 195 33% 96%;
+    --foreground: 206 28% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 206 28% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 206 28% 17%;
+    --primary: 184 57% 34%;
+    --primary-foreground: 192 100% 98%;
+    --secondary: 190 29% 91%;
+    --secondary-foreground: 206 28% 20%;
+    --muted: 192 24% 92%;
+    --muted-foreground: 204 16% 41%;
+    --accent: 36 70% 93%;
+    --accent-foreground: 24 47% 25%;
+    --destructive: 0 73% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 196 27% 84%;
+    --input: 196 27% 84%;
+    --ring: 184 57% 34%;
+    --radius: 0.5rem;
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    margin: 0;
+    min-width: 320px;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }
 
-a {
-  color: inherit;
+@layer utilities {
+  .container {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 2rem;
+  }
+
+  @media (min-width: 1400px) {
+    .container {
+      max-width: 1400px;
+    }
+  }
 }

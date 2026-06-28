@@ -3,18 +3,88 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Protocol
+from typing import Iterable, Protocol
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from ragdoll.core.config import get_settings
+from ragdoll.modules.ingestion.domain.policies import mark_processing_stage_failed
 from ragdoll.platform.db.models import DocumentProcessingJob
 from ragdoll.platform.db.session import get_session_factory
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+PROCESSING_STAGES = ("parsing", "vector", "extraction", "graph")
+EXTRACTION_STAGE = "extraction"
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _resolve_processing_stage(job: DocumentProcessingJob) -> str:
+    payload = job.document.processing_status or {}
+    for stage in PROCESSING_STAGES:
+        if payload.get(stage) == "processing":
+            return stage
+    if job.requested_stage in PROCESSING_STAGES:
+        return job.requested_stage
+    return "parsing"
+
+
+def _timeout_seconds_for_stage(stage: str) -> float:
+    settings = get_settings()
+    if stage == EXTRACTION_STAGE:
+        return settings.document_processing_timeout_seconds_extraction
+    return settings.document_processing_timeout_seconds_default
+
+
+def _stale_processing_detail(stage: str, timeout_seconds: float) -> str:
+    minutes = int(timeout_seconds // 60) if timeout_seconds % 60 == 0 else round(timeout_seconds / 60, 1)
+    return (
+        f"Document processing timed out during {stage} after about {minutes} minutes. "
+        "The worker or backend may have restarted, or processing may have been abandoned. "
+        "You can refresh to reprocess the document."
+    )
+
+
+def reconcile_stale_processing_jobs(session: Session, *, document_ids: Iterable[UUID] | None = None) -> int:
+    ids = tuple(dict.fromkeys(document_ids or ()))
+    statement = select(DocumentProcessingJob).where(DocumentProcessingJob.status == "processing")
+    if document_ids is not None:
+        if not ids:
+            return 0
+        statement = statement.where(DocumentProcessingJob.document_id.in_(ids))
+
+    now = utc_now()
+    reconciled = 0
+    for job in session.scalars(statement).all():
+        reference_at = _as_utc(job.started_at or job.queued_at)
+        stage = _resolve_processing_stage(job)
+        timeout_seconds = _timeout_seconds_for_stage(stage)
+        if (_as_utc(now) - reference_at).total_seconds() < timeout_seconds:
+            continue
+        detail = _stale_processing_detail(stage, timeout_seconds)
+        job.status = "failed"
+        job.completed_at = now
+        job.visible_error_detail = detail[:2000]
+        job.document.processing_status = mark_processing_stage_failed(
+            job.document.processing_status,
+            failed_stage=stage,
+            detail=detail,
+        )
+        reconciled += 1
+
+    if reconciled > 0:
+        session.commit()
+    return reconciled
 
 
 @dataclass(frozen=True)
@@ -25,6 +95,13 @@ class ProcessingJobPayload:
     uploaded_by: UUID
     requested_stage: str
     attempt: int
+    job_kind: str = "upload"
+    cleanup_derived_artifacts: bool = False
+    reset_document_content: bool = False
+    clear_existing_chunks: bool = False
+    clear_existing_entities: bool = False
+    cleanup_vectors: bool = False
+    cleanup_graph: bool = False
 
 
 class DocumentProcessingQueueService(Protocol):
@@ -46,6 +123,7 @@ class SqlDocumentProcessingQueue:
     def claim_next_job(self) -> ProcessingJobPayload | None:
         session = get_session_factory()()
         try:
+            reconcile_stale_processing_jobs(session)
             job = session.scalar(
                 select(DocumentProcessingJob)
                 .where(DocumentProcessingJob.status == "queued")
@@ -65,6 +143,13 @@ class SqlDocumentProcessingQueue:
                 uploaded_by=job.uploaded_by,
                 requested_stage=job.requested_stage,
                 attempt=job.attempt,
+                job_kind=job.job_kind,
+                cleanup_derived_artifacts=job.cleanup_derived_artifacts,
+                reset_document_content=job.reset_document_content,
+                clear_existing_chunks=job.clear_existing_chunks,
+                clear_existing_entities=job.clear_existing_entities,
+                cleanup_vectors=job.cleanup_vectors,
+                cleanup_graph=job.cleanup_graph,
             )
         finally:
             session.close()
@@ -106,6 +191,11 @@ class InMemoryDocumentProcessingQueue:
         self._items.append(payload)
 
     def claim_next_job(self) -> ProcessingJobPayload | None:
+        session = get_session_factory()()
+        try:
+            reconcile_stale_processing_jobs(session)
+        finally:
+            session.close()
         if not self._items:
             return None
         payload = self._items.pop(0)
@@ -134,6 +224,8 @@ class InMemoryDocumentProcessingQueue:
 @lru_cache(maxsize=1)
 def get_document_processing_queue() -> DocumentProcessingQueueService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return SqlDocumentProcessingQueue()
     if settings.e2e_memory_backends:
         return InMemoryDocumentProcessingQueue()
     return SqlDocumentProcessingQueue()

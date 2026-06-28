@@ -48,7 +48,7 @@ Owns:
 - processing status
 - versioning and current-state indicators
 - audit timestamps
-- feature flags and plan tiers
+- operator-managed user state and usage projections
 - user-submitted corrections and verification state
 
 Must not own:
@@ -104,6 +104,22 @@ Must not own:
 - `SourceTier` and provenance shapes must travel through API responses
 - `ProcessingStatus` must distinguish upload, parsing, vector, extraction, and graph stages
 - `Citation` and `EntityRelationshipSummary` must resolve back to relational and document identifiers
+
+### Provenance tiers
+
+- `SourceTier.DOCUMENT`: direct document or chunk evidence
+- `SourceTier.DERIVED`: entity, graph, or retrieval-derived evidence
+- `SourceTier.USER`: unverified user correction or pending manual note
+- `SourceTier.VERIFIED`: approved correction or tracked value resolved from approved correction
+
+### Current-state conventions
+
+- `TrackedFieldValue` history is append-only even when current truth changes
+- At most one `TrackedFieldValue.is_current=true` row exists per tracked field
+- Older tracked values are superseded by new rows instead of being edited in place
+- `ChangeEvent` is append-only and `ChangeEventRead` carries per-user read state
+- Chat sessions, tracked fields, corrections, and change events are all explicitly `space_id` scoped
+- Phase 10 chat, tracked-state, and correction writes require one concrete Space and do not accept `all_spaces=true`
 
 ## Primary Workflows
 

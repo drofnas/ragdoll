@@ -6,4 +6,9 @@ Source of truth: the OpenAPI snapshot in `packages/contracts/openapi`, which is 
 
 Generation entrypoint: `packages/tooling/scripts/generate_contracts.py`
 
-Phase 2 only fixes the path and workflow. Real generated types can replace this placeholder directory content without changing ownership or invocation patterns.
+Artifacts written here:
+
+- `index.ts` with generated schema and operation types
+- `manifest.json` with generation metadata and the canonical entrypoint
+
+Feature clients in `apps/web` should keep using the shared transport layer and import request or response types from this directory rather than generating request helpers.

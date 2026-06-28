@@ -1,9 +1,19 @@
 """LLM-backed worker services for embeddings and entity extraction."""
 
+from ragdoll.platform.llm.chat import (
+    ChatCompletionMessage,
+    ChatCompletionService,
+    DeterministicChatCompletionService,
+    OllamaChatCompletionService,
+    get_chat_completion_service,
+)
 from ragdoll.platform.llm.service import (
+    ChunkExtractionRequest,
+    ChunkExtractionResult,
     DeterministicEmbeddingService,
     DeterministicEntityExtractionService,
     EmbeddingGenerationService,
+    EntityExtractionError,
     EntityExtractionService,
     ExtractedEntityCandidate,
     OllamaEmbeddingService,
@@ -14,13 +24,21 @@ from ragdoll.platform.llm.service import (
 )
 
 __all__ = [
+    "ChatCompletionMessage",
+    "ChatCompletionService",
+    "ChunkExtractionRequest",
+    "ChunkExtractionResult",
     "DeterministicEmbeddingService",
+    "DeterministicChatCompletionService",
     "DeterministicEntityExtractionService",
     "EmbeddingGenerationService",
+    "EntityExtractionError",
     "EntityExtractionService",
     "ExtractedEntityCandidate",
     "OllamaEmbeddingService",
+    "OllamaChatCompletionService",
     "OllamaEntityExtractionService",
+    "get_chat_completion_service",
     "get_embedding_generation_service",
     "get_entity_extraction_service",
     "normalize_entity_name",

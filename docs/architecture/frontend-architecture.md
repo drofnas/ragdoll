@@ -33,7 +33,6 @@ apps/web/src/
     corrections/
     admin/
     account/
-    marketing/
   shared/
     api/
     ui/
@@ -80,17 +79,16 @@ features/<feature>/
 - `tracked-state`: fields, summaries, conflicts, resolution controls
 - `changes`: feed, detail, read-state actions
 - `corrections`: verification dashboard
-- `admin`: user admin, document tester, Supabase tester, feature or tier controls
+- `admin`: user management, readiness, runtime status, and effective-instance-policy reads
 - `account`: profile, password, and usage management
-- `marketing`: home, product, pricing, contact
 
 ## Public Interfaces and Shared Types
 
 - All API request and response shapes are imported from `packages/contracts/typescript`
 - Feature clients are thin wrappers around shared transport
+- `apps/web` uses Tailwind CSS v4 through the Vite plugin; shared theme tokens live in `src/styles/app.css`
 - Shared frontend state includes:
   - current user
-  - resolved feature flags
   - current `SpaceScope`
   - query cache
   - route-safe error state
@@ -106,7 +104,7 @@ features/<feature>/
 
 ## Failure Modes and Edge Cases
 
-- Feature-flagged routes must hide in navigation and hard-block on direct access.
+- Guarded routes must hide in navigation and hard-block on direct access.
 - All-spaces views must make scope obvious to avoid accidental cross-project interpretation.
 - Background processing pages must render partial status without implying finished retrieval or graph population.
 - Search, chat, and graph UI must tolerate partial backend results and typed problem responses.
@@ -115,7 +113,7 @@ features/<feature>/
 ## Acceptance Checks
 
 - Every authenticated capability has one feature page or one clearly owned feature surface in `apps/web`.
-- Public marketing content lives under `features/marketing`.
+- The public shell stays limited to login, registration, and the backend status page.
 - No feature relies on a monolithic global API utility bucket.
 - Shared types come from `packages/contracts`, not hand-maintained duplicates.
 - Route shells and guards are separated from page logic.

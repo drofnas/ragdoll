@@ -8,13 +8,7 @@ from ragdoll.api.health import build_readiness_payload, build_runtime_status_pay
 from ragdoll.core import config as config_module
 from ragdoll.core.config import Settings
 from ragdoll.core.exceptions import AuthenticationRequiredError, ConfigurationError
-from ragdoll.core.feature_flags import (
-    FLAG_DOCUMENT_VERSION_HISTORY,
-    FLAG_SEARCH_GRAPH_MODE,
-    FLAG_UNIFIED_SEARCH,
-    PlanTier,
-    resolve_feature_flags,
-)
+from ragdoll.core.instance_policy import resolve_instance_limits
 from ragdoll.core.pagination import PaginationParams
 from ragdoll.core.security import create_access_token, decode_access_token, get_password_hash, verify_password
 from ragdoll.main import create_app
@@ -68,10 +62,21 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    def __init__(self, payload=None, *, error: Exception | None = None, timeout: float = 5.0):
+    def __init__(
+        self,
+        payload=None,
+        *,
+        error: Exception | None = None,
+        post_payload=None,
+        post_error: Exception | None = None,
+        timeout: float = 5.0,
+    ):
         self.payload = payload or {"models": []}
         self.error = error
+        self.post_payload = post_payload or {"message": {"content": "OK"}}
+        self.post_error = post_error
         self.timeout = timeout
+        self.post_requests: list[dict] = []
 
     async def __aenter__(self):
         return self
@@ -83,6 +88,12 @@ class FakeAsyncClient:
         if self.error is not None:
             raise self.error
         return FakeResponse(self.payload)
+
+    async def post(self, url: str, json: dict):
+        if self.post_error is not None:
+            raise self.post_error
+        self.post_requests.append({"url": url, "json": json})
+        return FakeResponse(self.post_payload)
 
 
 def test_settings_prefers_main_supabase_database_url():
@@ -126,6 +137,32 @@ def test_settings_accept_allowed_origins_as_direct_list():
     assert config_module._normalize_allowed_origins(
         ["http://localhost:8030", " http://localhost:3000 "]
     ) == ["http://localhost:8030", "http://localhost:3000"]
+
+
+def test_engine_kwargs_do_not_enable_sql_echo_from_debug_alone():
+    settings = Settings(
+        debug=True,
+        sql_echo=False,
+        supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres",
+        _env_file=None,
+    )
+
+    kwargs = engine_module._engine_kwargs(settings)
+
+    assert kwargs["echo"] is False
+
+
+def test_engine_kwargs_enable_sql_echo_only_when_requested():
+    settings = Settings(
+        debug=False,
+        sql_echo=True,
+        supabase_db_url="postgresql://postgres:secret@db.example:5432/postgres",
+        _env_file=None,
+    )
+
+    kwargs = engine_module._engine_kwargs(settings)
+
+    assert kwargs["echo"] is True
 
 
 def test_settings_reject_invalid_allowed_origins_from_env(monkeypatch):
@@ -175,24 +212,27 @@ def test_invalid_access_token_raises_authentication_error():
         decode_access_token("invalid-token", settings=settings)
 
 
-def test_feature_flags_support_overrides_and_global_disable():
-    flags = resolve_feature_flags(
-        PlanTier.FREE,
-        overrides={FLAG_UNIFIED_SEARCH: False},
-        global_unified_search_enabled=False,
+def test_instance_limits_default_to_self_hosted_policy():
+    limits = resolve_instance_limits(Settings(_env_file=None))
+    assert limits.documents is None
+    assert limits.storage_bytes is None
+    assert limits.tokens_5h is None
+    assert limits.max_file_size_bytes == 100 * 1024 * 1024
+    assert limits.per_document_chunks == 2000
+
+
+def test_instance_limits_accept_runtime_overrides():
+    limits = resolve_instance_limits(
+        Settings(
+            instance_limit_documents=25,
+            instance_limit_storage_bytes=1024,
+            instance_limit_retrieval_chunks=8,
+            _env_file=None,
+        )
     )
-    assert flags[FLAG_UNIFIED_SEARCH] is False
-
-
-def test_feature_flags_vary_by_plan_tier():
-    free_flags = resolve_feature_flags(PlanTier.FREE, global_unified_search_enabled=True)
-    pro_flags = resolve_feature_flags(PlanTier.PRO, global_unified_search_enabled=True)
-    internal_flags = resolve_feature_flags(PlanTier.INTERNAL, global_unified_search_enabled=True)
-
-    assert free_flags[FLAG_SEARCH_GRAPH_MODE] is False
-    assert pro_flags[FLAG_SEARCH_GRAPH_MODE] is True
-    assert pro_flags[FLAG_DOCUMENT_VERSION_HISTORY] is False
-    assert internal_flags[FLAG_DOCUMENT_VERSION_HISTORY] is True
+    assert limits.documents == 25
+    assert limits.storage_bytes == 1024
+    assert limits.retrieval_chunks == 8
 
 
 def test_pagination_params_offset_calculation():
@@ -321,10 +361,44 @@ async def test_runtime_status_payload_marks_configured_ollama_models_present(mon
     models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
     assert payload.application.version == "0.1.0"
     assert payload.ollama.status == "healthy"
+    assert payload.ollama.chat_generation is not None
+    assert payload.ollama.chat_generation.status == "healthy"
     assert models["qwen3.5:0.8b"].status == "present"
     assert set(models["qwen3.5:0.8b"].roles) == {"primary_chat", "orchestrator", "worker"}
     assert models["nomic-embed-text"].status == "present"
     assert models["nomic-embed-text"].roles == ["embedding"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_chat_probe_uses_chat_thinking_setting(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        ollama_chat_context_window=2048,
+        ollama_status_chat_timeout_seconds=21,
+        ollama_chat_think=True,
+        _env_file=None,
+    )
+    client = FakeAsyncClient(payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]})
+
+    def build_client(*args, **kwargs):
+        client.timeout = kwargs["timeout"]
+        return client
+
+    monkeypatch.setattr(health_module.httpx, "AsyncClient", build_client)
+
+    payload = await build_runtime_status_payload(settings)
+
+    assert payload.services["llm_chat"].status == "healthy"
+    assert client.post_requests
+    request_json = client.post_requests[-1]["json"]
+    assert request_json["think"] is True
+    assert request_json["options"]["num_ctx"] == 2048
+    assert client.timeout.connect == 3.0
+    assert client.timeout.read == 21
+    assert client.timeout.write == 21
+    assert client.timeout.pool == 21
 
 
 @pytest.mark.asyncio
@@ -370,6 +444,36 @@ async def test_runtime_status_payload_accepts_latest_tag_for_configured_ollama_m
 
     models = {entry.name: entry for entry in payload.ollama.configured_models if entry.name}
     assert models["nomic-embed-text"].status == "present"
+
+
+@pytest.mark.asyncio
+async def test_runtime_status_payload_marks_chat_generation_unhealthy_when_catalog_is_healthy(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.local:11434",
+        ollama_model="qwen3.5:0.8b",
+        ollama_embedding_model="nomic-embed-text",
+        ollama_status_chat_timeout_seconds=17,
+        _env_file=None,
+    )
+
+    monkeypatch.setattr(
+        health_module.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: FakeAsyncClient(
+            payload={"models": [{"name": "qwen3.5:0.8b"}, {"name": "nomic-embed-text"}]},
+            post_error=health_module.httpx.ReadTimeout("slow chat generation"),
+        ),
+    )
+
+    payload = await build_runtime_status_payload(settings)
+
+    assert payload.status == "degraded"
+    assert payload.services["llm"].status == "healthy"
+    assert payload.services["llm_chat"].status == "unhealthy"
+    assert payload.ollama.status == "degraded"
+    assert payload.ollama.chat_generation is not None
+    assert payload.ollama.chat_generation.status == "unhealthy"
+    assert payload.ollama.chat_generation.detail == "Ollama chat generation probe timed out after 17 seconds."
 
 
 @pytest.mark.asyncio

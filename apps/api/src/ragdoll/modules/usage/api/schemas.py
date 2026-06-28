@@ -47,7 +47,6 @@ class UsageStatusFlags(BaseModel):
 class UsageSummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    plan_tier: str
     usage: UsageAmounts
     limits: UsageLimitSet
     percent_used: UsagePercentages

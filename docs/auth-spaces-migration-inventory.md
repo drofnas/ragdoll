@@ -8,7 +8,7 @@ The previous private repository is reconstruction input only. This document reco
 
 | Legacy area | New backend owner | Notes |
 | --- | --- | --- |
-| `backend/app/routers/auth.py` | `modules/auth` and `modules/users` | Authentication stays separate from user lifecycle and plan-tier ownership. |
+| `backend/app/routers/auth.py` | `modules/auth` and `modules/users` | Authentication stays separate from user lifecycle and profile ownership. |
 | `backend/app/schemas/auth.py` | `modules/auth/api/schemas.py` | Session and auth response contracts migrate first. |
 | `backend/app/routers/spaces.py` | `modules/spaces` | Space CRUD and default-space behavior become a dedicated bounded context. |
 | `backend/app/schemas/spaces.py` | `modules/spaces/api/schemas.py` | Space wire models become module-owned contracts. |
@@ -27,7 +27,7 @@ The previous private repository is reconstruction input only. This document reco
   - `GET /api/v1/spaces/{space_id}`
   - `PATCH /api/v1/spaces/{space_id}`
   - `DELETE /api/v1/spaces/{space_id}`
-- Auth session responses keep `plan_tier` and resolved `feature_flags`.
+- Auth session responses keep the core user identity surface intentionally small.
 - Spaces keep `is_default` as an explicit contract field.
 - Default-space behavior remains product-important and stays in scope for the first migration slice.
 
@@ -36,7 +36,7 @@ The previous private repository is reconstruction input only. This document reco
 - Legacy unversioned `/api/auth/*` and `/api/spaces/*` paths become `/api/v1/...`.
 - Auth implementation splits into:
   - `modules/auth` for registration, login, session bootstrap, password verification, and guards
-  - `modules/users` for user lifecycle, plan-tier ownership, and feature-flag overrides
+  - `modules/users` for user lifecycle, profile ownership, and operator-managed account metadata
 - Space scope becomes a shared contract concept instead of repeated ad hoc query params across modules.
 - Backend transport models move from legacy shared schema folders into module-local `api/schemas.py` files.
 
@@ -59,5 +59,5 @@ The first real migration slice should be considered ready when:
 
 - `auth`, `users`, and `spaces` have module-owned routes and schemas in the clean repo
 - old auth/spaces tests are ported to `/api/v1`
-- `plan_tier`, `feature_flags`, and `is_default` are represented explicitly in the new wire contracts
+- `is_default` is represented explicitly in the new Space contracts and auth bootstrap avoids SaaS-specific session fields
 - shared `SpaceScope` is stable enough for later document, search, and chat adoption

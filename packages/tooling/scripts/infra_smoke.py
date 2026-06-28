@@ -8,7 +8,6 @@ from sqlalchemy import text
 
 from ragdoll.core.config import get_settings
 from ragdoll.platform.db.engine import get_engine
-from ragdoll.workers.document_pipeline import drain_document_jobs
 
 
 BASE_URL = "http://127.0.0.1:8000"
@@ -129,11 +128,21 @@ def _exercise_upload_flow(token: str) -> None:
         files={"file": ("phase7-smoke.md", b"# Phase 7\n\nLocal infra smoke verification.\n", "text/markdown")},
     ).json()
     document_id = upload["document_id"]
+    deadline = time.monotonic() + 60
+    status_payload = None
+    while time.monotonic() < deadline:
+        candidate = _request("GET", f"/api/v1/ingestion/documents/{document_id}/status", headers=headers).json()
+        overall = candidate["processing_status"]["overall"]
+        if overall in {"completed", "failed"}:
+            status_payload = candidate
+            break
+        time.sleep(1)
 
-    processed = drain_document_jobs(max_jobs=5)
-    _assert(processed >= 1, "Expected at least one queued ingestion job to be processed.")
-
-    status_payload = _request("GET", f"/api/v1/ingestion/documents/{document_id}/status", headers=headers).json()
+    _assert(status_payload is not None, "Expected uploaded document processing to reach a terminal status.")
+    _assert(
+        status_payload["processing_status"]["overall"] != "failed",
+        f"Expected uploaded document processing to succeed, got failure detail: {status_payload.get('latest_job')}",
+    )
     _assert(
         status_payload["processing_status"]["overall"] == "completed",
         "Expected uploaded document processing to complete.",

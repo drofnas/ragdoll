@@ -358,158 +358,168 @@ Goal: build the interaction and current-state layers that consume the new retrie
 
 Depends on: Phase 9
 
-- [ ] Phase complete
-- [ ] Lock in the remaining cross-store and provenance conventions
-  - [ ] Define source-tier behavior beyond document and derived provenance
-  - [ ] Define current-state versus history conventions
-  - [ ] Define Space scoping rules across relational and derived stores for chat and stateful workflows
-  - [ ] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
-- [ ] Add the remaining relational schema foundations
-  - [ ] Define chat session and message fields
-  - [ ] Define tracked field and tracked value fields
-  - [ ] Define changes feed fields
-  - [ ] Define correction and verification fields
-  - [ ] Verify stable IDs and audit timestamps are present where required
-- [ ] Implement tracked state
-  - [ ] Complete the tracked-state backend module
-  - [ ] Add tracked field definition behavior
-  - [ ] Add tracked summary and conflict behavior
-  - [ ] Add tracked-state endpoint tests
-  - [ ] Update tracked-state contracts
-  - [ ] Verify conflict resolution and provenance behavior
-- [ ] Implement changes feed
-  - [ ] Complete the changes backend module
-  - [ ] Add change list and detail behavior
-  - [ ] Add read-state behavior
-  - [ ] Add changes endpoint tests
-  - [ ] Update changes contracts
-  - [ ] Verify changes can reflect ingestion and current-state updates
-- [ ] Implement corrections and verification
-  - [ ] Complete the corrections backend module
-  - [ ] Add correction submission behavior
-  - [ ] Add correction review and verification behavior
-  - [ ] Add corrections endpoint tests
-  - [ ] Update corrections contracts
-  - [ ] Verify corrections feed back into provenance-aware flows
-- [ ] Implement chat orchestration
-  - [ ] Complete the chat backend module
-  - [ ] Add session lifecycle behavior
-  - [ ] Add answer composition and citation packaging behavior
-  - [ ] Add chat endpoint tests
-  - [ ] Update chat contracts
-  - [ ] Verify chat depends on stable search and retrieval contracts
+- [x] Phase complete
+- [x] Lock in the remaining cross-store and provenance conventions
+  - [x] Define source-tier behavior beyond document and derived provenance
+  - [x] Define current-state versus history conventions
+  - [x] Define Space scoping rules across relational and derived stores for chat and stateful workflows
+  - [x] Verify all cross-store abstractions align with `docs/architecture/data-and-storage.md`
+- [x] Add the remaining relational schema foundations
+  - [x] Define chat session and message fields
+  - [x] Define tracked field and tracked value fields
+  - [x] Define changes feed fields
+  - [x] Define correction and verification fields
+  - [x] Verify stable IDs and audit timestamps are present where required
+- [x] Implement tracked state
+  - [x] Complete the tracked-state backend module
+  - [x] Add tracked field definition behavior
+  - [x] Add tracked summary and conflict behavior
+  - [x] Add tracked-state endpoint tests
+  - [x] Update tracked-state contracts
+  - [x] Verify conflict resolution and provenance behavior
+- [x] Implement changes feed
+  - [x] Complete the changes backend module
+  - [x] Add change list and detail behavior
+  - [x] Add read-state behavior
+  - [x] Add changes endpoint tests
+  - [x] Update changes contracts
+  - [x] Verify changes can reflect ingestion and current-state updates
+- [x] Implement corrections and verification
+  - [x] Complete the corrections backend module
+  - [x] Add correction submission behavior
+  - [x] Add correction review and verification behavior
+  - [x] Add corrections endpoint tests
+  - [x] Update corrections contracts
+  - [x] Verify corrections feed back into provenance-aware flows
+- [x] Implement chat orchestration
+  - [x] Complete the chat backend module
+  - [x] Add session lifecycle behavior
+  - [x] Add answer composition and citation packaging behavior
+  - [x] Add chat endpoint tests
+  - [x] Update chat contracts
+  - [x] Verify chat depends on stable search and retrieval contracts
 
-## Phase 11 - Core Web Application
+## Phase 11 - Web Workspace Foundations
 
-Goal: implement the core web shells, shared client behavior, and primary authenticated product features after the API, contracts, and backend capabilities are stable.
+Goal: turn `apps/web` from scaffold mode into the first real typed product surface for auth, Space selection, document library/upload/status, dashboard, and account usage/profile while keeping later retrieval-heavy UI work explicitly deferred.
 
 Depends on: Phase 10
 
-- [ ] Phase complete
-- [ ] Implement app-level shells and shared frontend runtime
-  - [ ] Add app router and provider wiring
-  - [ ] Add public shell
-  - [ ] Add authenticated shell
-  - [ ] Add admin shell placeholder
-  - [ ] Add guarded route behavior
-  - [ ] Add shared API client and request handling
-  - [ ] Add shared session and Space-scope state
-  - [ ] Add app-shell tests where practical
-  - [ ] Verify shell and provider behavior match the architecture docs
-- [ ] Implement the auth feature
-  - [ ] Add auth page scaffolds
-  - [ ] Add auth API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add auth feature tests
-  - [ ] Verify auth contract alignment
-- [ ] Implement the spaces feature
-  - [ ] Add spaces page scaffolds
-  - [ ] Add spaces API client integration
-  - [ ] Add active-space and all-spaces UI behavior
-  - [ ] Add spaces feature tests
-  - [ ] Verify Space contract alignment
-- [ ] Implement the documents feature
-  - [ ] Add documents page scaffolds
-  - [ ] Add document list, detail, and upload UI behavior
-  - [ ] Add documents API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add documents feature tests
-  - [ ] Verify document and processing contract alignment
-- [ ] Implement the search feature
-  - [ ] Add search page scaffolds
-  - [ ] Add search API client integration
-  - [ ] Add result list and filter behavior
-  - [ ] Add loading, empty, and error states
-  - [ ] Add search feature tests
-  - [ ] Verify search contract alignment
-- [ ] Implement the chat feature
-  - [ ] Add chat page scaffolds
-  - [ ] Add chat session and message UI behavior
-  - [ ] Add chat API client integration
-  - [ ] Add citation rendering and error states
-  - [ ] Add chat feature tests
-  - [ ] Verify chat contract alignment
-- [ ] Implement the entities feature
-  - [ ] Add entities list and detail page scaffolds
-  - [ ] Add provenance, history, and graph UI behavior
-  - [ ] Add entities API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add entities feature tests
-  - [ ] Verify entity and graph contract alignment
-- [ ] Implement the tracked state feature
-  - [ ] Add tracked-state page scaffolds
-  - [ ] Add tracked summary and conflict UI behavior
-  - [ ] Add tracked-state API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add tracked-state feature tests
-  - [ ] Verify tracked-state contract alignment
-- [ ] Implement the changes feature
-  - [ ] Add changes page scaffolds
-  - [ ] Add changes API client integration
-  - [ ] Add list, detail, and read-state UI behavior
-  - [ ] Add loading, empty, and error states
-  - [ ] Add changes feature tests
-  - [ ] Verify changes contract alignment
-- [ ] Implement the account feature
-  - [ ] Add account page scaffolds
-  - [ ] Add profile and usage UI behavior
-  - [ ] Add account API client integration
-  - [ ] Add loading, empty, and error states
-  - [ ] Add account feature tests
-  - [ ] Verify account and usage contract alignment
+- [x] Phase complete
+- [x] Replace scaffold-only contract consumption with real generated TypeScript artifacts
+  - [x] Generate `packages/contracts/typescript/index.ts` from the exported OpenAPI document
+  - [x] Keep request and response shapes imported from `packages/contracts/typescript`
+  - [x] Keep feature clients as thin wrappers around shared transport instead of generating request helpers
+  - [x] Add contract-generation coverage proving TypeScript output is real, not placeholder-only
+- [x] Implement app-level shells and shared frontend runtime for the first live workspace slice
+  - [x] Replace env-based fake auth with a stored-token session provider backed by `/api/v1/auth/login` and `/api/v1/auth/me`
+  - [x] Replace local-only Space state with live owned-Space loading from `/api/v1/spaces`
+  - [x] Expand the shared API client to own bearer auth, JSON, form, multipart, query-string, problem-response, and blob handling
+  - [x] Keep route ownership in `app/router.tsx` with `/`, `/login`, `/register`, `/dashboard`, `/spaces`, `/documents`, `/documents/{document_id}`, `/account`, and `/admin`
+  - [x] Show current user, current scope, and logout behavior in the authenticated shell
+  - [x] Add shared runtime tests for session bootstrap, redirects, admin gating, and scope persistence
+- [x] Implement the auth feature
+  - [x] Add live login and register pages
+  - [x] Redirect successful registration back to `/login` instead of auto-logging in
+  - [x] Add loading and typed error states
+  - [x] Add auth feature tests
+  - [x] Verify auth contract alignment
+- [x] Implement the spaces feature
+  - [x] Add the Spaces page for list, create, rename, set-default, and archive flows
+  - [x] Add active-Space and all-spaces UI behavior
+  - [x] Keep archived Spaces visible but visually separate from active Spaces
+  - [x] Add Spaces feature tests
+  - [x] Verify Space contract alignment
+- [x] Implement the documents feature
+  - [x] Add the documents list page with pagination and file-type filtering
+  - [x] Add manual upload behavior backed by `/api/v1/ingestion/uploads`
+  - [x] Add document detail, status polling, move, delete, and download behavior
+  - [x] Reject write workflows that would otherwise infer a target Space while `all_spaces=true`
+  - [x] Keep retry and reprocess controls deferred
+  - [x] Add documents feature tests
+  - [x] Verify document and processing contract alignment
+- [x] Implement the account and dashboard features
+  - [x] Add the account page for profile, optional password change, plan tier, feature flags, and usage summary
+  - [x] Add the dashboard as the authenticated landing surface using current scope, recent documents, and usage summary
+  - [x] Add account and dashboard feature tests
+  - [x] Verify account, usage, and dashboard reads align with current contracts
 
-## Phase 12 - Capability Completion
+## Phase 12 - Retrieval And Interaction Web Surfaces
 
-Goal: complete the remaining planned product surfaces that depend on the core runtime, processing, retrieval, and web foundations but are not required to establish the primary product path.
+Goal: add the first retrieval-heavy frontend experiences on top of the completed workspace foundations so search, chat, entities, tracked state, changes, and corrections become usable in the web app without widening the earlier auth, scope, and document slice.
 
 Depends on: Phase 11
 
-- [ ] Phase complete
-- [ ] Implement admin tooling
-  - [ ] Complete admin backend routes and policies
-  - [ ] Add admin user management UI
-  - [ ] Add admin readiness and tester UI
-  - [ ] Add admin feature tests and guarded endpoint tests
-  - [ ] Update admin contracts
-  - [ ] Verify admin depends on auth, users, and usage foundations
-- [ ] Complete usage dashboards and plan controls
-  - [ ] Add account usage dashboard behavior
-  - [ ] Add admin plan-control behavior where applicable
-  - [ ] Add usage UI tests
-  - [ ] Verify usage surfaces align with feature-flag and plan-tier behavior
-- [ ] Implement public marketing pages
-  - [ ] Add home page content and layout
-  - [ ] Add product page content and layout
-  - [ ] Add pricing page content and layout
-  - [ ] Add contact page content and layout
-  - [ ] Add marketing feature tests
-  - [ ] Verify public pages remain cleanly separated from authenticated product surfaces
+- [x] Phase complete
+- [x] Implement the search feature
+  - [x] Add search page scaffolds
+  - [x] Add search API client integration
+  - [x] Add result list and filter behavior
+  - [x] Add loading, empty, and error states
+  - [x] Add search feature tests
+  - [x] Verify search contract alignment
+- [x] Implement the chat feature
+  - [x] Add chat page scaffolds
+  - [x] Add chat session and message UI behavior
+  - [x] Add chat API client integration
+  - [x] Add citation rendering and error states
+  - [x] Add chat feature tests
+  - [x] Verify chat contract alignment
+- [x] Implement the entities feature
+  - [x] Add entities list and detail page scaffolds
+  - [x] Add provenance, history, and graph UI behavior
+  - [x] Add entities API client integration
+  - [x] Add loading, empty, and error states
+  - [x] Add entities feature tests
+  - [x] Verify entity and graph contract alignment
+- [x] Implement the tracked state feature
+  - [x] Add tracked-state page scaffolds
+  - [x] Add tracked summary and conflict UI behavior
+  - [x] Add tracked-state API client integration
+  - [x] Add loading, empty, and error states
+  - [x] Add tracked-state feature tests
+  - [x] Verify tracked-state contract alignment
+- [x] Implement the changes and corrections features
+  - [x] Add changes page scaffolds
+  - [x] Add changes API client integration
+  - [x] Add list, detail, and read-state UI behavior
+  - [x] Add correction submission and review entrypoints where applicable
+  - [x] Add loading, empty, and error states
+  - [x] Add changes and corrections feature tests
+  - [x] Verify changes and corrections contract alignment
 
-## Phase 13 - Hardening, QA, And OSS Readiness
+## Phase 13 - Self-Hosted Operator Completion
 
-Goal: close testing gaps, verify end-to-end quality, align docs with implementation, and polish the repository for public open source use.
+Goal: finish the remaining product work for a local or self-hosted installation by removing public-marketing assumptions, tightening the logged-out surface, and completing the operator-facing admin and usage workflows.
 
 Depends on: Phase 12
+
+- [x] Phase complete
+- [x] Convert the logged-out web surface to the self-hosted shape
+  - [x] Make the default public route render the login page instead of a marketing home page
+  - [x] Keep the public route surface limited to login, registration, and the system status page
+  - [x] Remove or de-route marketing pages from the active application flow
+  - [x] Simplify the public shell navigation to match the reduced public route surface
+  - [x] Add or update frontend tests covering the new public default route and redirects
+- [x] Implement admin tooling
+  - [x] Complete admin backend routes and policies
+  - [x] Add admin user management UI
+  - [x] Add admin readiness and tester UI
+  - [x] Add admin feature tests and guarded endpoint tests
+  - [x] Update admin contracts
+  - [x] Verify admin depends on auth, users, usage, and readiness foundations
+- [x] Complete self-hosted usage and account controls
+  - [x] Add the remaining account usage dashboard behavior needed for local operators
+  - [x] Add admin-side instance policy or plan-control behavior where applicable
+  - [x] Add usage UI tests
+  - [x] Verify usage surfaces align with feature-flag, plan-tier, and self-hosted policy behavior
+  - [x] Remove or rewrite SaaS-oriented copy that implies pricing, public upgrade, or online subscription flows
+
+## Phase 14 - Hardening And Self-Hosted Readiness
+
+Goal: close testing gaps, verify end-to-end quality, align docs with the self-hosted product shape, and polish the repository for reliable local installation and operation.
+
+Depends on: Phase 13
 
 - [ ] Phase complete
 - [ ] Review API and backend test coverage
@@ -523,24 +533,24 @@ Depends on: Phase 12
   - [ ] Review contract alignment checks between backend and frontend
   - [ ] Verify no major feature relies on manual-only validation
 - [ ] Complete E2E critical-path coverage
-  - [ ] Add authentication flow E2E coverage
-  - [ ] Add Space-scoped upload and document flow E2E coverage
+  - [x] Add authentication flow E2E coverage
+  - [x] Add Space-scoped upload and document flow E2E coverage
   - [ ] Add search and chat E2E coverage
   - [ ] Add tracked-state or changes critical-path E2E coverage
   - [ ] Add guarded admin E2E coverage where practical
   - [ ] Verify E2E tests cover stitched behavior rather than unit-level logic
-- [ ] Align docs and developer workflow for OSS use
-  - [ ] Update architecture docs for any contract or structure changes made during implementation
-  - [ ] Update the implementation tracker as phases progress
-  - [ ] Review README and bootstrap docs for clarity
-  - [ ] Review env examples and secret handling for public safety
+- [ ] Align docs and developer workflow for self-hosted use
+  - [x] Update architecture docs for any contract or structure changes made during implementation
+  - [x] Update the implementation tracker as phases progress
+  - [x] Review README and bootstrap docs for clarity
+  - [ ] Review env examples, installer defaults, and secret handling for local deployment safety
   - [ ] Verify no private notes or local references leak into tracked docs
-- [ ] Polish the repo for public presentation
+- [ ] Polish the repo for maintainable long-term operation
   - [ ] Review naming consistency across code, docs, and scripts
   - [ ] Review commit-ready developer workflow from clone to local startup
   - [ ] Review error messages and empty states for clarity
-  - [ ] Review OSS-facing docs for maintainability and professionalism
-  - [ ] Verify the repo is strong enough to serve as a public portfolio artifact
+  - [ ] Review operator-facing docs for maintainability and professionalism
+  - [ ] Verify the repo is strong enough to serve as a dependable self-hosted application
 
 ## Dependency Notes
 
@@ -552,7 +562,8 @@ Depends on: Phase 12
 | Changes feed | Ingestion events, tracked state updates, and history/provenance modeling |
 | Admin tooling | Auth, users, usage, shared guards, and readiness surfaces |
 | E2E coverage | Working app shells, stable API flows, and seedable local infrastructure |
-| Marketing pages | Web app shell, shared UI primitives, and public route wiring |
+| Logged-out surface conversion | Auth pages, status surface, public shell wiring, and route guards |
+| Self-hosted operator workflows | Admin tooling, usage surfaces, readiness visibility, and local infra docs |
 
 ## Done Criteria
 
@@ -561,6 +572,7 @@ Depends on: Phase 12
 - [ ] Platform adapters for storage, vector, graph, queue, and LLM services are wired
 - [ ] All planned API modules have implemented routes
 - [ ] All feasible endpoints have automated tests
+- [ ] The public web surface is intentionally limited to login, registration, and system status
 - [ ] Core web flows exist end-to-end
 - [ ] Later-phase capabilities are either implemented or explicitly left unchecked
 - [ ] Architecture docs and the implementation tracker are aligned

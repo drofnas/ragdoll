@@ -274,6 +274,57 @@ def _model_is_available(model_name: str, available_models: set[str]) -> bool:
     return False
 
 
+async def _check_ollama_chat_generation(
+    settings: Settings,
+    catalog_status: DependencyStatus,
+    available_models: set[str],
+) -> DependencyStatus:
+    base_url = (settings.ollama_base_url or "").rstrip("/")
+    model_name = settings.ollama_model.strip()
+    if not base_url:
+        return _service("not_configured", "OLLAMA_BASE_URL is not configured.")
+    if not model_name:
+        return _service("not_configured", "OLLAMA_MODEL is not configured.")
+    if catalog_status.status != "healthy":
+        return _service("unknown", "Ollama chat generation was not probed because the model catalog is unavailable.")
+    if available_models and not _model_is_available(model_name, available_models):
+        return _service("unhealthy", "Configured chat model is not present in the Ollama catalog.")
+
+    timeout_seconds = settings.ollama_status_chat_timeout_seconds
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=3.0, read=timeout_seconds, write=timeout_seconds, pool=timeout_seconds)
+        ) as client:
+            response = await client.post(
+                f"{base_url}/api/chat",
+                json={
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": "Reply with OK."}],
+                    "stream": False,
+                    "think": settings.ollama_chat_think,
+                    "options": {
+                        "num_predict": 8,
+                        "num_ctx": settings.ollama_chat_context_window,
+                        "temperature": 0,
+                    },
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except httpx.TimeoutException:
+        return _service("unhealthy", f"Ollama chat generation probe timed out after {timeout_seconds:g} seconds.")
+    except Exception:
+        return _service("unhealthy", _redact_exception("Ollama chat generation"))
+
+    message = payload.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str) and message["content"].strip():
+        return _service("healthy", "Ollama chat generation completed.")
+    response_text = payload.get("response")
+    if isinstance(response_text, str) and response_text.strip():
+        return _service("healthy", "Ollama chat generation completed.")
+    return _service("unhealthy", "Ollama chat generation returned an unexpected payload.")
+
+
 def _build_ollama_model_inventory(
     settings: Settings,
     llm_status: DependencyStatus,
@@ -351,12 +402,22 @@ def _build_ollama_status(
     settings: Settings,
     llm_status: DependencyStatus,
     available_models: set[str],
+    chat_status: DependencyStatus,
 ) -> RuntimeOllamaStatus:
+    status = llm_status.status
+    detail = llm_status.detail
+    if llm_status.status == "healthy" and chat_status.status != "healthy":
+        status = "degraded"
+        detail = "Ollama catalog is reachable, but chat generation is not healthy."
+    elif llm_status.status == "healthy" and chat_status.status == "healthy":
+        detail = "Ollama model catalog and chat generation are reachable."
+
     return RuntimeOllamaStatus(
-        status=llm_status.status,
-        detail=llm_status.detail,
+        status=status,
+        detail=detail,
         configured_base_url=bool((settings.ollama_base_url or "").strip()),
         catalog_reachable=llm_status.status == "healthy",
+        chat_generation=chat_status,
         configured_models=_build_ollama_model_inventory(settings, llm_status, available_models),
     )
 
@@ -377,6 +438,8 @@ async def build_runtime_status_payload(
     }
     llm_status, available_models = await _fetch_ollama_catalog(runtime_settings)
     services["llm"] = llm_status
+    chat_status = await _check_ollama_chat_generation(runtime_settings, llm_status, available_models)
+    services["llm_chat"] = chat_status
     overall_status = "ok" if all(service.status == "healthy" for service in services.values()) else "degraded"
     return RuntimeStatusResponse(
         status=overall_status,
@@ -388,7 +451,7 @@ async def build_runtime_status_payload(
         ),
         services=services,
         supabase=_build_supabase_rollup(services),
-        ollama=_build_ollama_status(runtime_settings, llm_status, available_models),
+        ollama=_build_ollama_status(runtime_settings, llm_status, available_models, chat_status),
     )
 
 
@@ -442,6 +505,13 @@ def _render_ollama_models(models: list[OllamaConfiguredModelStatus]) -> str:
 
 
 def render_runtime_status_page(payload: RuntimeStatusResponse, *, json_url: str) -> str:
+    chat_generation_html = ""
+    if payload.ollama.chat_generation is not None:
+        chat_generation_html = (
+            f"<p>Chat generation: {_status_badge(payload.ollama.chat_generation.status)} "
+            f"{escape(payload.ollama.chat_generation.detail)}</p>"
+        )
+
     return f"""<!doctype html>
 <html lang="en">
   <head>
@@ -558,6 +628,7 @@ def render_runtime_status_page(payload: RuntimeStatusResponse, *, json_url: str)
         <p>Status: {_status_badge(payload.ollama.status)}</p>
         <p>{escape(payload.ollama.detail)}</p>
         <p>Catalog reachable: {escape(str(payload.ollama.catalog_reachable).lower())}</p>
+        {chat_generation_html}
         <table>
           <thead>
             <tr><th>Configured Model</th><th>Roles</th><th>Status</th><th>Detail</th></tr>

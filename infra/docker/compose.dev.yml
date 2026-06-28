@@ -25,6 +25,24 @@ services:
       retries: 30
       start_period: 60s
 
+  worker:
+    build:
+      context: ../../apps/api
+      dockerfile: Dockerfile.dev
+    container_name: ragdoll-worker-dev
+    env_file:
+      - ../../apps/api/.env
+    volumes:
+      - ../../apps/api/src:/app/src
+      - ../../apps/api/tests:/app/tests
+      - ../../apps/api/scripts:/app/scripts
+      - ../../apps/api/alembic.ini:/app/alembic.ini
+      - ../../:/workspace
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: sh /app/scripts/start-worker.sh
+
   frontend:
     build:
       context: ../../apps/web
@@ -35,8 +53,14 @@ services:
     ports:
       - "8030:3000"
     volumes:
+      - ../../apps/web/components.json:/app/components.json
+      - ../../apps/web/postcss.config.js:/app/postcss.config.js
       - ../../apps/web/src:/app/src
       - ../../apps/web/public:/app/public
+      - ../../apps/web/tailwind.config.ts:/app/tailwind.config.ts
+      - ../../apps/web/tsconfig.json:/app/tsconfig.json
+      - ../../apps/web/vite.config.ts:/app/vite.config.ts
+      - ../../packages/contracts:/packages/contracts
       - frontend_dev_node_modules:/app/node_modules
     depends_on:
       backend:

@@ -12,13 +12,13 @@ def _engine_kwargs(settings: Settings) -> dict[str, object]:
     database_url = settings.effective_database_url
     if database_url.startswith("sqlite"):
         return {
-            "echo": settings.debug,
+            "echo": settings.sql_echo,
             "connect_args": {"check_same_thread": False},
         }
 
     kwargs: dict[str, object] = {
         "pool_pre_ping": True,
-        "echo": settings.debug,
+        "echo": settings.sql_echo,
         "connect_args": {
             "connect_timeout": settings.db_connect_timeout_seconds,
             "application_name": "ragdoll-api",

@@ -23,10 +23,17 @@ This repo's local stack also ensures:
 
 - Postgres starts with `pgvector` installed
 - the `documents` storage bucket is created automatically
+- Supabase Storage and Imgproxy persist objects in the repo-owned Docker named volume `ragdoll_supabase_storage`
 - the app and infra stacks share the `ragdoll-dev` Docker network
 - checked-in env examples keep placeholders only; real local secrets live in ignored `infra/docker/.env.infra`
 - a local ignored `infra/docker/.env.infra.backup` is maintained so accidental deletion of `.env.infra` does not silently regenerate incompatible secrets on top of initialized Supabase data
 - fresh clones do not carry the upstream Supabase Docker tree in git; local bootstrap fetches the repo-selected current upstream content on demand
+
+Storage note:
+
+- `infra/supabase/docker-compose.override.yml` is the source of truth for the local storage-volume override.
+- `infra/supabase/self-hosted/volumes/storage` is no longer the active object-storage path for the running local stack.
+- Recreating the infra stack is enough to migrate local development to the named-volume-backed storage runtime.
 
 Phase 1 readiness meanings:
 

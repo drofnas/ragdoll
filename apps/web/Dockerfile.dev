@@ -5,7 +5,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+COPY components.json ./components.json
 COPY index.html ./index.html
+COPY postcss.config.js ./postcss.config.js
+COPY tailwind.config.ts ./tailwind.config.ts
 COPY tsconfig.json ./tsconfig.json
 COPY vite.config.ts ./vite.config.ts
 COPY public ./public

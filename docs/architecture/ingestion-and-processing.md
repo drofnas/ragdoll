@@ -31,6 +31,7 @@ Define the upload, sync, parsing, extraction, embedding, graph population, retry
 - Application commands create document records, enqueue jobs, and update stage state.
 - Worker code runs long-lived stage transitions and retries.
 - Platform adapters parse file content, call Ollama-backed embedding and entity-extraction services, and write to external stores.
+- Entity extraction runs in bounded micro-batches, validates `chunk_index` round-tripping from the model response, and remaps results back onto stable relational chunk rows before persistence.
 - Documents remain readable in partially processed states, but APIs must surface exact stage health.
 
 ## Public Interfaces and Shared Types

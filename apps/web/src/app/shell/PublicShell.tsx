@@ -1,39 +1,48 @@
-import { AppShell, Anchor, Container, Group, Text } from "@mantine/core";
-import { Outlet, Link } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 
-import { resolveApiBaseUrl } from "../../shared/api/client";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const publicLinks = [
+  { label: "Login", to: "/login" },
+  { label: "Register", to: "/register" },
+  { label: "Status", to: "/status" }
+] as const;
 
 export function PublicShell() {
-  const statusUrl = `${resolveApiBaseUrl()}/status`;
+  const { pathname } = useLocation();
 
   return (
-    <AppShell header={{ height: 68 }} padding="md">
-      <AppShell.Header>
-        <Container size="lg" h="100%">
-          <Group justify="space-between" h="100%">
-            <Text fw={700}>Ragdoll</Text>
-            <Group gap="lg">
-              <Anchor component={Link} to="/">
-                Home
-              </Anchor>
-              <Anchor component={Link} to="/login">
-                Login
-              </Anchor>
-              <Anchor component={Link} to="/register">
-                Register
-              </Anchor>
-              <Anchor href={statusUrl}>
-                Status
-              </Anchor>
-            </Group>
-          </Group>
-        </Container>
-      </AppShell.Header>
-      <AppShell.Main>
-        <Container size="lg" py="xl">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 border-b bg-background">
+        <div className="container flex h-14 items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-foreground">Ragdoll</p>
+            <p className="text-xs text-muted-foreground">Workspace foundations</p>
+          </div>
+          <nav className="flex items-center gap-2">
+            {publicLinks.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  buttonVariants({
+                    size: "sm",
+                    variant: pathname === item.to ? "default" : "ghost"
+                  })
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main>
+        <div className="container py-8 md:py-10">
           <Outlet />
-        </Container>
-      </AppShell.Main>
-    </AppShell>
+        </div>
+      </main>
+    </div>
   );
 }

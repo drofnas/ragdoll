@@ -106,6 +106,8 @@ class SqlVectorCleanupService:
 @lru_cache(maxsize=1)
 def get_vector_cleanup_service() -> VectorCleanupService:
     settings = get_settings()
+    if settings.e2e_shared_backends:
+        return SqlVectorCleanupService()
     if settings.e2e_memory_backends:
         return InMemoryVectorCleanupService()
     return SqlVectorCleanupService()

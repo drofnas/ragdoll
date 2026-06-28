@@ -26,6 +26,8 @@ The root wrapper is the primary human-facing entrypoint. The underlying `scripts
 
 Runtime startup commands can auto-create missing app `.env` files. Backend and E2E Docker-backed test commands now ensure the required runtime env files exist before bootstrapping containers.
 
+`./dev-setup.sh test-e2e` temporarily runs the frontend with Docker-internal API settings so Playwright can reach the backend from inside the Compose network. After the E2E command exits, the script restores the normal development stack so host browsers use the app-local `apps/web/.env` API URL again.
+
 `./dev-setup.sh test-infra` is intentionally opt-in. It boots the Dockerized dependency stack, starts the app stack, and runs a live manual-upload smoke suite against local Supabase and Ollama. It is not part of the default lightweight `./dev-setup.sh test` flow.
 
 ## Current Scope

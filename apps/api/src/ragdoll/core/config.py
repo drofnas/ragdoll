@@ -1,5 +1,6 @@
 import json
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote_plus
 
 from pydantic import AliasChoices, Field, field_validator
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     log_level: str = "INFO"
+    sql_echo: bool = False
     allowed_origins_raw: str = Field(
         default="http://localhost:8030",
         validation_alias=AliasChoices("ALLOWED_ORIGINS", "allowed_origins"),
@@ -85,14 +87,35 @@ class Settings(BaseSettings):
     ollama_orchestrator_model: str | None = None
     ollama_worker_model: str | None = None
     ollama_embedding_model: str = "nomic-embed-text"
+    entity_extraction_mode: Literal["auto", "ollama", "deterministic"] = "auto"
+    entity_extraction_batch_size: int = Field(default=4, ge=1, le=5)
+    entity_extraction_max_parallel_batches: int = Field(default=2, ge=1, le=4)
     ollama_embedding_dimensions: int = Field(default=768, ge=1, le=4096)
+    ollama_worker_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
+    ollama_chat_timeout_seconds: float = Field(default=45.0, ge=5.0, le=600.0)
+    ollama_status_chat_timeout_seconds: float = Field(default=45.0, ge=5.0, le=600.0)
+    ollama_chat_max_tokens: int = Field(default=700, ge=64, le=4096)
+    ollama_chat_context_window: int = Field(default=4096, ge=1024, le=32768)
+    ollama_chat_think: bool = False
 
-    feature_flag_unified_search: bool = True
+    instance_limit_documents: int | None = None
+    instance_limit_max_file_size_bytes: int | None = Field(default=100 * 1024 * 1024, ge=1)
+    instance_limit_chunks: int | None = None
+    instance_limit_storage_bytes: int | None = None
+    instance_limit_tokens_5h: int | None = None
+    instance_limit_tokens_week: int | None = None
+    instance_limit_retrieval_chunks: int = Field(default=20, ge=1, le=100)
+    instance_limit_output_tokens: int = Field(default=2400, ge=1, le=32768)
+    instance_limit_per_document_chunks: int = Field(default=2000, ge=1, le=100000)
 
     upload_rate_limit_enabled: bool = True
     upload_rate_limit_requests: int = 10
     upload_rate_limit_window_seconds: int = 60
+    document_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
+    document_processing_timeout_seconds_default: float = Field(default=600.0, ge=30.0, le=86400.0)
+    document_processing_timeout_seconds_extraction: float = Field(default=2700.0, ge=30.0, le=86400.0)
 
+    e2e_shared_backends: bool = False
     e2e_memory_backends: bool = False
 
     model_config = SettingsConfigDict(
@@ -107,6 +130,13 @@ class Settings(BaseSettings):
     def parse_allowed_origins_raw(cls, value: object) -> str:
         normalized = _normalize_allowed_origins(value)
         return ",".join(normalized)
+
+    @field_validator("entity_extraction_mode", mode="before")
+    @classmethod
+    def normalize_entity_extraction_mode(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -148,6 +178,8 @@ class Settings(BaseSettings):
 
     @property
     def active_backend_name(self) -> str:
+        if self.e2e_shared_backends:
+            return "e2e_shared"
         return "memory" if self.e2e_memory_backends else "supabase"
 
     @property

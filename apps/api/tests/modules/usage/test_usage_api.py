@@ -104,12 +104,12 @@ def test_usage_summary_reports_document_totals_and_percentages(api_client, db_se
     response = api_client.get("/api/v1/usage/me", headers=auth_headers(token))
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["plan_tier"] == "free"
     assert body["usage"]["documents"] == 2
     assert body["usage"]["chunks"] == 10
     assert body["usage"]["storage_bytes"] == 350
-    assert body["limits"]["documents"] == 25
-    assert body["percent_used"]["documents"] == 8.0
+    assert body["limits"]["documents"] is None
+    assert body["percent_used"]["documents"] is None
+    assert body["limits"]["max_file_size_bytes"] == 100 * 1024 * 1024
     assert body["status"]["partially_indexed_documents"] == 1
     assert body["status"]["upload_blocked"] is False
 

@@ -50,6 +50,7 @@ Use this file as the first stop for finding where to update pages, add logic, pl
 - `apps/web/src/app/guards/` - Route access guards such as authenticated or admin gates.
 - `apps/web/src/app/shell/` - Public, authenticated, and admin shell layouts.
 - `apps/web/src/app/tests/` - App composition tests for router, guards, and providers.
+- `apps/web/src/components/assistant-ui/` - Assistant-ui presentation primitives adapted for Ragdoll feature surfaces.
 - `apps/web/src/features/` - Feature-owned UI and pages. New page-level work should usually start here.
 - `apps/web/src/features/<feature>/pages/` - Add routed page components here.
 - `apps/web/src/shared/api/` - Shared API client code used across features.

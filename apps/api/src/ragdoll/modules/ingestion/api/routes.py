@@ -31,6 +31,7 @@ COMMON_RESPONSES = {
     404: {"model": ProblemResponse, "description": "Requested document was not found."},
     409: {"model": ProblemResponse, "description": "Request conflicts with current document state."},
     413: {"model": ProblemResponse, "description": "Upload rejected by plan limits."},
+    503: {"model": ProblemResponse, "description": "Document storage is temporarily unavailable."},
     422: {"model": ProblemResponse, "description": "Request validation failed."},
     429: {"model": ProblemResponse, "description": "Upload rate limit exceeded."},
 }
@@ -96,14 +97,10 @@ def reprocess_document(
     current_user: CurrentUserDep,
     db: DatabaseSessionDep,
     queue: DocumentProcessingQueueDep,
-    storage: DocumentStorageDep,
     vector_cleanup: VectorCleanupDep,
     graph_cleanup: GraphCleanupDep,
 ) -> DocumentProcessingStatusResponse:
     get_document_status(db, current_user.subject, document_id)
-    storage.delete_derived_artifacts(document_id)
-    vector_cleanup.cleanup_document(document_id)
-    graph_cleanup.cleanup_document(document_id)
     requeue_document_processing(
         db,
         subject=current_user.subject,

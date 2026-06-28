@@ -6,9 +6,7 @@ from enum import Enum
 from typing import Generic, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
-
-from ragdoll.core.feature_flags import PlanTier
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 T = TypeVar("T")
@@ -56,12 +54,6 @@ class PaginatedResponse(BaseModel, Generic[T]):
     total: int = Field(..., ge=0)
     page: int = Field(..., ge=1)
     page_size: int = Field(..., ge=1)
-
-
-class FeatureFlags(RootModel[dict[str, bool]]):
-    """Resolved feature-flag map exposed to clients."""
-
-    root: dict[str, bool] = Field(default_factory=dict)
 
 
 class SourceTier(str, Enum):
@@ -122,6 +114,7 @@ class Citation(BaseModel):
     chunk_id: str | None = Field(default=None)
     title: str | None = Field(default=None)
     locator: str | None = Field(default=None)
+    line_number: int | None = Field(default=None, ge=1)
     source_tier: SourceTier = Field(default=SourceTier.DOCUMENT)
 
 
@@ -174,6 +167,7 @@ class RuntimeOllamaStatus(BaseModel):
     detail: str = Field(default="Ollama is not configured.")
     configured_base_url: bool = Field(default=False)
     catalog_reachable: bool = Field(default=False)
+    chat_generation: DependencyStatus | None = Field(default=None)
     configured_models: list[OllamaConfiguredModelStatus] = Field(default_factory=list)
 
 
@@ -190,12 +184,10 @@ class RuntimeStatusResponse(BaseModel):
 __all__ = [
     "Citation",
     "DependencyStatus",
-    "FeatureFlags",
     "HealthStatusResponse",
     "MutationResult",
     "OllamaConfiguredModelStatus",
     "PaginatedResponse",
-    "PlanTier",
     "ProblemResponse",
     "ProcessingStageStatus",
     "ProcessingStatus",

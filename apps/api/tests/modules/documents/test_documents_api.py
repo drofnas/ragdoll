@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from ragdoll.api import dependencies as dependency_module
+from ragdoll.core.exceptions import StorageUnavailableError
 from ragdoll.platform.db.models import (
     CanonicalEntity,
     Document,
@@ -22,6 +23,22 @@ from ragdoll.platform.db.models.documents import default_processing_status_paylo
 from ragdoll.platform.graph import InMemoryGraphCleanupService
 from ragdoll.platform.storage import InMemoryDocumentStorage
 from ragdoll.platform.vector import InMemoryVectorCleanupService
+
+
+class FailingDownloadStorage(InMemoryDocumentStorage):
+    def download_original_file(self, storage_key: str) -> bytes:
+        del storage_key
+        raise StorageUnavailableError(
+            "Document storage is temporarily unavailable while attempting to download the original document file."
+        )
+
+
+class FailingDeleteStorage(InMemoryDocumentStorage):
+    def delete_original_file(self, storage_key: str) -> bool:
+        del storage_key
+        raise StorageUnavailableError(
+            "Document storage is temporarily unavailable while attempting to delete the original document file."
+        )
 
 
 def register_and_login(api_client, *, email: str = "user@example.com", password: str = "testpass123") -> str:
@@ -334,6 +351,56 @@ def test_download_returns_conflict_when_blob_is_missing(api_client, db_session, 
     response = api_client.get(f"/api/v1/documents/{document.id}/download", headers=auth_headers(token))
     assert response.status_code == 409
     assert response.json()["code"] == "document_blob_missing"
+
+
+def test_download_returns_service_unavailable_when_storage_backend_fails(api_client, db_session):
+    storage = FailingDownloadStorage()
+    api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: storage
+    try:
+        token = register_and_login(api_client, email="download-failure@example.com")
+        owner = db_session.query(User).filter(User.email == "download-failure@example.com").one()
+        document = _seed_document(
+            db_session,
+            space=_default_space(db_session, owner),
+            uploader=owner,
+            title="download-fails.txt",
+            storage_key="documents/download-fails.txt",
+        )
+
+        response = api_client.get(f"/api/v1/documents/{document.id}/download", headers=auth_headers(token))
+        assert response.status_code == 503
+        assert response.json()["code"] == "storage_unavailable"
+    finally:
+        api_client.app.dependency_overrides.clear()
+
+
+def test_delete_returns_service_unavailable_when_storage_backend_fails(api_client, db_session):
+    storage = FailingDeleteStorage()
+    vector_cleanup = InMemoryVectorCleanupService()
+    graph_cleanup = InMemoryGraphCleanupService()
+    api_client.app.dependency_overrides[dependency_module.get_document_storage_service] = lambda: storage
+    api_client.app.dependency_overrides[dependency_module.get_vector_cleanup] = lambda: vector_cleanup
+    api_client.app.dependency_overrides[dependency_module.get_graph_cleanup] = lambda: graph_cleanup
+    try:
+        token = register_and_login(api_client, email="delete-failure@example.com")
+        owner = db_session.query(User).filter(User.email == "delete-failure@example.com").one()
+        document = _seed_document(
+            db_session,
+            space=_default_space(db_session, owner),
+            uploader=owner,
+            title="delete-fails.txt",
+            storage_key="documents/delete-fails.txt",
+        )
+
+        response = api_client.delete(f"/api/v1/documents/{document.id}", headers=auth_headers(token))
+        assert response.status_code == 503
+        assert response.json()["code"] == "storage_unavailable"
+
+        db_session.expire_all()
+        persisted = db_session.query(Document).filter(Document.id == document.id).one()
+        assert persisted.deleted_at is None
+    finally:
+        api_client.app.dependency_overrides.clear()
 
 
 def test_delete_document_removes_retrieval_projections_with_sql_cleanup(api_client, db_session, storage_only_runtime):

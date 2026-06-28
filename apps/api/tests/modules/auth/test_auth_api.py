@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from ragdoll.core.feature_flags import FLAG_SEARCH_GRAPH_MODE
 from ragdoll.platform.db.models import User
 
 
@@ -31,8 +30,8 @@ def test_register_creates_user_profile_and_default_space(api_client):
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["email"] == "user@example.com"
-    assert body["plan_tier"] == "free"
-    assert "feature_flags" in body
+    assert "plan_tier" not in body
+    assert "feature_flags" not in body
 
     login = login_user(api_client)
     token = login.json()["access_token"]
@@ -79,21 +78,17 @@ def test_me_requires_authentication(api_client):
     assert response.json()["code"] == "authentication_required"
 
 
-def test_me_returns_plan_tier_and_resolved_feature_flags(api_client, db_session):
+def test_me_returns_minimal_profile_contract(api_client, db_session):
     register_user(api_client)
-    user = db_session.query(User).filter(User.email == "user@example.com").one()
-    user.plan_tier = "pro"
-    user.feature_flag_overrides = {FLAG_SEARCH_GRAPH_MODE: False}
-    db_session.commit()
-
     login = login_user(api_client)
     token = login.json()["access_token"]
     response = api_client.get("/api/v1/auth/me", headers=auth_headers(token))
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["plan_tier"] == "pro"
-    assert body["feature_flags"][FLAG_SEARCH_GRAPH_MODE] is False
+    assert body["email"] == "user@example.com"
+    assert "plan_tier" not in body
+    assert "feature_flags" not in body
 
 
 def test_patch_me_updates_profile_email_and_password(api_client):
