@@ -2,81 +2,60 @@
 
 ## Purpose
 
-Define the upload, sync, parsing, extraction, embedding, graph population, retry, and worker boundaries for Ragdoll's ingestion pipeline.
+Describe how documents move from upload into searchable, explorable, and governable knowledge.
 
-## Target Design
+## Owning Areas
 
-### Owning backend areas
+- `modules/ingestion` owns upload, processing, retry, and status endpoints
+- `modules/documents` owns document reads, download, delete, and metadata views
+- `workers/document_pipeline.py` owns the long-running stage pipeline
+- `platform/storage`, `platform/vector`, `platform/graph`, `platform/llm`, and `platform/queues` own external-system adapters
 
-- `modules/documents`: metadata lifecycle after a document exists
-- `modules/ingestion`: upload intake, processing commands, retry commands, status APIs
-- `workers/document_pipeline.py`: RQ job entrypoint and document-processing stage runner
-- `platform/storage`, `platform/vector`, `platform/graph`, `platform/llm`, `platform/queues`: external systems
+## Processing Flow
 
-### Processing stages
+```mermaid
+sequenceDiagram
+  participant User
+  participant Web as apps/web
+  participant API as modules/ingestion
+  participant Queue as Redis/RQ
+  participant Worker as document_pipeline.py
+  participant Stores as DB/Storage/Vector/Graph
 
-1. Intake
-2. Blob persistence
-3. Text extraction
-4. Chunking
-5. Embedding generation
-6. Vector upsert
-7. Entity extraction
-8. Graph projection
-9. Status finalization and change emission
+  User->>Web: Upload document
+  Web->>API: POST /api/v1/ingestion/uploads
+  API->>Stores: Persist document metadata and blob reference
+  API->>Queue: Enqueue processing job
+  Queue->>Worker: Run job
+  Worker->>Stores: Extract text, chunk, embed, extract entities, write graph
+  Worker->>Stores: Finalize status and emit change data
+  Web->>API: Poll document and processing status
+```
 
-## Responsibilities and Boundaries
+## Stages
 
-- HTTP routes accept uploads, explicit process requests, reprocess requests, and status lookups.
-- Application commands create document records, enqueue jobs, and update stage state.
-- `document-vector` runs an RQ worker against Redis, while SQL processing-job rows remain the durable status ledger.
-- Worker code runs long-lived stage transitions and retries.
-- Platform adapters parse file content, call Ollama-backed embedding and entity-extraction services, and write to external stores.
-- Entity extraction runs in bounded micro-batches, validates `chunk_index` round-tripping from the model response, and remaps results back onto stable relational chunk rows before persistence.
-- Documents remain readable in partially processed states, but APIs must surface exact stage health.
+1. intake and validation
+2. metadata and blob persistence
+3. text extraction
+4. chunking
+5. embedding generation and vector writes
+6. entity extraction
+7. graph projection
+8. status finalization and downstream visibility
 
-## Public Interfaces and Shared Types
+## Invariants
 
-- `UploadRequest`
-- `ProcessingJob`
-- `ProcessingStage`
-- `RetryMode`
-- `DocumentStatus`
-- `ProcessingError`
+- SQL-backed records remain the durable lifecycle ledger
+- Redis-backed queues are the live dispatch mechanism
+- a document can be readable while later stages are still incomplete
+- retries must be safe for vector, entity, and graph regeneration
+- scope is assigned before background work fans out
 
-## Primary Workflows
+## Important Failure Modes
 
-### Manual upload
-
-1. User uploads a file into a selected Space from `apps/web`.
-2. `modules/ingestion` validates file type, size, scope, and actor.
-3. API persists initial document metadata and object-store location.
-4. Job is enqueued for background processing through the queue adapter.
-5. An RQ-powered `document-vector` worker extracts text, chunks content, embeds chunks, writes vector rows, extracts entities, and projects graph records.
-6. Final status and change/provenance events are written back to SQL.
-
-### Manual reprocess
-
-1. User or admin requests a full reprocess or targeted retry.
-2. Command clears the required downstream projections and requeues the document from `parsing`, `vector`, `extraction`, or `graph`.
-3. Worker replays the requested stage and every later stage idempotently.
-4. Status and change feed reflect retry outcome.
-
-## Failure Modes and Edge Cases
-
-- File parses can succeed while embeddings or graph projection fail later.
-- Retry mode must distinguish full reprocess from vector-only or graph-only repair.
-- Large documents may require truncation or chunk-window extraction policies that are explicitly documented.
-- Worker crashes must leave recoverable stage state and re-runnable jobs.
-
-## Acceptance Checks
-
-- Upload and reprocessing flows converge into the same document-processing pipeline where appropriate.
-- Stage transitions are explicit and observable through API status.
-- Worker retries are idempotent for blobs, vectors, entities, and graph writes.
-- Manual and automated repair paths do not bypass provenance recording.
-- Space scope is assigned before processing fan-out begins.
-- Vector, extraction, and graph retries only reset the requested downstream stages instead of forcing a full reparse.
+- extraction can succeed while vector or graph stages fail
+- worker restarts must not create duplicate downstream projections
+- targeted retries should avoid unnecessary full reparses when only later stages failed
 
 ## Deferred Notes
 

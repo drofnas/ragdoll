@@ -1,33 +1,18 @@
-# Ragdoll Architecture Docs
+# Ragdoll Architecture
 
-## Purpose
+This directory is the canonical current-state architecture guide for Ragdoll. It documents the live runtime shape, ownership boundaries, and feature flows across the backend, frontend, workers, storage, and tests.
 
-This directory is the canonical build spec for Ragdoll. It defines the repository structure, product boundaries, runtime ownership, and implementation rules that future code should follow.
-
-## Canonical Repo Shape
-
-All architecture docs in this directory assume this repository shape:
-
-```text
-ragdoll/
-  apps/
-    api/
-    web/
-  packages/
-    contracts/
-    config/
-    tooling/
-  tests/
-    e2e/
-  infra/
-    docker/
-    supabase/
-    ollama/
-  scripts/
-  docs/
+```mermaid
+flowchart LR
+  Overview["System Overview"] --> Backend["Backend Architecture"]
+  Overview --> Frontend["Frontend Architecture"]
+  Overview --> Data["Data And Storage"]
+  Overview --> Ingestion["Ingestion And Processing"]
+  Overview --> Retrieval["Retrieval, Chat, And Discovery"]
+  Overview --> CrossCutting["Cross-Cutting Concerns"]
+  Overview --> Testing["Testing And Quality Gates"]
+  Overview --> Capability["Capability Map"]
 ```
-
-`apps/api` and `apps/web` are the only application roots. Shared schemas and generated types live in `packages/contracts`, and browser-level verification lives in `tests/e2e`.
 
 ## Reading Order
 
@@ -41,26 +26,24 @@ ragdoll/
 8. [testing-and-quality-gates.md](./testing-and-quality-gates.md)
 9. [capability-map.md](./capability-map.md)
 
-## Architecture Principles
+## Documentation Model
 
-- Organize by bounded context first, not by global technical layer.
-- Keep Ragdoll a modular monolith until runtime pressure proves a stronger split is needed.
-- Treat background workers as first-class runtime entrypoints.
-- Keep backend and frontend aligned through explicit shared contracts.
-- Make Space scoping, provenance, and current-vs-history behavior explicit.
-- Prefer clear ownership over convenience folders or catch-all utilities.
+- `docs/architecture/` explains the system as a whole
+- `docs/executive/` explains the system for internal leadership
+- `docs/engineering/` explains subsystem behavior and code ownership for implementers
+- app READMEs explain how to work in an area, not the whole product architecture
 
-## Glossary
+## Architecture Rules
 
-- `Space`: User-owned workspace boundary for documents, entities, chat sessions, and pinned facts.
-- `Current state`: The best current answer for a fact or architectural entity.
-- `Provenance`: The evidence trail linking a fact back to documents, graph relationships, and user actions.
-- `Pinned facts`: User-defined fields whose values are recomputed from retrieved evidence.
-- `Platform adapter`: Concrete implementation for storage, graph, vector, LLM, queue, or third-party integrations.
-- `Module`: Backend bounded context with its own API, application, domain, infrastructure, and tests.
+- Keep `apps/api` and `apps/web` as the only application roots
+- Treat the backend as a modular monolith with explicit module ownership
+- Treat workers as first-class runtime entrypoints, not hidden implementation details
+- Keep frontend feature ownership aligned with the route tree
+- Keep shared contracts in `packages/contracts`
+- Prefer current-state docs over historical planning notes
 
 ## Maintenance Rules
 
-- When implementation changes the target structure or a public contract, update these docs in the same change.
-- Add new runtime capabilities to the closest existing spec before creating a new architecture file.
-- Keep public architecture docs self-contained and implementation-oriented.
+- Update architecture docs when implementation changes a public route, ownership boundary, or cross-system flow
+- Add Mermaid diagrams when a dependency, flow, or ownership map is easier to absorb visually
+- Keep historical planning notes out of canonical current-state areas

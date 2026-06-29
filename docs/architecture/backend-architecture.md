@@ -2,166 +2,86 @@
 
 ## Purpose
 
-Define the `apps/api` blueprint for the rebuild, including API composition, shared layers, workers, and bounded backend modules.
+Describe the live `apps/api` layout, router composition, module ownership, and worker/runtime boundaries.
 
-## Target Design
-
-### `apps/api` tree
+## Current Shape
 
 ```text
 apps/api/
   src/ragdoll/
     main.py
     api/
-      router.py
-      dependencies.py
-      errors.py
-      health.py
-      v1/
-        router.py
     core/
-      config.py
-      logging.py
-      security.py
-      auth.py
-      instance_policy.py
-      pagination.py
-      exceptions.py
-      result.py
-    platform/
-      db/
-      storage/
-      vector/
-      graph/
-      llm/
-      queues/
-      integrations/
-    workers/
-      document_pipeline.py
-      pinned_facts_recompute.py
-      archivist.py
     modules/
-      auth/
-      users/
-      spaces/
-      documents/
-      ingestion/
-      search/
-      chat/
-      entities/
-      knowledge_graph/
-      pinned_facts/
-      changes/
-      corrections/
-      admin/
-      usage/
+    platform/
+    workers/
+  db/
   tests/
 ```
 
-### Backend Layer Rules
+## Layer Ownership
 
-- `api/`: transport-only concerns
-- `core/`: cross-cutting policy and runtime primitives
-- `platform/`: concrete implementations for storage, graph, vector, LLM, queue, and third-party systems
-- `workers/`: background job entrypoints
-- `modules/`: product logic by bounded context
+- `api/` owns route composition, health endpoints, dependencies, and HTTP error translation
+- `core/` owns config, auth/security primitives, logging, pagination, and instance policy
+- `modules/` own feature behavior and request/response schemas
+- `platform/` owns database, storage, graph, vector, LLM, and queue adapters
+- `workers/` own long-running background entrypoints
 
-## Responsibilities and Boundaries
+```mermaid
+flowchart TD
+  Main["main.py"] --> ApiRouter["api/router.py"]
+  ApiRouter --> Health["health routers"]
+  ApiRouter --> V1["api/v1/router.py"]
+  V1 --> Registry["modules/registry.py"]
+  Registry --> Modules["feature module routers"]
+  Modules --> Core["core/"]
+  Modules --> Platform["platform/"]
+  Platform --> Workers["workers/"]
+```
 
-### Shared areas
+## Live Module Surface
 
-- `main.py`: create FastAPI app, wire lifespan, register routers, and bootstrap worker-compatible runtime components
-- `api/router.py`: compose router tree and version mounting
-- `api/dependencies.py`: session, user, admin, pagination, and Space scope dependencies
-- `api/errors.py`: map domain/application errors to stable HTTP problem shapes
-- `core/config.py`: environment settings grouped by auth, storage, DB, vector, graph, LLM, rate-limit, and instance-policy concern
-- `core/security.py`: token signing, password hashing, encryption helpers, auth guard utilities
-- `core/instance_policy.py`: config-driven effective limits and self-hosted quota policy resolution
-- `platform/db/*`: engine, session, model base, migrations, and repository primitives
-- `platform/storage/*`: original file and derived artifact storage
-- `platform/vector/*`: embedding provider and vector-store access
-- `platform/graph/*`: graph-store access and query helpers
-- `platform/llm/*`: orchestration and worker-facing model calls
-- `platform/queues/*`: Redis-backed RQ queue helpers, runtime inspection, job payload transport, and retry semantics
+The `/api/v1` router is built from `V1_MODULE_REGISTRY` and currently mounts:
 
-### Canonical module shape
+- `auth`
+- `users`
+- `spaces`
+- `documents`
+- `ingestion`
+- `search`
+- `chat`
+- `entities`
+- `knowledge_graph`
+- `pinned_facts`
+- `changes`
+- `corrections`
+- `admin`
+- `usage`
+
+Typical module structure is:
 
 ```text
 modules/<module>/
   api/
-    routes.py
-    schemas.py
   application/
-    commands.py
-    queries.py
-    service.py
-  domain/
-    entities.py
-    value_objects.py
-    policies.py
+  domain/        # when needed
   infrastructure/
-    repository.py
-    gateways.py
 ```
 
-### Module ownership
+Not every module uses every subdirectory, but the ownership split stays consistent: transport in `api/`, orchestration in `application/`, persistence adapters in `infrastructure/`, and policy/value modeling in `domain/` when the module needs it.
 
-- `auth`: register, login, current-user profile, password changes, token issuance
-- `users`: user lifecycle, profile updates, admin ownership metadata, purge, usage summary joins
-- `spaces`: create, rename, archive, default-space rules, scope resolution
-- `documents`: list, detail, pagination, preview, move, download, delete
-- `ingestion`: upload, process, retry, clean derived artifacts, status transitions
-- `search`: combined, vector, graph, boolean, related results
-- `chat`: query orchestration, answer synthesis, citations, sessions, suggestions
-- `entities`: catalog, detail, provenance, history, visibility, canonicalization hooks
-- `knowledge_graph`: graph population, graph exploration, document or Space subgraph reads
-- `pinned_facts`: field definitions, recompute, summaries, conflicts, resolution
-- `changes`: timeline, detail, read-state mutation
-- `corrections`: submit, verify, reject, edit, delete, promote-to-fact behavior
-- `admin`: user operations, effective limit reads, readiness views, guarded operational mutations
-- `usage`: per-user usage and quota reporting
+## Runtime Flows
 
-## Public Interfaces and Shared Types
+1. `main.py` configures logging, CORS, exception handlers, and router composition.
+2. `api/router.py` mounts liveness, status, and `/api/v1`.
+3. `api/v1/router.py` mounts readiness plus every module router from the registry.
+4. Modules call shared core and platform services rather than reaching across each other ad hoc.
+5. Workers in `workers/document_pipeline.py` and `workers/pinned_facts_recompute.py` handle background work that should not run in request lifecycles.
 
-- Canonical HTTP routes live under `/api/v1`
-- Shared response primitives:
-  - `ProblemResponse`
-  - `MutationResult`
-  - `PaginatedResponse`
-  - `HealthStatusResponse`
-- Shared domain-facing values:
-  - `SpaceScope`
-  - `ProcessingStatus`
-  - `Citation`
-  - `SourceTier`
+## Boundaries And Invariants
 
-## Primary Workflows
-
-1. `auth` resolves user identity and admin status.
-2. `spaces` resolves request scope once and passes it through services.
-3. `documents` and `ingestion` accept file uploads or sync requests, persist metadata, and enqueue background jobs.
-4. The `document-vector` RQ worker invokes `workers/document_pipeline.py` to perform extraction, chunking, embedding, vector writes, graph writes, and processing status updates.
-5. `usage`, `ingestion`, and admin reads resolve effective self-hosted limits through shared instance-policy code instead of tier logic.
-6. `search`, `chat`, and `pinned_facts` retrieve evidence through repositories and gateways, then compose user-facing outputs.
-7. `changes` and `corrections` expose historical and human-in-the-loop surfaces without bypassing provenance rules.
-
-## Failure Modes and Edge Cases
-
-- Partial persistence across stores must be represented in processing state, not hidden.
-- Worker retries must be idempotent for document chunks, entity extraction, and graph writes.
-- Graph and vector timeouts must degrade gracefully into partial-answer behavior where allowed.
-- Admin tools must remain guarded by policy layers, not direct repository access.
-- Runtime startup must not force long-running worker behavior into the web process in production.
-
-## Acceptance Checks
-
-- Every capability area has exactly one owning backend module.
-- No product logic is placed in `api/` or `platform/`.
-- Worker entrypoints exist for long-running document and pinned-facts jobs.
-- Shared config, auth, instance policy, and error handling have explicit `core/` homes.
-- `/api/v1` is the documented source of truth.
-
-## Deferred Notes
-
-- `archivist.py` remains a reserved worker entrypoint for lifecycle features already tracked in product docs.
-- Bot-read API support should be added under versioned API routing, not as an ad hoc module bypass.
+- `/api/v1` is the canonical API namespace
+- readiness checks report database, storage, vector, graph, LLM, and queue status
+- Redis-backed queues are part of the supported backend runtime
+- product logic belongs in modules, not in `api/` or `platform/`
+- admin behavior must pass through shared auth and policy layers
