@@ -5,27 +5,41 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
 from ragdoll.api.shared_schemas import Citation, SourceTier, SpaceScope
+from ragdoll.core.exceptions import ApplicationError
+from ragdoll.core.logging import get_logger
 from ragdoll.modules.changes.application.service import record_change_event
+from ragdoll.modules.chat.api.schemas import ChatMessageRecord
+from ragdoll.modules.chat.application.evidence import (
+    ChatEvidenceItem,
+    gather_first_turn_chat_evidence,
+)
+from ragdoll.modules.chat.application.service import (
+    answer_declares_insufficient_evidence,
+    synthesize_chat_answer,
+)
 from ragdoll.modules.corrections.application.service import correction_citation
 from ragdoll.modules.pinned_facts.api.schemas import (
     PinnedFactActor,
     PinnedFactCandidate as PinnedFactCandidateSchema,
+    PinnedFactDetectionPreviewResponse,
     PinnedFactDetail,
     PinnedFactEvidence,
     PinnedFactHistoryEntry,
     PinnedFactSummary,
 )
 from ragdoll.modules.pinned_facts.infrastructure.repository import PinnedFactsRepository
-from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
-from ragdoll.modules.search.application.evidence import retrieve_search_results
+from ragdoll.modules.search.api.schemas import SearchMode
+from ragdoll.modules.search.api.schemas import SearchResult
 from ragdoll.modules.spaces.application.scope import resolve_single_owned_space
 from ragdoll.platform.db.models import PinnedFact, PinnedFactCandidate, PinnedFactHistory, User
 from ragdoll.platform.db.models import CorrectionRecord
+
+logger = get_logger("ragdoll.modules.pinned_facts.service")
 
 
 @dataclass(frozen=True)
@@ -45,12 +59,61 @@ class DetectedCandidate:
     idempotency_key: str
 
 
+@dataclass(frozen=True)
+class PinnedFactChatSynthesisResult:
+    assistant_message: ChatMessageRecord
+    retrieval_results: list[SearchResult]
+    selected_evidence: list[PinnedFactEvidence]
+    source_document_id: UUID | None
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip())
+
+
+def _truncate_for_log(value: str | None, *, max_chars: int = 220) -> str:
+    if value is None:
+        return ""
+    normalized = _normalize_whitespace(value)
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 3] + "..."
+
+
+def _space_scope_label(space_scope: SpaceScope) -> str:
+    return str(space_scope.space_id) if space_scope.space_id is not None else "all_spaces"
+
+
+def _summarize_search_results(results: list[SearchResult], *, limit: int = 5) -> str:
+    parts: list[str] = []
+    for result in results[:limit]:
+        label = (
+            result.document.title
+            if result.document is not None
+            else result.entity.display_name
+            if result.entity is not None
+            else result.preview_text
+        )
+        modes = ",".join(mode.value for mode in result.matched_modes) or "none"
+        parts.append(
+            f"{result.result_id}:{result.result_kind}:score={result.score:.2f}:modes={modes}:label={_truncate_for_log(label, max_chars=90)}"
+        )
+    return " | ".join(parts) if parts else "none"
+
+
+def _summarize_evidence_items(items: list[ChatEvidenceItem], *, limit: int = 6) -> str:
+    parts = [
+        (
+            f"{item.id}:{item.source_type}:tier={item.source_tier.value}:score={item.score:.2f}:"
+            f"answerability={item.answerability:.2f}:text={_truncate_for_log(item.text, max_chars=100)}"
+        )
+        for item in items[:limit]
+    ]
+    return " | ".join(parts) if parts else "none"
 
 
 def _value_signature(snapshot: ValueSnapshot) -> str:
@@ -111,6 +174,22 @@ def _evidence_signature(items: list[PinnedFactEvidence]) -> str:
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
 
+def _dedupe_citations(citations: list[Citation]) -> list[Citation]:
+    unique: dict[tuple[object, ...], Citation] = {}
+    for citation in citations:
+        unique.setdefault(_citation_signature(citation), citation)
+    return list(unique.values())
+
+
+def _selected_source_document_id(evidence: list[PinnedFactEvidence]) -> UUID | None:
+    document_ids: set[UUID] = set()
+    for item in evidence:
+        for citation in item.citations:
+            if citation.document_id is not None:
+                document_ids.add(citation.document_id)
+    return next(iter(document_ids)) if len(document_ids) == 1 else None
+
+
 def _citation_document_id(result: SearchResult) -> UUID | None:
     if result.document is not None:
         return result.document.id
@@ -150,6 +229,194 @@ def _detected_from_result(result: SearchResult) -> DetectedCandidate | None:
         evidence=evidence,
         source_document_id=source_document_id,
         idempotency_key=f"{source_document_id}:{_value_signature(snapshot)}:{_evidence_signature(evidence)}",
+    )
+
+
+def _candidate_pool_from_results(results: list[SearchResult]) -> tuple[list[DetectedCandidate], list[PinnedFactEvidence]]:
+    evidence_items: list[PinnedFactEvidence] = []
+    detected_by_value: dict[str, DetectedCandidate] = {}
+    for result in results:
+        detected = _detected_from_result(result)
+        if detected is None:
+            continue
+        evidence_items.extend(detected.evidence)
+        key = _value_signature(detected.value)
+        existing = detected_by_value.get(key)
+        if existing is None:
+            detected_by_value[key] = detected
+            continue
+        merged_evidence = _dedupe_evidence([*existing.evidence, *detected.evidence])
+        detected_by_value[key] = DetectedCandidate(
+            value=existing.value,
+            change_type=existing.change_type,
+            confidence=max(existing.confidence, detected.confidence),
+            evidence=merged_evidence,
+            source_document_id=existing.source_document_id or detected.source_document_id,
+            idempotency_key=f"{existing.source_document_id or detected.source_document_id}:{key}:{_evidence_signature(merged_evidence)}",
+        )
+    return list(detected_by_value.values()), _dedupe_evidence(evidence_items)
+
+
+def _detection_runtime_error(detail: str) -> ApplicationError:
+    return ApplicationError(
+        detail,
+        status_code=503,
+        title="Pinned fact detection unavailable",
+        type_uri="https://ragdoll.dev/problems/pinned-fact-detection-unavailable",
+        code="pinned_fact_detection_unavailable",
+    )
+
+
+def _strip_inline_evidence_markers(value: str) -> str:
+    stripped = re.sub(r"\s*\[E\d+\]", "", value)
+    lines = [line.rstrip() for line in stripped.strip().splitlines()]
+    return "\n".join(lines).strip()
+
+
+def _unwrap_single_fenced_block(value: str) -> str:
+    match = re.fullmatch(r"\s*```(?:[a-zA-Z0-9_-]+)?\s*\n?(.*?)\n?```\s*", value, flags=re.DOTALL)
+    if match is None:
+        return value.strip()
+    return match.group(1).strip()
+
+
+def _build_pinned_fact_evidence_item(item: ChatEvidenceItem) -> PinnedFactEvidence:
+    return PinnedFactEvidence(
+        quote=_normalize_whitespace(item.text),
+        citations=item.citations,
+        source_chunk_ids=sorted({citation.chunk_id for citation in item.citations if citation.chunk_id}),
+    )
+
+
+def _selected_evidence_from_chat_answer(
+    *,
+    answer_text: str,
+    citations: list[Citation],
+    evidence_items: list[ChatEvidenceItem],
+) -> list[PinnedFactEvidence]:
+    evidence_by_id = {item.id: _build_pinned_fact_evidence_item(item) for item in evidence_items}
+    cited_ids = list(dict.fromkeys(re.findall(r"\[(E\d+)\]", answer_text)))
+    selected = [evidence_by_id[evidence_id] for evidence_id in cited_ids if evidence_id in evidence_by_id]
+    if selected:
+        return _dedupe_evidence(selected)
+
+    citation_signatures = {_citation_signature(citation) for citation in citations}
+    if citation_signatures:
+        selected = [
+            evidence_by_id[item.id]
+            for item in evidence_items
+            if any(_citation_signature(citation) in citation_signatures for citation in item.citations)
+        ]
+    return _dedupe_evidence(selected)
+
+
+def _normalize_answer_to_snapshot(answer_text: str) -> ValueSnapshot:
+    candidate = _strip_inline_evidence_markers(_unwrap_single_fenced_block(answer_text))
+    if not candidate:
+        raise _detection_runtime_error("Pinned fact detection returned an empty assistant answer.")
+
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        parsed = None
+
+    if isinstance(parsed, dict):
+        return ValueSnapshot(kind="json", text=None, json_value=parsed)
+    return ValueSnapshot(kind="text", text=candidate, json_value=None)
+
+
+def _build_preview_assistant_message(answer) -> ChatMessageRecord:
+    return ChatMessageRecord(
+        id=uuid4(),
+        role="assistant",
+        content=answer.answer_text,
+        citations=answer.citations,
+        suggestions=answer.suggestions,
+        evidence=answer.evidence_records,
+        retrieval_mode=SearchMode.COMBINED.value,
+        degraded=answer.degraded,
+        created_at=utc_now(),
+    )
+
+
+def _synthesize_pinned_fact_answer(
+    session: Session,
+    subject: str,
+    *,
+    space_scope: SpaceScope,
+    description: str,
+    document_id: UUID | None = None,
+) -> PinnedFactChatSynthesisResult:
+    query_text = description.strip()
+    logger.info(
+        "pinned_fact_chat_parity_started scope=%s document_id=%s query=%s",
+        _space_scope_label(space_scope),
+        document_id,
+        _truncate_for_log(query_text),
+    )
+    evidence_bundle = gather_first_turn_chat_evidence(
+        session,
+        subject,
+        space_scope=space_scope,
+        query_text=query_text,
+        document_id=document_id,
+    )
+    logger.info(
+        "pinned_fact_chat_parity_retrieved scope=%s result_count=%s results=%s",
+        _space_scope_label(space_scope),
+        len(evidence_bundle.retrieval_results),
+        _summarize_search_results(evidence_bundle.retrieval_results),
+    )
+    logger.info(
+        "pinned_fact_chat_parity_ranked scope=%s evidence_count=%s evidence=%s",
+        _space_scope_label(space_scope),
+        len(evidence_bundle.evidence_items),
+        _summarize_evidence_items(evidence_bundle.evidence_items),
+    )
+    synthesis = synthesize_chat_answer(
+        query_text=query_text,
+        evidence_bundle=evidence_bundle,
+    )
+    selected_evidence = _selected_evidence_from_chat_answer(
+        answer_text=synthesis.answer_text,
+        citations=synthesis.citations,
+        evidence_items=synthesis.evidence_items,
+    )
+    source_document_id = _selected_source_document_id(selected_evidence)
+    logger.info(
+        "pinned_fact_chat_parity_completed scope=%s degraded=%s citation_count=%s selected_evidence_count=%s source_document_id=%s answer=%s",
+        _space_scope_label(space_scope),
+        synthesis.degraded,
+        len(synthesis.citations),
+        len(selected_evidence),
+        source_document_id,
+        _truncate_for_log(synthesis.answer_text, max_chars=320),
+    )
+    return PinnedFactChatSynthesisResult(
+        assistant_message=_build_preview_assistant_message(synthesis),
+        retrieval_results=synthesis.retrieval_results,
+        selected_evidence=selected_evidence,
+        source_document_id=source_document_id,
+    )
+
+
+def preview_pinned_fact_detection(
+    session: Session,
+    subject: str,
+    *,
+    space_scope: SpaceScope,
+    payload,
+) -> PinnedFactDetectionPreviewResponse:
+    preview = _synthesize_pinned_fact_answer(
+        session,
+        subject,
+        space_scope=space_scope,
+        description=payload.description,
+    )
+    return PinnedFactDetectionPreviewResponse(
+        assistant_message=preview.assistant_message,
+        retrieval_results=preview.retrieval_results,
+        source_document_id=preview.source_document_id,
     )
 
 
@@ -504,29 +771,7 @@ def _detect_candidates(
     current: ValueSnapshot | None,
     current_evidence: list[PinnedFactEvidence],
 ) -> tuple[str, list[DetectedCandidate], list[PinnedFactEvidence]]:
-    evidence_items: list[PinnedFactEvidence] = []
-    detected_by_value: dict[str, DetectedCandidate] = {}
-    for result in results:
-        detected = _detected_from_result(result)
-        if detected is None:
-            continue
-        evidence_items.extend(detected.evidence)
-        key = _value_signature(detected.value)
-        existing = detected_by_value.get(key)
-        if existing is None:
-            detected_by_value[key] = detected
-            continue
-        merged_evidence = _dedupe_evidence([*existing.evidence, *detected.evidence])
-        detected_by_value[key] = DetectedCandidate(
-            value=existing.value,
-            change_type=existing.change_type,
-            confidence=max(existing.confidence, detected.confidence),
-            evidence=merged_evidence,
-            source_document_id=existing.source_document_id or detected.source_document_id,
-            idempotency_key=f"{existing.source_document_id or detected.source_document_id}:{key}:{_evidence_signature(merged_evidence)}",
-        )
-    detected_items = list(detected_by_value.values())
-    evidence_items = _dedupe_evidence(evidence_items)
+    detected_items, evidence_items = _candidate_pool_from_results(results)
     if not detected_items:
         return ("missing_evidence" if current is not None else "unknown"), [], []
     if current is not None and len(detected_items) == 1 and _value_signature(detected_items[0].value) == _value_signature(current):
@@ -559,26 +804,32 @@ def recheck_pinned_fact(
     *,
     document_id: UUID | None = None,
 ) -> PinnedFactDetail:
-    results = retrieve_search_results(
+    logger.info(
+        "pinned_fact_recheck_started fact_id=%s space_id=%s document_id=%s query=%s",
+        fact.id,
+        fact.space_id,
+        document_id,
+        _truncate_for_log(fact.description),
+    )
+    synthesized = _synthesize_pinned_fact_answer(
         session,
         subject,
         space_scope=SpaceScope(space_id=fact.space_id),
-        query_text=fact.description,
-        mode=SearchMode.COMBINED,
+        description=fact.description,
         document_id=document_id,
-        entity_type=fact.entity_type_hint,
-        limit=5,
     )
     current = _fact_snapshot(fact)
     current_evidence = _dedupe_evidence(_evidence_from_raw(fact.evidence))
-    decision, detected_items, supporting_evidence = _detect_candidates(results, current, current_evidence)
     actor_user_id = UUID(subject)
     fact.last_checked_at = utc_now()
 
-    if decision == "unknown":
-        fact.status = "unknown" if current is None else "active"
-    elif decision == "missing_evidence":
+    if answer_declares_insufficient_evidence(synthesized.assistant_message.content):
         fact.status = "missing_evidence"
+        logger.info(
+            "pinned_fact_recheck_result fact_id=%s status=missing_evidence retrieval_count=%s",
+            fact.id,
+            len(synthesized.retrieval_results),
+        )
         record_change_event(
             session,
             space_id=fact.space_id,
@@ -588,42 +839,55 @@ def recheck_pinned_fact(
             actor_user_id=actor_user_id,
             pinned_fact_id=fact.id,
         )
-    elif decision == "same":
-        fact.status = "active"
-        if supporting_evidence and _evidence_signature(supporting_evidence) != _evidence_signature(current_evidence):
-            fact.evidence = _raw_evidence(supporting_evidence)
-    elif decision == "conflict":
-        fact.status = "conflicted"
-        for detected in detected_items:
-            _persist_candidate(session, fact=fact, detected=detected, status="pending")
-        record_change_event(
-            session,
-            space_id=fact.space_id,
-            event_type="pinned_fact_conflict_detected",
-            title=f"Pinned fact conflict: {fact.title}",
-            summary=f"Multiple candidate values were found for {fact.title}.",
-            actor_user_id=actor_user_id,
-            pinned_fact_id=fact.id,
-            payload={"candidate_count": len(detected_items)},
-        )
     else:
-        detected = detected_items[0]
-        _persist_candidate(session, fact=fact, detected=detected, status="pending")
-        fact.status = "pending_update"
-        record_change_event(
-            session,
-            space_id=fact.space_id,
-            event_type="pinned_fact_update_detected",
-            title=f"Pinned fact update detected: {fact.title}",
-            summary=(
-                f"Updated evidence was found for {fact.title}."
-                if decision == "evidence_update"
-                else f"A new candidate value was found for {fact.title}."
-            ),
-            actor_user_id=actor_user_id,
-            pinned_fact_id=fact.id,
-            payload={"change_type": decision, "value_kind": detected.value.kind},
-        )
+        normalized_value = _normalize_answer_to_snapshot(synthesized.assistant_message.content)
+        if not synthesized.selected_evidence:
+            raise _detection_runtime_error("Pinned fact detection could not map the assistant answer back to evidence.")
+        value_changed = current is None or _value_signature(normalized_value) != _value_signature(current)
+        evidence_changed = _evidence_signature(synthesized.selected_evidence) != _evidence_signature(current_evidence)
+        if not value_changed and not evidence_changed:
+            fact.status = "active"
+            logger.info(
+                "pinned_fact_recheck_result fact_id=%s status=active unchanged=true evidence_count=%s",
+                fact.id,
+                len(synthesized.selected_evidence),
+            )
+        else:
+            change_type = "evidence_update" if not value_changed else "update"
+            pending_candidate = DetectedCandidate(
+                value=normalized_value,
+                change_type=change_type,
+                confidence=0.95,
+                evidence=synthesized.selected_evidence,
+                source_document_id=synthesized.source_document_id,
+                idempotency_key=(
+                    f"{synthesized.source_document_id}:{_value_signature(normalized_value)}:"
+                    f"{_evidence_signature(synthesized.selected_evidence)}"
+                ),
+            )
+            _persist_candidate(session, fact=fact, detected=pending_candidate, status="pending")
+            fact.status = "pending_update"
+            logger.info(
+                "pinned_fact_recheck_result fact_id=%s status=pending_update change_type=%s evidence_count=%s source_document_id=%s",
+                fact.id,
+                change_type,
+                len(synthesized.selected_evidence),
+                synthesized.source_document_id,
+            )
+            record_change_event(
+                session,
+                space_id=fact.space_id,
+                event_type="pinned_fact_update_detected",
+                title=f"Pinned fact update detected: {fact.title}",
+                summary=(
+                    f"Updated evidence was found for {fact.title}."
+                    if change_type == "evidence_update"
+                    else f"A new candidate value was found for {fact.title}."
+                ),
+                actor_user_id=actor_user_id,
+                pinned_fact_id=fact.id,
+                payload={"change_type": change_type, "value_kind": normalized_value.kind},
+            )
 
     session.commit()
     session.refresh(fact)

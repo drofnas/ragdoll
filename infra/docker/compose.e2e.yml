@@ -14,9 +14,9 @@ services:
 
   e2e:
     build:
-      context: ../../tests/e2e
-      dockerfile: Dockerfile.dev
-    working_dir: /app
+      context: ../../
+      dockerfile: tests/e2e/Dockerfile.dev
+    working_dir: /app/tests/e2e
     env_file:
       - ../../apps/api/.env
     environment:

@@ -7,6 +7,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from ragdoll.api.shared_schemas import Citation
+from ragdoll.modules.chat.api.schemas import ChatMessageRecord
+from ragdoll.modules.search.api.schemas import SearchResult
 
 
 PinnedFactStatus = Literal["active", "pending_update", "conflicted", "missing_evidence", "unknown"]
@@ -89,6 +91,11 @@ class PinnedFactUpdateRequest(BaseModel):
         return self
 
 
+class PinnedFactDetectionPreviewRequest(BaseModel):
+    description: str = Field(min_length=1)
+    entity_type_hint: str | None = Field(default=None, max_length=80)
+
+
 class PinnedFactSummary(BaseModel):
     id: UUID
     space_id: UUID
@@ -115,6 +122,12 @@ class PinnedFactSummary(BaseModel):
 
 class PinnedFactDetail(PinnedFactSummary):
     history_count: int = Field(default=0, ge=0)
+
+
+class PinnedFactDetectionPreviewResponse(BaseModel):
+    assistant_message: ChatMessageRecord
+    retrieval_results: list[SearchResult] = Field(default_factory=list)
+    source_document_id: UUID | None = None
 
 
 class PinnedFactListResponse(BaseModel):

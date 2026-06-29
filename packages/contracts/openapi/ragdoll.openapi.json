@@ -3042,6 +3042,63 @@
         "title": "PinnedFactDetail",
         "type": "object"
       },
+      "PinnedFactDetectionPreviewRequest": {
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity_type_hint": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type Hint"
+          }
+        },
+        "required": [
+          "description"
+        ],
+        "title": "PinnedFactDetectionPreviewRequest",
+        "type": "object"
+      },
+      "PinnedFactDetectionPreviewResponse": {
+        "properties": {
+          "assistant_message": {
+            "$ref": "#/components/schemas/ChatMessageRecord"
+          },
+          "retrieval_results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "title": "Retrieval Results",
+            "type": "array"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          }
+        },
+        "required": [
+          "assistant_message"
+        ],
+        "title": "PinnedFactDetectionPreviewResponse",
+        "type": "object"
+      },
       "PinnedFactEvidence-Input": {
         "properties": {
           "citations": {
@@ -8867,6 +8924,101 @@
           }
         ],
         "summary": "Post Reject Pinned Fact Candidate",
+        "tags": [
+          "pinned_facts"
+        ]
+      }
+    },
+    "/api/v1/pinned-facts/detect-preview": {
+      "post": {
+        "operationId": "post_pinned_fact_detect_preview_api_v1_pinned_facts_detect_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_spaces",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Spaces",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinnedFactDetectionPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFactDetectionPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Requested pinned fact resource was not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Pinned Fact Detect Preview",
         "tags": [
           "pinned_facts"
         ]

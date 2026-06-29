@@ -501,6 +501,17 @@ export interface PinnedFactDetail {
   history_count?: number;
 }
 
+export interface PinnedFactDetectionPreviewRequest {
+  description: string;
+  entity_type_hint?: string | null;
+}
+
+export interface PinnedFactDetectionPreviewResponse {
+  assistant_message: ChatMessageRecord;
+  retrieval_results?: Array<SearchResult>;
+  source_document_id?: string | null;
+}
+
 export interface PinnedFactEvidenceInput {
   quote: string;
   citations?: Array<Citation>;
@@ -801,6 +812,7 @@ export interface ApiOperations {
   "read_pinned_fact_candidate_detail_api_v1_pinned_facts_candidates__candidate_id__get": ReadPinnedFactCandidateDetailApiV1PinnedFactsCandidatesCandidateIdGetOperation;
   "post_accept_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__accept_post": PostAcceptPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdAcceptPostOperation;
   "post_reject_pinned_fact_candidate_api_v1_pinned_facts_candidates__candidate_id__reject_post": PostRejectPinnedFactCandidateApiV1PinnedFactsCandidatesCandidateIdRejectPostOperation;
+  "post_pinned_fact_detect_preview_api_v1_pinned_facts_detect_preview_post": PostPinnedFactDetectPreviewApiV1PinnedFactsDetectPreviewPostOperation;
   "read_pinned_fact_detail_api_v1_pinned_facts__fact_id__get": ReadPinnedFactDetailApiV1PinnedFactsFactIdGetOperation;
   "patch_pinned_fact_api_v1_pinned_facts__fact_id__patch": PatchPinnedFactApiV1PinnedFactsFactIdPatchOperation;
   "read_pinned_fact_candidates_api_v1_pinned_facts__fact_id__candidates_get": ReadPinnedFactCandidatesApiV1PinnedFactsFactIdCandidatesGetOperation;
@@ -1687,6 +1699,25 @@ export interface PostRejectPinnedFactCandidateApiV1PinnedFactsCandidatesCandidat
   422: ProblemResponse;
 };
   successResponse: PinnedFactCandidate;
+}
+
+export interface PostPinnedFactDetectPreviewApiV1PinnedFactsDetectPreviewPostOperation {
+  method: "post";
+  path: "/api/v1/pinned-facts/detect-preview";
+  pathParams: never;
+  queryParams: {
+  space_id?: string | null;
+  all_spaces?: boolean;
+};
+  requestBody: PinnedFactDetectionPreviewRequest;
+  requestContentType: "application/json";
+  responses: {
+  200: PinnedFactDetectionPreviewResponse;
+  401: ProblemResponse;
+  404: ProblemResponse;
+  422: ProblemResponse;
+};
+  successResponse: PinnedFactDetectionPreviewResponse;
 }
 
 export interface ReadPinnedFactDetailApiV1PinnedFactsFactIdGetOperation {

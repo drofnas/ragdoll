@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from ragdoll.api.shared_schemas import Citation
+from ragdoll.api.shared_schemas import Citation, SourceTier
+from ragdoll.modules.chat.application.evidence import ChatEvidenceBundle, ChatEvidenceItem
+from ragdoll.modules.chat.application.service import ChatSynthesisResult, build_evidence_records
 from ragdoll.modules.search.api.schemas import SearchEntitySummary, SearchMode, SearchResult, SearchResultDocument
 from ragdoll.platform.db.models import User
 
@@ -77,6 +79,57 @@ def _create_fact(
     )
 
 
+def _chat_evidence_item(result: SearchResult, *, evidence_id: str) -> ChatEvidenceItem:
+    return ChatEvidenceItem(
+        id=evidence_id,
+        source_type="document_chunk" if result.result_kind == "document_chunk" else "entity",
+        source_tier=SourceTier.DOCUMENT,
+        text=result.preview_text,
+        citations=result.citations,
+        score=float(result.score),
+        title=result.document.title if result.document is not None else None,
+        created_at=result.document.created_at if result.document is not None else None,
+        answer_intent="general",
+        answerability=100.0,
+    )
+
+
+def _mock_chat_synthesis(
+    monkeypatch,
+    *,
+    answer_text: str,
+    results: list[SearchResult],
+    evidence_items: list[ChatEvidenceItem] | None = None,
+    degraded: bool = False,
+):
+    evidence_items = evidence_items or [
+        _chat_evidence_item(result, evidence_id=f"E{index}")
+        for index, result in enumerate(results, start=1)
+    ]
+    synthesis = ChatSynthesisResult(
+        answer_text=answer_text,
+        citations=[citation for item in evidence_items for citation in item.citations][:8],
+        suggestions=[],
+        evidence_items=evidence_items,
+        evidence_records=build_evidence_records(evidence_items),
+        retrieval_results=results,
+        degraded=degraded,
+    )
+    monkeypatch.setattr(
+        "ragdoll.modules.pinned_facts.application.service.gather_first_turn_chat_evidence",
+        lambda *args, **kwargs: ChatEvidenceBundle(
+            evidence_items=evidence_items,
+            history_items=[],
+            retrieval_results=results,
+        ),
+    )
+    monkeypatch.setattr(
+        "ragdoll.modules.pinned_facts.application.service.synthesize_chat_answer",
+        lambda *args, **kwargs: synthesis,
+    )
+    return synthesis
+
+
 def test_pinned_facts_require_authentication(api_client):
     response = api_client.get("/api/v1/pinned-facts")
     assert response.status_code == 401
@@ -120,6 +173,86 @@ def test_manual_create_supports_json_output(api_client):
     assert payload["value_json"] == {"primary": "#2563eb", "accent": "#0f172a"}
 
 
+def test_detect_preview_returns_assistant_style_preview_from_chat_synthesis(api_client, db_session, monkeypatch):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    first_document_id = uuid4()
+    second_document_id = uuid4()
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="- Frontend: React [E1]\n- Build: Vite [E2]",
+        results=[
+            _search_result(
+                space_id=space.id,
+                document_id=first_document_id,
+                value="React",
+                quote="Frontend uses React for the web UI.",
+            ),
+            _search_result(
+                space_id=space.id,
+                document_id=second_document_id,
+                value="Vite",
+                quote="Vite builds the frontend web app.",
+            ),
+        ],
+    )
+
+    preview = api_client.post(
+        f"/api/v1/pinned-facts/detect-preview?space_id={space.id}",
+        headers=auth_headers(token),
+        json={
+            "description": "What is the technology stack used for the Frontend Web UI? Return a bulleted list with just the tech stack for it.",
+        },
+    )
+
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["assistant_message"]["content"] == "- Frontend: React [E1]\n- Build: Vite [E2]"
+    assert len(body["assistant_message"]["evidence"]) == 2
+    assert len(body["assistant_message"]["citations"]) == 2
+    assert len(body["retrieval_results"]) == 2
+    assert body["source_document_id"] is None
+    assert "status" not in body
+    assert "suggested_answers" not in body
+
+
+def test_detect_preview_returns_chat_fallback_answer_without_detector_status(api_client, db_session, monkeypatch):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text=(
+            "I could not produce a reliable answer from the available evidence while the chat model was unavailable. "
+            "The retrieved evidence was insufficient or too noisy for: "
+            "'What is the technology stack used for the Frontend Web UI?'."
+        ),
+        results=[
+            _search_result(
+                space_id=space.id,
+                document_id=uuid4(),
+                value="Noise",
+                quote="localhost:8080 appears in setup notes.",
+            )
+        ],
+    )
+
+    preview = api_client.post(
+        f"/api/v1/pinned-facts/detect-preview?space_id={space.id}",
+        headers=auth_headers(token),
+        json={
+            "description": "What is the technology stack used for the Frontend Web UI?",
+        },
+    )
+
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert "assistant_message" in body
+    assert "could not produce a reliable answer" in body["assistant_message"]["content"].lower()
+    assert "status" not in body
+
+
 def test_rerun_detects_pending_update_when_answer_changes(api_client, db_session, monkeypatch):
     token = register_and_login(api_client, email="owner@example.com")
     owner = db_session.query(User).filter(User.email == "owner@example.com").one()
@@ -140,9 +273,10 @@ def test_rerun_detects_pending_update_when_answer_changes(api_client, db_session
     )
     fact_id = created.json()["id"]
 
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Northstar [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Northstar", quote="Northstar is the focus project.")
         ],
     )
@@ -184,9 +318,10 @@ def test_rerun_detects_evidence_only_update(api_client, db_session, monkeypatch)
     )
     fact_id = created.json()["id"]
 
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Atlas [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Atlas", quote="Atlas is still the focus project.")
         ],
     )
@@ -226,9 +361,10 @@ def test_accept_update_writes_history(api_client, db_session, monkeypatch):
         },
     )
     fact_id = created.json()["id"]
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Northstar [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Northstar", quote="Northstar is the focus project.")
         ],
     )
@@ -271,10 +407,18 @@ def test_accept_update_clears_other_pending_candidates(api_client, db_session, m
         },
     )
     fact_id = created.json()["id"]
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Northstar [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Northstar", quote="Northstar is the focus project."),
+        ],
+    )
+    api_client.post(f"/api/v1/pinned-facts/{fact_id}/recheck?space_id={space.id}", headers=auth_headers(token))
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Compass [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Compass", quote="Compass is the focus project."),
         ],
     )
@@ -323,9 +467,10 @@ def test_reject_update_preserves_current_value(api_client, db_session, monkeypat
         },
     )
     fact_id = created.json()["id"]
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Northstar [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Northstar", quote="Northstar is the focus project.")
         ],
     )
@@ -408,9 +553,10 @@ def test_full_rerun_creates_pending_update_only_when_changes_exist(api_client, d
     )
     fact_id = created.json()["id"]
 
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="Atlas [E1]",
+        results=[
             _search_result(space_id=space.id, document_id=document_id, value="Atlas", quote=quote)
         ],
     )
@@ -427,6 +573,51 @@ def test_full_rerun_creates_pending_update_only_when_changes_exist(api_client, d
     )
     assert candidates.status_code == 200, candidates.text
     assert candidates.json()["items"] == []
+
+
+def test_recheck_multi_document_synthesis_clears_source_document_id(api_client, db_session, monkeypatch):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+    first_document_id = uuid4()
+    second_document_id = uuid4()
+    created = api_client.post(
+        f"/api/v1/pinned-facts?space_id={space.id}",
+        headers=auth_headers(token),
+        json={
+            "key": "frontend_stack",
+            "title": "Frontend stack",
+            "description": "What is the technology stack used for the Frontend Web UI? Return a bulleted list with just the tech stack for it.",
+            "value_kind": "text",
+            "value_text": "- Frontend: React",
+            "confidence": 0.95,
+            "evidence": [{"quote": "React powers the current frontend.", "citations": [], "source_chunk_ids": []}],
+        },
+    )
+    fact_id = created.json()["id"]
+
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text="- Frontend: React [E1]\n- Build: Vite [E2]",
+        results=[
+            _search_result(space_id=space.id, document_id=first_document_id, value="React", quote="Frontend uses React."),
+            _search_result(space_id=space.id, document_id=second_document_id, value="Vite", quote="Frontend build uses Vite."),
+        ],
+    )
+
+    rechecked = api_client.post(
+        f"/api/v1/pinned-facts/{fact_id}/recheck?space_id={space.id}",
+        headers=auth_headers(token),
+    )
+    assert rechecked.status_code == 200, rechecked.text
+    assert rechecked.json()["status"] == "pending_update"
+
+    candidates = api_client.get(
+        f"/api/v1/pinned-facts/{fact_id}/candidates?space_id={space.id}",
+        headers=auth_headers(token),
+    )
+    assert candidates.status_code == 200, candidates.text
+    assert candidates.json()["items"][0]["source_document_id"] is None
 
 
 def test_missing_evidence_warning(api_client, db_session, monkeypatch):
@@ -448,9 +639,14 @@ def test_missing_evidence_warning(api_client, db_session, monkeypatch):
     )
     fact_id = created.json()["id"]
 
-    monkeypatch.setattr(
-        "ragdoll.modules.pinned_facts.application.service.retrieve_search_results",
-        lambda *args, **kwargs: [],
+    _mock_chat_synthesis(
+        monkeypatch,
+        answer_text=(
+            "I could not produce a reliable answer from the available evidence while the chat model was unavailable. "
+            "The retrieved evidence was insufficient or too noisy for: 'What is the focus project?'."
+        ),
+        results=[],
+        evidence_items=[],
     )
 
     rechecked = api_client.post(

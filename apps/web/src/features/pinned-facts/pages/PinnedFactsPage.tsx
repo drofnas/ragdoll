@@ -16,6 +16,7 @@ import { useSpaceScope } from "@/shared/state/spaceScope";
 import { listPinnedFacts } from "../api/pinnedFactsApi";
 
 type SortKey = "name" | "status" | "created_by" | "updated_by" | "created_at" | "updated_at";
+const PINNED_FACTS_PAGE_SIZE = 100;
 
 function actorLabel(fact: PinnedFactSummary["created_by"] | PinnedFactSummary["updated_by"]) {
   return fact?.full_name?.trim() || fact?.email || "Unknown";
@@ -48,7 +49,7 @@ export function PinnedFactsPage() {
     descending,
     name: nameFilter.trim() || undefined,
     page: 1,
-    page_size: 200,
+    page_size: PINNED_FACTS_PAGE_SIZE,
     sort_key: sortKey,
     status: statusFilter.trim() || undefined,
     updated_by: updatedByFilter.trim() || undefined,

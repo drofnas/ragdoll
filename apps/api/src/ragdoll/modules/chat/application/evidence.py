@@ -16,6 +16,7 @@ from ragdoll.modules.knowledge_graph.infrastructure.repository import KnowledgeG
 from ragdoll.modules.pinned_facts.infrastructure.repository import PinnedFactsRepository
 from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
 from ragdoll.modules.search.application.evidence import retrieve_search_results
+from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids
 from ragdoll.platform.db.models import ChatMessage, ChatSession, Document, DocumentChunk
 
 
@@ -29,6 +30,41 @@ SOURCE_QUOTAS = {
 TOTAL_EVIDENCE_LIMIT = 16
 HISTORY_MESSAGE_LIMIT = 8
 EXPANDED_DOCUMENT_EVIDENCE_MAX_CHARS = 4200
+QUERY_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "be",
+    "for",
+    "from",
+    "how",
+    "i",
+    "in",
+    "is",
+    "it",
+    "just",
+    "list",
+    "me",
+    "of",
+    "only",
+    "or",
+    "please",
+    "return",
+    "show",
+    "that",
+    "the",
+    "their",
+    "them",
+    "they",
+    "this",
+    "to",
+    "used",
+    "using",
+    "what",
+    "which",
+    "with",
+}
 
 TECH_STACK_QUERY_PHRASES = (
     "programming language",
@@ -55,6 +91,27 @@ TECH_STACK_EVIDENCE_TERMS = (
     "ml framework",
     "packaging",
     "programming language",
+)
+TECH_STACK_TECH_MARKERS = (
+    "angular",
+    "css",
+    "electron",
+    "fastapi",
+    "go",
+    "html",
+    "javascript",
+    "next.js",
+    "nuxt",
+    "plugin",
+    "postgres",
+    "python",
+    "react",
+    "svelte",
+    "tailwind",
+    "typescript",
+    "uvicorn",
+    "vite",
+    "vue",
 )
 TECH_STACK_NOISE_PATTERNS = (
     r"\bc:\\",
@@ -103,7 +160,11 @@ def _normalized_text(value: str) -> str:
 
 
 def _query_terms(query_text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", query_text.lower()))
+    return {
+        term
+        for term in re.findall(r"[a-z0-9]+", query_text.lower())
+        if term not in QUERY_STOP_WORDS
+    }
 
 
 def _overlap_score(query_terms: set[str], text: str) -> float:
@@ -222,9 +283,17 @@ def _dedupe_and_rank(items: list[ChatEvidenceItem]) -> list[ChatEvidenceItem]:
     return [replace(item, id=f"E{index}") for index, item in enumerate(ranked, start=1)]
 
 
-def _correction_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
+def _correction_evidence_for_spaces(
+    session: Session,
+    *,
+    space_ids: list[UUID],
+    query_text: str,
+) -> list[ChatEvidenceItem]:
     items: list[ChatEvidenceItem] = []
-    for index, correction in enumerate(CorrectionsRepository(session).list_verified_for_space(space_id), start=1):
+    for index, correction in enumerate(
+        CorrectionsRepository(session).list_visible(space_ids, status="verified"),
+        start=1,
+    ):
         if not correction_matches_query(correction, query_text):
             continue
         items.append(
@@ -244,6 +313,10 @@ def _correction_evidence(session: Session, *, space_id: UUID, query_text: str) -
     return items
 
 
+def _correction_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
+    return _correction_evidence_for_spaces(session, space_ids=[space_id], query_text=query_text)
+
+
 def _value_text(kind: str | None, text: str | None, json_value: object) -> str | None:
     if kind == "json" and json_value is not None:
         return json.dumps(json_value, sort_keys=True)
@@ -252,11 +325,16 @@ def _value_text(kind: str | None, text: str | None, json_value: object) -> str |
     return None
 
 
-def _pinned_fact_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
+def _pinned_fact_evidence_for_spaces(
+    session: Session,
+    *,
+    space_ids: list[UUID],
+    query_text: str,
+) -> list[ChatEvidenceItem]:
     repo = PinnedFactsRepository(session)
     terms = _query_terms(query_text)
     items: list[ChatEvidenceItem] = []
-    for index, fact in enumerate(repo.list_active_facts_for_space(space_id), start=1):
+    for index, fact in enumerate(repo.list_active_facts(space_ids), start=1):
         current_value_text = _value_text(fact.value_kind, fact.value_text, fact.value_json)
         if not current_value_text:
             continue
@@ -285,6 +363,10 @@ def _pinned_fact_evidence(session: Session, *, space_id: UUID, query_text: str) 
             )
         )
     return items
+
+
+def _pinned_fact_evidence(session: Session, *, space_id: UUID, query_text: str) -> list[ChatEvidenceItem]:
+    return _pinned_fact_evidence_for_spaces(session, space_ids=[space_id], query_text=query_text)
 
 
 def _parse_uuid(value: str | None) -> UUID | None:
@@ -434,6 +516,8 @@ def _technology_stack_answerability(text: str, query_terms: set[str]) -> float:
     score += min(evidence_hits, 8) * 9.0
     if re.search(r"(?im)^\s*[-*]\s+\*\*[^*]+\*\*\s*:", text):
         score += 30.0
+    tech_marker_hits = sum(1 for term in TECH_STACK_TECH_MARKERS if term in lower)
+    score += min(tech_marker_hits, 5) * 14.0
     if "```" in text and not TECH_STACK_SECTION_RE.search(text):
         score -= 45.0
     if any(char in text for char in "┌┐└┘├┤│─"):
@@ -451,15 +535,26 @@ def _answerability_score(
     source_type: str,
     text: str,
     query_terms: set[str],
+    title: str | None = None,
 ) -> float:
     if source_type == "correction":
         return 1000.0 + _overlap_score(query_terms, text)
     if source_type == "pinned_fact":
         return 800.0 + _overlap_score(query_terms, text)
     if answer_intent == "technology_stack" and source_type == "document_chunk":
-        return _technology_stack_answerability(text, query_terms)
+        score = _technology_stack_answerability(text, query_terms)
+        if title:
+            score += _overlap_score(query_terms, title) * 12.0
+            normalized_title = title.lower()
+            if "frontend" in normalized_title:
+                score += 18.0
+            if "architecture" in normalized_title:
+                score += 8.0
+        return score
     if answer_intent == "summary" and source_type == "document_chunk":
         score = _overlap_score(query_terms, text)
+        if title:
+            score += _overlap_score(query_terms, title) * 8.0
         if re.search(r"(?im)^#{1,6}\s+(?:executive summary|summary|overview)\b", text):
             score += 70.0
         return score
@@ -501,6 +596,7 @@ def _search_result_evidence(
             source_type=source_type,
             text=text,
             query_terms=terms,
+            title=title,
         )
         items.append(
             ChatEvidenceItem(
@@ -517,6 +613,67 @@ def _search_result_evidence(
             )
         )
     return items
+
+
+def build_ranked_search_evidence(
+    session: Session,
+    results: list[SearchResult],
+    *,
+    query_text: str,
+) -> list[ChatEvidenceItem]:
+    answer_intent = classify_answer_intent(query_text)
+    return _dedupe_and_rank(
+        _search_result_evidence(
+            session,
+            results,
+            query_text=query_text,
+            answer_intent=answer_intent,
+        )
+    )
+
+
+def gather_synthesis_evidence(
+    session: Session,
+    subject: str,
+    *,
+    space_scope: SpaceScope,
+    query_text: str,
+    document_id: UUID | None = None,
+    entity_type: str | None = None,
+    retrieval_limit: int = 12,
+    include_pinned_facts: bool = True,
+) -> ChatEvidenceBundle:
+    answer_intent = classify_answer_intent(query_text)
+    retrieval_results = retrieve_search_results(
+        session,
+        subject,
+        space_scope=space_scope,
+        query_text=query_text,
+        mode=SearchMode.COMBINED,
+        document_id=document_id,
+        entity_type=entity_type,
+        limit=retrieval_limit,
+    )
+    space_ids = resolve_owned_space_ids(session, UUID(subject), space_scope)
+    evidence_items = [
+        *_correction_evidence_for_spaces(session, space_ids=space_ids, query_text=query_text),
+        *_search_result_evidence(session, retrieval_results, query_text=query_text, answer_intent=answer_intent),
+        *_graph_relationship_evidence(
+            session,
+            document_id=document_id,
+            query_text=query_text,
+            answer_intent=answer_intent,
+        ),
+    ]
+    if include_pinned_facts:
+        evidence_items.extend(
+            _pinned_fact_evidence_for_spaces(session, space_ids=space_ids, query_text=query_text)
+        )
+    return ChatEvidenceBundle(
+        evidence_items=_dedupe_and_rank(evidence_items),
+        history_items=[],
+        retrieval_results=retrieval_results,
+    )
 
 
 def _graph_relationship_evidence(
@@ -541,6 +698,7 @@ def _graph_relationship_evidence(
             source_type="graph_relationship",
             text=text,
             query_terms=terms,
+            title=record.document.title,
         )
         items.append(
             ChatEvidenceItem(
@@ -588,30 +746,39 @@ def gather_chat_evidence(
     query_text: str,
     prior_messages: list[ChatMessage],
 ) -> ChatEvidenceBundle:
-    answer_intent = classify_answer_intent(query_text)
-    retrieval_results = retrieve_search_results(
+    synthesis_bundle = gather_synthesis_evidence(
         session,
         subject,
         space_scope=SpaceScope(space_id=chat_session.space_id),
         query_text=query_text,
-        mode=SearchMode.COMBINED,
         document_id=chat_session.document_id,
-        limit=12,
+        retrieval_limit=12,
+    )
+    return ChatEvidenceBundle(
+        evidence_items=synthesis_bundle.evidence_items,
+        history_items=_history_items(prior_messages),
+        retrieval_results=synthesis_bundle.retrieval_results,
     )
 
-    evidence_items = [
-        *_correction_evidence(session, space_id=chat_session.space_id, query_text=query_text),
-        *_pinned_fact_evidence(session, space_id=chat_session.space_id, query_text=query_text),
-        *_search_result_evidence(session, retrieval_results, query_text=query_text, answer_intent=answer_intent),
-        *_graph_relationship_evidence(
-            session,
-            document_id=chat_session.document_id,
-            query_text=query_text,
-            answer_intent=answer_intent,
-        ),
-    ]
+
+def gather_first_turn_chat_evidence(
+    session: Session,
+    subject: str,
+    *,
+    space_scope: SpaceScope,
+    query_text: str,
+    document_id: UUID | None = None,
+) -> ChatEvidenceBundle:
+    synthesis_bundle = gather_synthesis_evidence(
+        session,
+        subject,
+        space_scope=space_scope,
+        query_text=query_text,
+        document_id=document_id,
+        retrieval_limit=12,
+    )
     return ChatEvidenceBundle(
-        evidence_items=_dedupe_and_rank(evidence_items),
-        history_items=_history_items(prior_messages),
-        retrieval_results=retrieval_results,
+        evidence_items=synthesis_bundle.evidence_items,
+        history_items=[],
+        retrieval_results=synthesis_bundle.retrieval_results,
     )

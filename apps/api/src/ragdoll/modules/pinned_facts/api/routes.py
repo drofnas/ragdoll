@@ -12,6 +12,8 @@ from ragdoll.modules.pinned_facts.api.schemas import (
     PinnedFactCandidate as PinnedFactCandidateResponse,
     PinnedFactCandidateListResponse,
     PinnedFactCreateRequest,
+    PinnedFactDetectionPreviewRequest,
+    PinnedFactDetectionPreviewResponse,
     PinnedFactDetail,
     PinnedFactHistoryResponse,
     PinnedFactListResponse,
@@ -31,6 +33,7 @@ from ragdoll.modules.pinned_facts.application.service import (
     build_fact_detail,
     build_value_snapshot,
     create_pinned_fact,
+    preview_pinned_fact_detection,
     recheck_pinned_fact,
     reject_pinned_fact_candidate,
     revert_pinned_fact_to_history,
@@ -88,6 +91,16 @@ def post_pinned_fact(
 ) -> PinnedFactDetail:
     fact = create_pinned_fact(db, current_user.subject, space_scope=space_scope, payload=payload)
     return build_fact_detail(db, fact)
+
+
+@router.post("/detect-preview", response_model=PinnedFactDetectionPreviewResponse, responses=COMMON_RESPONSES)
+def post_pinned_fact_detect_preview(
+    payload: PinnedFactDetectionPreviewRequest,
+    current_user: CurrentUserDep,
+    db: DatabaseSessionDep,
+    space_scope: SpaceScopeDep,
+) -> PinnedFactDetectionPreviewResponse:
+    return preview_pinned_fact_detection(db, current_user.subject, space_scope=space_scope, payload=payload)
 
 
 @router.get("/{fact_id}", response_model=PinnedFactDetail, responses=COMMON_RESPONSES)

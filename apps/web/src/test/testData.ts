@@ -12,6 +12,7 @@ import type {
   EntityListResponse,
   GraphResponse,
   PinnedFactCandidateListResponse,
+  PinnedFactDetectionPreviewResponse,
   PinnedFactDetail,
   PinnedFactHistoryResponse,
   PinnedFactListResponse,
@@ -499,6 +500,40 @@ export const pinnedFactHistory: PinnedFactHistoryResponse = {
       update_note: null
     }
   ]
+};
+
+export const pinnedFactDetectionPreviewResponse: PinnedFactDetectionPreviewResponse = {
+  assistant_message: {
+    citations: [
+      {
+        document_id: documentDetail.id,
+        locator: "page 1",
+        source_tier: "document",
+        title: documentDetail.title
+      }
+    ],
+    content: "FastAPI powers the API service. [E1]",
+    created_at: "2026-06-22T17:12:00Z",
+    degraded: false,
+    evidence: [
+      {
+        citations: pinnedFactDetail.evidence[0].citations,
+        created_at: "2026-06-22T17:12:00Z",
+        id: "E1",
+        score: 98,
+        source_tier: "document",
+        source_type: "document_chunk",
+        text: pinnedFactDetail.evidence[0].quote,
+        title: documentDetail.title
+      }
+    ],
+    id: "abababab-abab-abab-abab-abababababab",
+    retrieval_mode: "combined",
+    role: "assistant",
+    suggestions: []
+  },
+  retrieval_results: searchResponse.items,
+  source_document_id: documentDetail.id
 };
 
 export const changeListResponse: ChangeListResponse = {

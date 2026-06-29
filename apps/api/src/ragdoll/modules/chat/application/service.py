@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Iterable
 from uuid import UUID
 
 from ragdoll.api.shared_schemas import Citation, SourceTier
+from ragdoll.core.logging import get_logger
 from ragdoll.modules.chat.api.schemas import (
     ChatEvidenceRecord,
     ChatMessageRecord,
@@ -12,16 +14,26 @@ from ragdoll.modules.chat.api.schemas import (
     ChatSessionSummary,
     ChatSuggestion,
 )
-from ragdoll.modules.chat.application.evidence import ChatEvidenceItem, ChatHistoryItem, classify_answer_intent
+from ragdoll.modules.chat.application.evidence import ChatEvidenceBundle, ChatEvidenceItem, ChatHistoryItem, classify_answer_intent
+from ragdoll.modules.chat.application.synthesis import build_chat_synthesis_messages
 from ragdoll.modules.corrections.application.service import correction_citation, correction_matches_query
 from ragdoll.modules.corrections.infrastructure.repository import CorrectionsRepository
 from ragdoll.modules.search.api.schemas import SearchMode, SearchResult
-from ragdoll.platform.llm import ChatCompletionMessage
+from ragdoll.platform.llm import ChatCompletionMessage, get_chat_completion_service
 from ragdoll.platform.db.models import ChatMessage, ChatSession
 
+logger = get_logger("ragdoll.modules.chat.service")
 
-CHAT_EVIDENCE_PROMPT_BUDGET = 6500
-CHAT_HISTORY_PROMPT_BUDGET = 2000
+
+@dataclass(frozen=True)
+class ChatSynthesisResult:
+    answer_text: str
+    citations: list[Citation]
+    suggestions: list[ChatSuggestion]
+    evidence_items: list[ChatEvidenceItem]
+    evidence_records: list[ChatEvidenceRecord]
+    retrieval_results: list[SearchResult]
+    degraded: bool
 
 
 def _truncate_title(value: str) -> str:
@@ -205,43 +217,6 @@ def _clean_markdown_cell(value: str) -> str:
     return cleaned.strip(" -")
 
 
-def _clean_prompt_fragment(value: str, *, max_chars: int = 1200) -> str:
-    return re.sub(r"\s+", " ", value).strip()[:max_chars]
-
-
-def _answerability_label(value: float) -> str:
-    if value >= 75:
-        return "high"
-    if value >= 20:
-        return "medium"
-    return "low"
-
-
-def _prompt_fragment_limit(item: ChatEvidenceItem) -> int:
-    if item.answerability >= 75:
-        return 1800
-    if item.answerability >= 20:
-        return 900
-    return 300
-
-
-def _bounded_lines(lines: list[str], *, max_chars: int) -> str:
-    selected: list[str] = []
-    used = 0
-    for line in lines:
-        budget_left = max_chars - used
-        if budget_left <= 0:
-            break
-        if len(line) > budget_left:
-            clipped = line[: max(0, budget_left - 4)].rstrip()
-            if clipped:
-                selected.append(f"{clipped} ...")
-            break
-        selected.append(line)
-        used += len(line) + 1
-    return "\n".join(selected)
-
-
 def build_evidence_records(evidence_items: list[ChatEvidenceItem]) -> list[ChatEvidenceRecord]:
     return [
         ChatEvidenceRecord(
@@ -264,40 +239,51 @@ def build_synthesis_messages(
     evidence_items: list[ChatEvidenceItem],
     history_items: list[ChatHistoryItem],
 ) -> list[ChatCompletionMessage]:
-    system_prompt = (
-        "You are Ragdoll's evidence-grounded chat assistant. Answer the latest user question using only the "
-        "provided evidence. Use chat history only to resolve references and follow-up context; do not treat "
-        "chat history as authoritative factual evidence. Obey requested formatting such as bullets or tables. "
-        "Cite supporting evidence inline with IDs like [E1]. If evidence conflicts, say what conflicts. If the "
-        "evidence is insufficient, say what is missing. Prefer high-answerability evidence. Treat low-answerability "
-        "evidence as possible noise, especially raw code, JSON events, diagrams, installation paths, Docker snippets, "
-        "and localhost wiring unless the user directly asks for those details. Answer directly and concisely."
+    return build_chat_synthesis_messages(
+        query_text=query_text,
+        evidence_items=evidence_items,
+        history_items=history_items,
     )
-    history_lines = [
-        f"- {item.role}: {_clean_prompt_fragment(item.content, max_chars=350)}"
-        for item in history_items[-4:]
-    ]
-    history_block = _bounded_lines(history_lines, max_chars=CHAT_HISTORY_PROMPT_BUDGET) or "None"
-    evidence_lines = [
-        (
-            f"[{item.id}] source={item.source_type}; tier={item.source_tier.value}; "
-            f"intent={item.answer_intent}; answerability={_answerability_label(item.answerability)}; "
-            f"title={item.title or 'untitled'}; "
-            f"text={_clean_prompt_fragment(item.text, max_chars=_prompt_fragment_limit(item))}"
+
+
+def synthesize_chat_answer(
+    *,
+    query_text: str,
+    evidence_bundle: ChatEvidenceBundle,
+) -> ChatSynthesisResult:
+    synthesis_messages = build_synthesis_messages(
+        query_text=query_text,
+        evidence_items=evidence_bundle.evidence_items,
+        history_items=evidence_bundle.history_items,
+    )
+    degraded = False
+    try:
+        answer_text = get_chat_completion_service().generate(synthesis_messages).strip()
+        if not answer_text:
+            raise ValueError("Chat synthesis returned a blank answer.")
+    except Exception as exc:
+        logger.warning(
+            "chat_synthesis_failed error_type=%s error=%s retrieval_count=%s evidence_count=%s",
+            type(exc).__name__,
+            exc,
+            len(evidence_bundle.retrieval_results),
+            len(evidence_bundle.evidence_items),
         )
-        for item in evidence_items
-    ]
-    evidence_block = _bounded_lines(evidence_lines, max_chars=CHAT_EVIDENCE_PROMPT_BUDGET) or "None"
-    user_prompt = (
-        f"Recent chat history:\n{history_block}\n\n"
-        f"Evidence packet:\n{evidence_block}\n\n"
-        f"Question:\n{query_text}\n\n"
-        "Write the final answer now. Include evidence IDs next to claims."
+        answer_text = compose_deterministic_evidence_answer(
+            query_text=query_text,
+            evidence_items=evidence_bundle.evidence_items,
+        )
+        degraded = True
+
+    return ChatSynthesisResult(
+        answer_text=answer_text,
+        citations=citations_for_synthesized_answer(answer_text, evidence_bundle.evidence_items),
+        suggestions=build_chat_suggestions(evidence_bundle.retrieval_results),
+        evidence_items=evidence_bundle.evidence_items,
+        evidence_records=build_evidence_records(evidence_bundle.evidence_items),
+        retrieval_results=evidence_bundle.retrieval_results,
+        degraded=degraded,
     )
-    return [
-        ChatCompletionMessage(role="system", content=system_prompt),
-        ChatCompletionMessage(role="user", content=user_prompt),
-    ]
 
 
 def _split_markdown_row(line: str) -> list[str]:
@@ -498,6 +484,10 @@ def _answer_declares_insufficient_evidence(answer_text: str) -> bool:
         or "insufficient" in normalized
         or "no scoped evidence was found" in normalized
     )
+
+
+def answer_declares_insufficient_evidence(answer_text: str) -> bool:
+    return _answer_declares_insufficient_evidence(answer_text)
 
 
 def citations_for_synthesized_answer(answer_text: str, evidence_items: list[ChatEvidenceItem]) -> list[Citation]:

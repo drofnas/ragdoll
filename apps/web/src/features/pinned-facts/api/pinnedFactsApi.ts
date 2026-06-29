@@ -2,6 +2,7 @@ import type {
   Citation,
   PinnedFactCandidate,
   PinnedFactCandidateListResponse,
+  PinnedFactDetectionPreviewResponse,
   PinnedFactDetail,
   PinnedFactHistoryResponse,
   PinnedFactListResponse
@@ -69,6 +70,11 @@ export interface RejectPinnedFactCandidatePayload {
   review_notes?: string | null;
 }
 
+export interface PinnedFactDetectionPreviewPayload {
+  description: string;
+  entity_type_hint?: string | null;
+}
+
 export function listPinnedFacts(query: FactScopeQuery) {
   return apiClient.getJson<PinnedFactListResponse>("/api/v1/pinned-facts", { query });
 }
@@ -77,6 +83,14 @@ export function createPinnedFact(payload: CreatePinnedFactPayload, query: FactSc
   return apiClient.postJson<PinnedFactDetail, CreatePinnedFactPayload>("/api/v1/pinned-facts", payload, {
     query
   });
+}
+
+export function previewPinnedFactDetection(payload: PinnedFactDetectionPreviewPayload, query: FactScopeQuery) {
+  return apiClient.postJson<PinnedFactDetectionPreviewResponse, PinnedFactDetectionPreviewPayload>(
+    "/api/v1/pinned-facts/detect-preview",
+    payload,
+    { query }
+  );
 }
 
 export function readPinnedFact(factId: string, query: FactScopeQuery) {

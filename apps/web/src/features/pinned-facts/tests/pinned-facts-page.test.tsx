@@ -10,6 +10,7 @@ import { ACTIVE_SPACE_STORAGE_KEY, ALL_SPACES_STORAGE_KEY } from "../../../share
 import {
   jsonResponse,
   pinnedFactCandidates,
+  pinnedFactDetectionPreviewResponse,
   pinnedFactDetail,
   pinnedFactHistory,
   pinnedFactsListResponse,
@@ -95,6 +96,7 @@ describe("Pinned facts routes", () => {
         }
         if (url.includes("/api/v1/pinned-facts")) {
           expect(requestUrl.searchParams.get("sort_key")).toBe("name");
+          expect(requestUrl.searchParams.get("page_size")).toBe("100");
           const nameFilter = requestUrl.searchParams.get("name")?.toLowerCase() ?? "";
           const items = [secondFact, pinnedFactDetail].filter((item) =>
             nameFilter ? item.title.toLowerCase().includes(nameFilter) : true
@@ -119,7 +121,7 @@ describe("Pinned facts routes", () => {
     expect(screen.getByText("Current backend framework")).toBeInTheDocument();
   });
 
-  it("creates a pinned fact from test-query results and includes all evidence", async () => {
+  it("creates a pinned fact from the assistant preview answer and includes citation-matched evidence", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
 
     let createPayload: Record<string, unknown> | null = null;
@@ -131,10 +133,45 @@ describe("Pinned facts routes", () => {
       if (url.includes("/api/v1/spaces")) {
         return jsonResponse(spaceListResponse);
       }
-      if (url.includes("/api/v1/search")) {
+      if (url.includes("/api/v1/pinned-facts/detect-preview")) {
         return jsonResponse({
-          ...searchResponse,
-          items: [
+          ...pinnedFactDetectionPreviewResponse,
+          assistant_message: {
+            ...pinnedFactDetectionPreviewResponse.assistant_message,
+            citations: [
+              pinnedFactDetectionPreviewResponse.assistant_message.citations[0],
+              {
+                ...pinnedFactDetectionPreviewResponse.assistant_message.citations[0],
+                chunk_id: "chunk-2",
+                document_id: "66666666-6666-6666-6666-666666666666",
+                locator: "chunk:2",
+                title: "Frontend Build"
+              }
+            ],
+            content: "- Frontend: FastAPI [E1]\n- Build: Vite [E2]",
+            evidence: [
+              {
+                ...pinnedFactDetectionPreviewResponse.assistant_message.evidence[0],
+                id: "E1",
+                text: "FastAPI powers the API service."
+              },
+              {
+                ...pinnedFactDetectionPreviewResponse.assistant_message.evidence[0],
+                citations: [
+                  {
+                    ...pinnedFactDetectionPreviewResponse.assistant_message.citations[0],
+                    chunk_id: "chunk-2",
+                    document_id: "66666666-6666-6666-6666-666666666666",
+                    locator: "chunk:2",
+                    title: "Frontend Build"
+                  }
+                ],
+                id: "E2",
+                text: "Vite builds the frontend bundle."
+              }
+            ]
+          },
+          retrieval_results: [
             {
               ...searchResponse.items[0],
               matched_modes: ["combined"],
@@ -144,11 +181,10 @@ describe("Pinned facts routes", () => {
               ...searchResponse.items[0],
               result_id: "second-result",
               matched_modes: ["combined"],
-              preview_text: "FastAPI runs the backend today."
+              preview_text: "Vite builds the frontend bundle."
             }
           ],
-          page_size: 5,
-          total: 2
+          source_document_id: null
         });
       }
       if (url.includes("/api/v1/pinned-facts") && init?.method === "POST") {
@@ -168,14 +204,68 @@ describe("Pinned facts routes", () => {
     await user.type(screen.getByLabelText("Name"), "Project color scheme");
     await user.type(screen.getByLabelText("Key"), "project_color_scheme");
     await user.type(screen.getByLabelText("Detection query"), "What is the current project color scheme?");
-    await user.type(screen.getByLabelText("Stored value"), "Atlas");
     await user.click(screen.getByRole("button", { name: "Test Query" }));
 
-    await waitFor(() => expect(screen.getAllByText("Included as evidence")).toHaveLength(2));
+    await screen.findByText("Assistant preview");
+    await user.click(screen.getByRole("button", { name: "Use as Stored Value" }));
+    expect(screen.getByLabelText("Stored value")).toHaveValue("- Frontend: FastAPI\n- Build: Vite");
+    await waitFor(() => expect(screen.getAllByText("Used for synthesis")).toHaveLength(2));
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(createPayload).not.toBeNull());
     expect((createPayload?.evidence as Array<unknown>).length).toBe(2);
+    expect(createPayload).toMatchObject({
+      source_document_id: null,
+      value_text: "- Frontend: FastAPI\n- Build: Vite"
+    });
+  });
+
+  it("shows a preview API error and still leaves create enabled for manual editing", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/pinned-facts/detect-preview")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                detail: "Pinned fact detection could not reach the configured chat model.",
+                status: 503,
+                title: "Pinned fact detection unavailable",
+                type: "https://ragdoll.dev/problems/pinned-fact-detection-unavailable"
+              }),
+              {
+                headers: {
+                  "Content-Type": "application/problem+json"
+                },
+                status: 503
+              }
+            )
+          );
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderPinnedFactRoutes(["/pinned-facts/create"]);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Name"), "Project color scheme");
+    await user.type(screen.getByLabelText("Key"), "project_color_scheme");
+    await user.type(screen.getByLabelText("Detection query"), "What is the current project color scheme?");
+    await user.type(screen.getByLabelText("Stored value"), "Atlas");
+    await user.click(screen.getByRole("button", { name: "Test Query" }));
+
+    await screen.findByText("The request failed without a structured problem response.");
+    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
   });
 
   it("creates a pinned fact from chat-seeded evidence without rerunning the query", async () => {
