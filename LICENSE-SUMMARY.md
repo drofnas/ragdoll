@@ -1,6 +1,6 @@
 # License Summary (Non-Binding)
 
-This document is a human-readable summary of the Business Source License (BSL) 1.1 used by Ragdoll. It is provided for convenience only and does not replace the LICENSE.txt file.
+This document is a human-readable summary of the Business Source License (BSL) 1.1 used by Ragdoll. It is provided for convenience only and does not replace the LICENSE file.
 
 ## What You Can Do
 
@@ -55,4 +55,4 @@ On 2030-01-01, this version of Ragdoll will automatically transition to the Apac
 
 ## Legal Notice
 
-This summary is not part of the license and is not legally binding. The LICENSE.txt file governs all rights and restrictions.
+This summary is not part of the license and is not legally binding. The LICENSE file governs all rights and restrictions.
