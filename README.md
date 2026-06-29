@@ -1,10 +1,33 @@
 # Ragdoll
 
+## Tech Stack
+
+- 🚀 Backend: Python (FastAPI), Redis, PostgreSQL
+- 💻 Frontend: TypeScript, Vite + React
+- 🛠️ Infrastructure: Docker, DBmate
+
 Ragdoll is a self-hosted knowledge workspace. It ingests documents, builds searchable and graph-backed context, keeps evidence and corrections attached to answers, and exposes that state through search, chat, entities, pinned facts, changes, and admin surfaces.
 
 License: [Business Source License 1.1](LICENSE)  
 Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)  
 Apache License 2.0 on 2030-01-01
+
+## Architecture Visual
+
+```mermaid
+flowchart LR
+  Upload["Document upload"] --> Ingestion["Ingestion API"]
+  Ingestion --> Queue["Queue and worker"]
+  Queue --> Processing["Text, embedding, and entity processing"]
+  Processing --> Storage["Postgres + pgvector"]
+  Processing --> Graph["Graph projection"]
+  Storage --> Search["Search"]
+  Storage --> Chat["Chat"]
+  Graph --> Entities["Entities"]
+  Graph --> Chat
+```
+
+This is the fast, high-level story: documents move through ingestion and background processing into retrieval and graph projections that power the product experience. For the canonical detailed flow, start with [docs/architecture/ingestion-and-processing.md](docs/architecture/ingestion-and-processing.md) and then use the broader [architecture guide](docs/architecture/README.md).
 
 ## Product Overview
 

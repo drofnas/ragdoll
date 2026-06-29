@@ -2,6 +2,8 @@
 
 This directory is the canonical current-state architecture guide for Ragdoll. It documents the live runtime shape, ownership boundaries, and feature flows across the backend, frontend, workers, storage, and tests.
 
+The root [README.md](../../README.md) carries a simplified architecture visual for quick orientation. Treat [ingestion-and-processing.md](./ingestion-and-processing.md) as the canonical detailed version of that document pipeline flow.
+
 ```mermaid
 flowchart LR
   Overview["System Overview"] --> Backend["Backend Architecture"]
