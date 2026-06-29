@@ -2,18 +2,16 @@
 
 ## Purpose
 
-Define the product boundaries, deployment model, canonical repository structure, and top-level flow for Ragdoll.
+Describe the live product boundary, runtime shape, and top-level flows for Ragdoll.
 
 ## Product Summary
 
-Ragdoll is a knowledge system for architecture and product understanding. It ingests documents, extracts structured knowledge, maintains searchable context, tracks current state, and answers questions through search and chat surfaces with citations.
+Ragdoll is a self-hosted knowledge workspace for teams that need document-backed search, chat, provenance, and current-state tracking. The system turns uploaded source material into searchable chunks, extracted entities, graph relationships, pinned facts, and evidence-backed answers.
 
-## Target Design
-
-Ragdoll is implemented as a modular monolith with two app roots and three support layers:
+## Repository Shape
 
 ```text
-ragdoll/
+ragdoll-redux/
   apps/
     api/
     web/
@@ -31,92 +29,53 @@ ragdoll/
   docs/
 ```
 
-### Product Capabilities
+## Runtime Model
 
-Ragdoll includes these capability areas:
-
-- Authentication and user profile management
-- Spaces and active/all-spaces scope
-- Document upload, indexing, preview, deletion, and reprocessing
-- Entity and decision extraction
-- Knowledge graph storage and exploration
-- Unified search and hybrid retrieval
-- Chat sessions with citations and corrections
-- Pinned facts and conflict resolution
-- Change feed and read state
-- Admin tooling, usage, effective instance policy, and runtime status
-- Self-hosted public login, registration, and system status
-- Automated testing across backend, frontend, and E2E flows
-
-### Deployment Model
-
-- `apps/api` is the single backend deployable for HTTP APIs and shared runtime wiring.
-- `apps/web` is the single browser-facing web application.
-- Background workers are separate runtime entrypoints owned by `apps/api`, not separate products.
-- Relational storage, object storage, vector indexing, graph storage, and LLM workflows remain external dependencies behind adapters.
+- `apps/api` serves `/health`, `/api/v1/health`, and the `/api/v1` module surface
+- `apps/web` serves the public, authenticated, and admin browser flows
+- background workers owned by `apps/api` process uploaded documents and recompute pinned facts
+- shared contracts flow from backend-owned schemas into generated frontend types
 
 ```mermaid
 flowchart LR
   User["User"] --> Web["apps/web"]
   Web --> Api["apps/api"]
-  Api --> DB["Relational DB"]
-  Api --> Store["Object Storage"]
-  Api --> Vector["Vector Store"]
-  Api --> Graph["Graph Store"]
-  Api --> LLM["LLM Services"]
-  Api --> Queue["Job Queue / Workers"]
+  Api --> Queue["Redis / RQ Workers"]
+  Api --> DB["Postgres + pgvector"]
+  Api --> Storage["Supabase Storage"]
+  Api --> Ollama["Ollama"]
   Queue --> DB
-  Queue --> Store
-  Queue --> Vector
-  Queue --> Graph
-  Queue --> LLM
+  Queue --> Storage
+  Queue --> Ollama
 ```
 
-## Responsibilities and Boundaries
+## Capability Areas
 
-- `apps/api`: HTTP routing, shared runtime wiring, module composition, worker entrypoints, platform adapters.
-- `apps/web`: route shells, feature UIs, session handling, contract-driven API access.
-- `packages/contracts`: shared schema and generated client types.
-- `packages/config`: reusable env templates, lint/test config, and conventions.
-- `packages/tooling`: codegen and structural verification helpers.
-- `tests/e2e`: product-level cross-surface verification only.
-- `infra`: local runtime definitions and operations notes, not product logic.
-- `scripts`: thin developer and CI entrypoints.
+- auth, user profile, and space scoping
+- document library and upload processing
+- search, entities, and knowledge graph exploration
+- chat with citations and corrections
+- pinned facts and change tracking
+- admin, usage, and runtime visibility
 
-## Public Interfaces and Shared Types
+## Primary Flows
 
-Ragdoll locks in these public seams:
+1. A user signs in, loads session state, and selects a `SpaceScope`.
+2. The user uploads or revisits documents in that space.
+3. Background workers persist blobs, extract text, generate embeddings, write retrieval projections, and record entity and graph data.
+4. Search, entities, graph exploration, and chat read from the resulting projections with space-aware boundaries.
+5. Corrections, pinned facts, and changes capture human feedback and current-state governance on top of the evidence layer.
 
-- Canonical backend namespace: `/api/v1`
-- Optional compatibility alias: `/api` during migration only
-- Shared contracts for auth, spaces, documents, search, chat, entities, pinned facts, changes, admin, usage, and future extensions
-- Cross-cutting shared types: `SpaceScope`, `Citation`, `ProcessingStatus`, `PaginatedResponse`, `ProblemResponse`, `MutationResult`
+## Boundaries
 
-## Primary Workflows
+- `apps/api` owns backend modules, routing, workers, runtime policy, and dependency probes
+- `apps/web` owns route shells, page composition, guards, shared browser state, and typed API consumption
+- `packages/contracts` owns cross-app wire contracts
+- `tests/e2e` owns stitched, user-visible flows rather than module internals
 
-1. User signs in through `apps/web`, receives session state and selected Space from `apps/api`.
-2. User uploads documents into a Space.
-3. Background workers parse content, store originals, chunk text, create embeddings, extract entities, and populate graph structures.
-4. Search and chat query vector, graph, and relational projections through application services.
-5. Users review current state, history, citations, pinned facts, and corrections from scoped product surfaces.
-6. Admins manage users, inspect effective instance policy, and review runtime readiness without bypassing shared policy layers.
+## Key Constraints
 
-## Failure Modes and Edge Cases
-
-- Partial processing: one document may have stored content but incomplete vector or graph outputs.
-- Current-state ambiguity: multiple evidence sources may disagree and require visible conflict handling.
-- Compatibility drift: if `/api` aliases survive too long, frontend and docs can diverge from `/api/v1`.
-- Scope leakage: all-spaces views must remain explicit and auditable.
-- Background retries: repeated failures must not duplicate graph or embedding records.
-
-## Acceptance Checks
-
-- Every later architecture doc uses the repo tree in this file.
-- All capability areas appear in downstream module or feature specs.
-- All runtime dependencies are described as explicit adapters or infrastructure, not hidden utility code.
-- The canonical API prefix is `/api/v1`.
-
-## Deferred Notes
-
-- Service extraction is out of scope unless scale or isolation needs become concrete.
-- Multi-tenant SaaS architecture and public marketing funnels are intentionally out of scope; current design is a self-hosted workspace product.
+- `/api/v1` is the canonical HTTP namespace
+- workers are part of the documented runtime, not an implementation footnote
+- all-spaces reads must remain explicit
+- user-facing answers and current-state summaries depend on provenance and citations

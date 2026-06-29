@@ -1,43 +1,51 @@
 # `apps/api`
 
-Canonical home for the FastAPI backend application.
+Canonical home for the FastAPI backend and worker-owned runtime.
 
-Phase 1 now includes the backend runtime and DB foundations:
+## Current Responsibilities
 
-- application package under `src/ragdoll/`
-- FastAPI app entrypoint at `ragdoll.main:app`
-- clean liveness endpoint at `GET /health`
-- clean readiness contract at `GET /api/v1/health`
-- shared backend core services under `src/ragdoll/core/`
-- DB engine and session code under `src/ragdoll/platform/db/`
-- DBmate schema and SQL migrations under `db/`
-- backend platform bootstrap tests under `tests/platform/`
-- a Phase 2 `/api/v1` module registry scaffold across planned backend modules
-- a Phase 2 contract-export entrypoint in `packages/tooling/scripts/generate_contracts.py`
+`apps/api` owns:
 
-Current nearby ownership:
+- the HTTP application entrypoint at `src/ragdoll/main.py`
+- top-level router composition under `src/ragdoll/api/`
+- versioned backend modules registered by `src/ragdoll/modules/registry.py`
+- shared runtime concerns in `src/ragdoll/core/`
+- platform adapters in `src/ragdoll/platform/`
+- background workers in `src/ragdoll/workers/`
+- DBmate schema and migrations in `db/`
 
-- application source under `src/ragdoll/`
-- backend tests under `tests/`
-- background worker entrypoints under `src/ragdoll/workers/`
-- Python dependency manifest using `requirements.txt`
-- DBmate migrations owned by this app
+The current `/api/v1` module surface includes:
 
-Runtime notes:
+- `auth`, `users`, `spaces`
+- `documents`, `ingestion`
+- `search`, `chat`, `entities`, `knowledge_graph`
+- `pinned_facts`, `changes`, `corrections`
+- `admin`, `usage`
 
-- `DEBUG=true` enables application debug behavior, but SQL statement echo is configured separately.
-- Set `SQL_ECHO=true` only when you want raw SQL `BEGIN`/`SELECT`/`ROLLBACK` traces in logs.
+## Runtime Notes
 
-Still deferred:
-
-- concrete feature behavior behind module route mounts under `/api/v1`
-- feature-specific models and migrations
-- some platform adapters beyond the current ingestion worker path
+- Liveness endpoint: `GET /health`
+- Readiness endpoint: `GET /api/v1/health`
+- Runtime status page data is served through the backend and powers `/status` in the web app
+- CORS, request logging, and exception handling are bootstrapped in `src/ragdoll/main.py`
+- The Redis-backed document processing queue is part of the live runtime shape
 
 ## Local Commands
 
-- start dev server: `uvicorn ragdoll.main:app --host 0.0.0.0 --port 8000 --reload`
-- start document-vector worker: `rq worker --url "$REDIS_URL" "$DOCUMENT_PROCESSING_QUEUE_NAME"`
-- run platform tests: `../../scripts/test/backend.sh`
-- export OpenAPI + contract scaffold from Docker: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace backend python3 packages/tooling/scripts/generate_contracts.py`
-- run DBmate migrations: `DATABASE_URL=postgresql://.../?sslmode=disable dbmate --migrations-dir db/migrations --schema-file db/schema.sql up`
+Repository rules prefer Docker-backed wrappers for backend work.
+
+- run backend tests: `../../scripts/test/backend.sh`
+- run full repo validation: `../../dev-setup.sh test`
+- run E2E validation: `../../dev-setup.sh test-e2e`
+- export OpenAPI and contracts: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace backend python3 packages/tooling/scripts/generate_contracts.py`
+- run DB migrations inside Docker: `docker compose -f ../../infra/docker/compose.dev.yml run --rm -w /workspace/apps/api backend alembic upgrade head`
+
+## Working In This Area
+
+- Add or update backend capability logic under `src/ragdoll/modules/<module>/`
+- Keep app-wide policies in `src/ragdoll/core/`
+- Keep shared runtime adapters in `src/ragdoll/platform/`
+- Keep worker entrypoints in `src/ragdoll/workers/`
+- Add module tests under `tests/modules/` and platform tests under `tests/platform/`
+
+For system-level architecture, start with [../../docs/architecture/backend-architecture.md](../../docs/architecture/backend-architecture.md).

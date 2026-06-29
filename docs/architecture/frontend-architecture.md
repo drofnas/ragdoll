@@ -2,123 +2,58 @@
 
 ## Purpose
 
-Define the `apps/web` blueprint for route composition, feature ownership, shared client behavior, and contract usage in the rebuilt product.
+Describe the live `apps/web` route model, provider stack, feature ownership, and shared browser boundaries.
 
-## Target Design
-
-### `apps/web` tree
+## Current Shape
 
 ```text
 apps/web/src/
   app/
-    router.tsx
-    providers.tsx
-    shell/
-      PublicShell.tsx
-      AuthenticatedShell.tsx
-      AdminShell.tsx
-    guards/
-      ProtectedRoute.tsx
-      AdminRoute.tsx
   features/
-    auth/
-    dashboard/
-    spaces/
-    documents/
-    chat/
-    search/
-    entities/
-    pinned-facts/
-    changes/
-    corrections/
-    admin/
-    account/
   shared/
-    api/
-    ui/
-    hooks/
-    lib/
-    types/
-    state/
 ```
 
-### Feature module shape
+The app tree owns route wiring, providers, shells, and guards. Feature folders own pages, feature-local API wrappers, and tests. Shared folders own cross-feature transport, formatting helpers, and state providers.
 
-```text
-features/<feature>/
-  pages/
-  components/
-  hooks/
-  api/
-  model/
-  utils/
-  tests/
+```mermaid
+flowchart TD
+  Providers["AppProviders"] --> Auth["AuthSessionProvider"]
+  Providers --> Scope["SpaceScopeProvider"]
+  Router["router.tsx"] --> Public["PublicShell"]
+  Router --> Protected["ProtectedRoute -> AuthenticatedShell"]
+  Router --> Admin["AdminRoute -> AdminShell"]
+  Protected --> Features["dashboard / spaces / documents / search / chat / entities / pinned-facts / changes / account"]
+  Admin --> AdminPage["admin"]
+  Public --> PublicPages["login / register / status"]
 ```
 
-## Responsibilities and Boundaries
+## Live Route Ownership
 
-- `app/router.tsx`: route table only
-- `app/providers.tsx`: query client, auth/session bootstrap, Space scope provider, theme, error boundaries
-- `app/shell/*`: page chrome and layout composition
-- `app/guards/*`: authz gatekeeping only
-- `shared/api/client.ts`: single transport layer with auth headers, cancellation, retry, and error translation
-- `shared/ui/*`: reusable primitives only
-- `shared/hooks/*`: generic hooks, not feature rules
-- `shared/lib/*`: pure helper functions
-- `features/*`: own page orchestration, view models, and feature-specific clients
+- `auth`: `/`, `/login`, `/register`
+- `marketing`: `/status`
+- `dashboard`: `/dashboard`
+- `spaces`: `/spaces`
+- `documents`: `/documents`, `/documents/:documentId`
+- `search`: `/search`
+- `chat`: `/chat`, `/chat/:sessionId`
+- `entities`: `/entities`, `/entities/:entityId`
+- `pinned-facts`: `/pinned-facts`, `/pinned-facts/create`, `/pinned-facts/:factId`
+- `changes`: `/changes`
+- `account`: `/account`
+- `admin`: `/admin`
 
-### Feature ownership
+There is no standalone routed `corrections` feature today. Correction submission is part of the chat experience.
 
-- `auth`: login, register, session bootstrap
-- `dashboard`: authenticated landing surface
-- `spaces`: Space list, create/edit/archive, active/all-spaces selection
-- `documents`: list, filters, preview, upload, download, delete, move, status refresh
-- `chat`: sessions, message flow, citations, correction entrypoint
-- `search`: query form, filters, related results, list/graph result presentation
-- `entities`: list, detail, history, provenance, graph explorer
-- `pinned-facts`: fields, summaries, conflicts, resolution controls
-- `changes`: feed, detail, read-state actions
-- `corrections`: verification dashboard
-- `admin`: user management, readiness, runtime status, and effective-instance-policy reads
-- `account`: profile, password, and usage management
+## Shared Browser Boundaries
 
-## Public Interfaces and Shared Types
+- `app/providers.tsx` creates the query client and mounts auth/session plus space scope providers
+- `shared/api/client.ts` is the shared transport entrypoint
+- `shared/api/runtimeStatus.ts` supports runtime status flows
+- `shared/state/authSession.tsx` and `shared/state/spaceScope.tsx` hold app-wide session and scope state
 
-- All API request and response shapes are imported from `packages/contracts/typescript`
-- Feature clients are thin wrappers around shared transport
-- `apps/web` uses Tailwind CSS v4 through the Vite plugin; shared theme tokens live in `src/styles/app.css`
-- Shared frontend state includes:
-  - current user
-  - current `SpaceScope`
-  - query cache
-  - route-safe error state
+## Frontend Invariants
 
-## Primary Workflows
-
-1. App bootstraps providers and loads current session state.
-2. User enters through `PublicShell`, `AuthenticatedShell`, or `AdminShell`.
-3. Feature pages load typed data through feature-local API clients.
-4. Shared transport injects auth, handles request cancellation, and normalizes errors.
-5. Feature hooks maintain local query or mutation behavior without centralizing product logic in global utilities.
-6. Graph visualizations, citations, and pinned-facts summaries reuse shared primitives but remain owned by their features.
-
-## Failure Modes and Edge Cases
-
-- Guarded routes must hide in navigation and hard-block on direct access.
-- All-spaces views must make scope obvious to avoid accidental cross-project interpretation.
-- Background processing pages must render partial status without implying finished retrieval or graph population.
-- Search, chat, and graph UI must tolerate partial backend results and typed problem responses.
-- Admin surfaces must not share user-facing route shells or bypass policy-driven data loading.
-
-## Acceptance Checks
-
-- Every authenticated capability has one feature page or one clearly owned feature surface in `apps/web`.
-- The public shell stays limited to login, registration, and the backend status page.
-- No feature relies on a monolithic global API utility bucket.
-- Shared types come from `packages/contracts`, not hand-maintained duplicates.
-- Route shells and guards are separated from page logic.
-
-## Deferred Notes
-
-- If a future native app or embedded UI appears, it should consume the same contracts rather than reshape current feature boundaries.
-- Graph-heavy UI enhancements belong in `entities` or `search`, not a new global visualization app.
+- route guards are advisory UX; backend authorization stays authoritative
+- shared request/response types come from `packages/contracts/typescript`
+- public pages stay limited to login, registration, and status
+- feature logic should stay with the owning feature rather than drift into generic shared folders

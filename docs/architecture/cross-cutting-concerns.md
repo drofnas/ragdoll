@@ -2,81 +2,42 @@
 
 ## Purpose
 
-Capture shared rules for auth, authorization, config, instance policy, secrets, observability, rate limiting, and error handling across the rebuild.
+Capture shared policies that apply across modules, pages, and workers.
 
-## Target Design
+## Shared Homes
 
-### Shared backend homes
+- backend: `core/`, `api/dependencies.py`, `api/errors.py`
+- frontend: `app/providers.tsx`, `shared/api/client.ts`, `shared/state/`
 
-- `core/config.py`
-- `core/security.py`
-- `core/auth.py`
-- `core/instance_policy.py`
-- `core/logging.py`
-- `core/exceptions.py`
-- `api/dependencies.py`
-- `api/errors.py`
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant Web as apps/web
+  participant API as apps/api
+  participant Core as core/auth + core/config + api/errors
+  participant Module as feature module
 
-### Shared frontend homes
+  Browser->>Web: Navigate or submit action
+  Web->>API: Typed HTTP request
+  API->>Core: Resolve config, auth, dependencies
+  Core->>Module: Authorized request context
+  Module-->>Core: Result or structured exception
+  Core-->>Web: Success payload or ProblemResponse
+```
 
-- `app/providers.tsx`
-- `shared/api/client.ts`
-- `shared/state/*`
-- `shared/lib/*`
+## Cross-System Rules
 
-## Responsibilities and Boundaries
+- backend authorization is authoritative; frontend guards are user experience only
+- environment parsing and effective instance limits are centralized
+- errors are normalized into stable HTTP problem responses
+- request logging and dependency health are part of the live runtime surface
+- secrets stay in environment or secret stores, never committed files
 
-### Auth and authorization
+## Operational Concerns
 
-- Auth identity is resolved once per request through shared dependencies.
-- Route handlers may guard by user or admin, but business authorization stays in module policies.
-- Frontend gating is advisory; backend authorization is authoritative.
-
-### Config
-
-- Environment variables are parsed once by `core/config.py`.
-- App-local examples live at `apps/api/.env.example` and `apps/web/.env.example`.
-- Mirrored shared copies remain under `packages/config/env/` for centralized repo config assets.
-- `ALLOWED_ORIGINS` accepts either CSV syntax or a JSON array of strings and is normalized by backend config.
-- `apps/api/.env` and `apps/web/.env` are runtime conveniences, not architecture anchors outside the `apps/` shape.
-
-### Instance policy
-
-- Self-hosted limits are resolved from backend settings, not per-user commercial plan state.
-- One shared resolver owns effective limits for ingestion, usage summaries, and admin/operator reads.
-- Defaults should be mostly unlimited for cumulative quotas while keeping bounded request and document safety limits.
-- Capability toggles that remain useful operationally belong in config with runtime-oriented names, not product feature-flag language.
-
-### Errors
-
-- Domain and application layers raise structured exceptions.
-- `api/errors.py` maps them to stable HTTP problem responses.
-- Frontend transport normalizes problem responses into predictable UI error states.
-
-### Secrets and encryption
-
-- Password hashing, token signing, and third-party token encryption live in `core/security.py`.
-- Secrets are sourced from environment or secret managers, never committed.
-- External integration credentials stay in platform adapters, not page or route code.
-
-### Observability
-
-- Request logging, worker logging, and correlation IDs are standardized.
-- Health/readiness endpoints report DB, storage, vector, graph, LLM, and queue dependency health.
-- Background jobs emit stage and retry logs with document and Space context.
-
-### Rate limits
-
-- Upload, bot, or expensive retrieval surfaces use explicit rate-limit policies.
-- Limits are configured centrally and applied through dependencies or middleware.
-
-## Public Interfaces and Shared Types
-
-- `CurrentUser`
-- `ProblemResponse`
-- `HealthStatusResponse`
-- `ReadinessDependencyStatus`
-- `RateLimitState`
+- readiness reports database, storage, vector, graph, LLM, and queue dependency state
+- Redis queue availability is part of production readiness
+- self-hosted instance policy affects ingestion, admin, and usage behavior through shared backend logic
 
 ## Primary Workflows
 

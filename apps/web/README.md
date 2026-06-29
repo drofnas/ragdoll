@@ -1,30 +1,44 @@
 # `apps/web`
 
-Canonical home for the Vite + React web application.
+Canonical home for the Vite + React workspace.
 
-The web app now includes the first live workspace slice:
+## Current Responsibilities
 
-- TypeScript + Vite app bootstrap under `src/`
-- app-level router, providers, shells, and guards
-- real auth/session bootstrap and owned-Space scope loading
-- live auth, Spaces, documents, dashboard, and account pages
-- shared API transport plus generated contract consumption from `packages/contracts/typescript`
+`apps/web` owns:
 
-Planned nearby ownership:
+- route composition in `src/app/router.tsx`
+- app-wide providers in `src/app/providers.tsx`
+- public, authenticated, and admin shells in `src/app/shell/`
+- route guards in `src/app/guards/`
+- feature pages and feature-local API wrappers in `src/features/`
+- shared browser transport and shared state in `src/shared/`
 
-- application source under `src/`
-- static assets under `public/`
-- feature-owned UI and tests under the app tree
-- `npm` as the package manager during the initial rebuild
+The live route surface includes:
 
-Still deferred:
+- public: `/`, `/login`, `/register`, `/status`
+- authenticated: `/dashboard`, `/spaces`, `/documents`, `/documents/:documentId`, `/search`, `/chat`, `/chat/:sessionId`, `/entities`, `/entities/:entityId`, `/pinned-facts`, `/pinned-facts/create`, `/pinned-facts/:factId`, `/changes`, `/account`
+- admin: `/admin`
 
-- retrieval-heavy web features such as search, chat, entities, pinned facts, changes, and corrections
-- deeper admin tooling and public marketing pages
-- fuller E2E critical-path coverage beyond the current repo-owned test suite
+## Implementation Notes
+
+- Query state is provided through TanStack Query
+- auth session and selected space scope are app-wide providers
+- feature request shapes come from `packages/contracts/typescript`
+- the backend remains authoritative for runtime status, messages, citations, changes, and pinned-fact state
 
 ## Local Commands
 
 - install dependencies: `npm install`
 - start dev server: `npm run dev`
 - run frontend tests: `npm run test`
+- run full repo validation from the repo root: `../../dev-setup.sh test`
+
+## Working In This Area
+
+- Add pages under `src/features/<feature>/pages/`
+- Wire routes in `src/app/router.tsx`
+- Keep cross-feature transport in `src/shared/api/`
+- Keep app-wide state in `src/shared/state/`
+- Add app wiring tests in `src/app/tests/` and feature tests near the owning feature
+
+For system-level architecture, start with [../../docs/architecture/frontend-architecture.md](../../docs/architecture/frontend-architecture.md).

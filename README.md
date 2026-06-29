@@ -1,58 +1,30 @@
 # Ragdoll
 
-Ragdoll is rebuilt in this repository as the canonical clean-room source of truth for a self-hosted local installation. The repository now includes the end-to-end workspace product surface through self-hosted operator completion across `apps/api`, `apps/web`, and `infra/`.
+Ragdoll is a self-hosted knowledge workspace. It ingests documents, builds searchable and graph-backed context, keeps evidence and corrections attached to answers, and exposes that state through search, chat, entities, pinned facts, changes, and admin surfaces.
 
-License: [Business Source License 1.1](LICENSE.txt)
-Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)
+License: [Business Source License 1.1](LICENSE.txt)  
+Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)  
 Apache License 2.0 on 2030-01-01
 
-## Current Status
+## Product Overview
 
-This repository currently implements:
+The current application includes:
 
-- **Phase 0 - Repo Foundation**
-- **Phase 1 - Platform And Runtime Base**
-- **Phase 2 - Shared Contracts And API Skeleton**
-- **Phase 3 - Identity And Space Migration**
-- **Phase 4 - Document And Usage Foundations**
-- **Phase 5 - Document Library And Usage Summary**
-- **Phase 6 - Manual Upload And Processing Backbone**
-- **Phase 7 - Local Dependency Runtime And Integration Foundations**
-- **Phase 8 - Retrieval And Knowledge Foundations**
-- **Phase 9 - Search, Entities, And Graph Exploration**
-- **Phase 10 - Stateful Workflows And Chat Foundations**
-- **Phase 11 - Web Workspace Foundations**
-- **Phase 12 - Retrieval And Interaction Web Surfaces**
-- **Phase 13 - Self-Hosted Operator Completion**
+- a FastAPI backend in `apps/api`
+- a Vite + React frontend in `apps/web`
+- shared OpenAPI and TypeScript contracts in `packages/contracts`
+- DBmate-managed relational schema under `apps/api/db`
+- Redis-backed background processing for document ingestion
+- self-hosted runtime dependencies wired through `infra/docker`
 
-- The canonical application roots are `apps/api` and `apps/web`.
-- Shared contracts live in `packages/contracts`.
-- Shared env and tooling configuration live in `packages/config`.
-- Product-level end-to-end tests live in `tests/e2e`.
-- Local infrastructure assets live under `infra/`.
-- The previous repository is private migration input only and is not part of the public structure here.
+Primary capability areas:
 
-The clean repo now provides:
-
-- a bootable FastAPI runtime with auth, spaces, documents, ingestion, search, chat, entities, pinned facts, changes, admin, and usage slices
-- a bootable Vite + React workspace with public login/register/status routes plus authenticated and admin shells
-- shared contracts and OpenAPI export tooling
-- DBmate-backed relational foundations for identity, spaces, documents, usage, chat, pinned facts, changes, and corrections
-- runnable local dev Docker wiring for the app stack plus Dockerized Supabase and Ollama dependencies
-- operator-facing readiness, health, and effective-instance-policy surfaces for self-hosted installs
-
-## Preserved Phase 0 Conventions
-
-The rebuild currently preserves the original stack direction while the structure is being cleaned up:
-
-- Backend runtime: FastAPI in `apps/api`
-- Backend dependency convention: `requirements.txt` plus Docker-based local execution
-- Frontend runtime: Vite + React in `apps/web`
-- Frontend package manager: `npm`
-- Database migrations: DBmate
-- Local development orchestration: Docker Compose
-- Shared contracts: exported from the backend and generated into `packages/contracts`
-- Script ownership: thin developer entrypoints under `scripts/dev`, `scripts/test`, and `scripts/ops`
+- auth, users, and spaces
+- document library, upload, processing, and download
+- search, entities, and knowledge graph exploration
+- chat with citations and correction submission
+- pinned facts and change tracking
+- admin runtime visibility and usage reporting
 
 ## Repository Structure
 
@@ -78,60 +50,58 @@ ragdoll-redux/
   docs/
 ```
 
-See [docs/migration-map.md](docs/migration-map.md) for the old-to-new root mapping used during the rebuild.
+Read [INDEX.md](INDEX.md) before broad codebase traversal. It is the placement guide for pages, modules, tests, contracts, and scripts.
 
-## Bootstrap Entry Points
+## Documentation Guide
 
-The repo now has a runnable two-app development skeleton with `./dev-setup.sh` as the main convenience entrypoint and `scripts/` as the underlying thin command owners.
+Start with the current-state docs:
 
-- Primary convenience entrypoint: `./dev-setup.sh`
-- Typical first commands:
-  - `./dev-setup.sh infra up`
-  - `./dev-setup.sh up`
-  - `./dev-setup.sh daemon`
-  - `./dev-setup.sh ps`
-  - `./dev-setup.sh test`
-  - `./dev-setup.sh test-infra`
-- Runtime startup commands auto-create:
-  - `apps/api/.env` from `apps/api/.env.example`
-  - `apps/web/.env` from `apps/web/.env.example`
-- Local dependency startup also auto-creates:
-  - `infra/docker/.env.infra` from `infra/docker/.env.infra.example`
-- Edit app-local defaults here when needed:
-  - `apps/api/.env.example`
-  - `apps/web/.env.example`
-- Development entrypoints: `scripts/dev/`
-- Test entrypoints: `scripts/test/`
-- Ops notes and future operational commands: `scripts/ops/`
-- Testing ownership and expectations: [TESTING.md](TESTING.md)
-- Shared mirrored env templates: `packages/config/env/`
-- Local Docker ownership: `infra/docker/`
+- Architecture: [docs/architecture/README.md](docs/architecture/README.md)
+- Executive overview: [docs/executive/system-brief.md](docs/executive/system-brief.md)
+- Operating model and risk: [docs/executive/operating-model-and-risk.md](docs/executive/operating-model-and-risk.md)
+- Engineering subsystem docs:
+  - [docs/engineering/identity-and-access.md](docs/engineering/identity-and-access.md)
+  - [docs/engineering/documents-and-ingestion.md](docs/engineering/documents-and-ingestion.md)
+  - [docs/engineering/retrieval-and-knowledge.md](docs/engineering/retrieval-and-knowledge.md)
+  - [docs/engineering/interaction-and-governance.md](docs/engineering/interaction-and-governance.md)
+  - [docs/engineering/api-surface-and-module-ownership.md](docs/engineering/api-surface-and-module-ownership.md)
 
-## Local Full-Stack Flow
+## Local Development
 
-Use these commands for the local runtime:
+Use `./dev-setup.sh` as the main entrypoint.
 
-- `./dev-setup.sh infra up` to bootstrap and start Dockerized Supabase plus Ollama
-- `./dev-setup.sh daemon` to start the app stack in the background
-- `./dev-setup.sh test-infra` to run the opt-in live readiness and manual-upload smoke suite
-- `./dev-setup.sh infra ps` to inspect dependency containers
-- `./dev-setup.sh logs` and `./dev-setup.sh infra logs` for app or dependency log inspection
-- `./dev-setup.sh down` and `./dev-setup.sh infra down` to tear the stacks down
+- Start infra: `./dev-setup.sh infra up`
+- Start the application stack: `./dev-setup.sh daemon`
+- Inspect services: `./dev-setup.sh ps`
+- Run the full repo test suite: `./dev-setup.sh test`
+- Run end-to-end coverage: `./dev-setup.sh test-e2e`
+- Stop the app stack: `./dev-setup.sh down`
+- Stop infra: `./dev-setup.sh infra down`
 
-The logged-out surface intentionally stays small for self-hosted installs:
+Startup helpers create these files when missing:
 
-- `/` and `/login` render the login page
-- `/register` supports open self-registration
-- `/status` remains the backend-served system status page
+- `apps/api/.env` from `apps/api/.env.example`
+- `apps/web/.env` from `apps/web/.env.example`
+- `infra/docker/.env.infra` from `infra/docker/.env.infra.example`
 
-## What Is Deferred
+Testing expectations live in [TESTING.md](TESTING.md).
 
-The following work is still deferred:
+## Runtime Shape
 
-- broader critical-path E2E coverage across search, chat, pinned facts, and guarded admin workflows
-- final hardening and timeout cleanup for the slowest frontend and integration paths
-- additional operator documentation polish from clone to local production-style operation
+The logged-out surface stays intentionally small:
 
-## Placeholder Directories
+- `/` and `/login`
+- `/register`
+- `/status`
 
-Some directories intentionally remain scaffolds so the architecture stays clean while feature code is migrated incrementally in later phases.
+Authenticated users move through `dashboard`, `spaces`, `documents`, `search`, `chat`, `entities`, `pinned-facts`, `changes`, and `account`. Admin users also get `/admin`.
+
+## Docs Maintenance
+
+Canonical current-state docs live in:
+
+- `docs/architecture/` for system architecture
+- `docs/executive/` for high-level leadership-facing docs
+- `docs/engineering/` for codebase-facing subsystem docs
+
+Use Mermaid diagrams in those areas whenever a flow, dependency, or ownership boundary is easier to understand visually than in prose.
