@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import re
-import time
-from collections import deque
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Iterable, TypeVar
@@ -22,9 +20,6 @@ DEFAULT_CHUNK_MAX_CHARS = 2048
 STATUS_BATCH_MAX_IDS = 100
 PROCESSING_STAGES = ("parsing", "vector", "extraction", "graph")
 ChunkT = TypeVar("ChunkT")
-
-_upload_rate_limit_store: dict[str, deque[float]] = {}
-
 
 @dataclass(frozen=True)
 class UploadMetadata:
@@ -124,35 +119,6 @@ def derive_upload_metadata(filename: str, declared_content_type: str | None) -> 
         file_type=ext,
         mime_type=mime_type or default_mime_types[ext],
     )
-
-
-def enforce_upload_rate_limit(
-    *,
-    user_id: UUID,
-    enabled: bool,
-    max_requests: int,
-    window_seconds: int,
-    now: float | None = None,
-) -> None:
-    if not enabled:
-        return
-    current = time.monotonic() if now is None else now
-    bucket = _upload_rate_limit_store.setdefault(str(user_id), deque())
-    while bucket and current - bucket[0] > window_seconds:
-        bucket.popleft()
-    if len(bucket) >= max_requests:
-        raise ApplicationError(
-            "Too many uploads were started recently. Please try again shortly.",
-            status_code=429,
-            title="Too many requests",
-            type_uri="https://ragdoll.dev/problems/rate-limit",
-            code="upload_rate_limit_exceeded",
-        )
-    bucket.append(current)
-
-
-def clear_upload_rate_limit_store_for_test() -> None:
-    _upload_rate_limit_store.clear()
 
 
 def enforce_upload_size_limit(*, file_size: int) -> None:

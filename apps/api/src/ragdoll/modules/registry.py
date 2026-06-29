@@ -94,11 +94,11 @@ V1_MODULE_REGISTRY: tuple[ModuleRegistration, ...] = (
         schemas_module="ragdoll.modules.knowledge_graph.api.schemas",
     ),
     ModuleRegistration(
-        module_name="tracked_state",
-        public_prefix="/tracked-state",
-        capability_owner="modules/tracked_state",
-        routes_module="ragdoll.modules.tracked_state.api.routes",
-        schemas_module="ragdoll.modules.tracked_state.api.schemas",
+        module_name="pinned_facts",
+        public_prefix="/pinned-facts",
+        capability_owner="modules/pinned_facts",
+        routes_module="ragdoll.modules.pinned_facts.api.routes",
+        schemas_module="ragdoll.modules.pinned_facts.api.schemas",
     ),
     ModuleRegistration(
         module_name="changes",

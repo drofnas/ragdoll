@@ -63,6 +63,12 @@ def _ref_name(ref: str) -> str:
     return ref.rsplit("/", 1)[-1]
 
 
+def _schema_type_name(name: str) -> str:
+    if _is_valid_identifier(name):
+        return name
+    return _to_pascal_case(name)
+
+
 def _indent(level: int) -> str:
     return "  " * level
 
@@ -83,7 +89,7 @@ def _schema_to_typescript(schema: dict[str, Any] | None, level: int = 0) -> str:
         return "unknown"
 
     if "$ref" in schema:
-        return _ref_name(schema["$ref"])
+        return _schema_type_name(_ref_name(schema["$ref"]))
 
     if "const" in schema:
         return json.dumps(schema["const"])
@@ -235,10 +241,11 @@ def _build_component_types(openapi_schema: dict[str, Any]) -> str:
     blocks: list[str] = []
     for name, schema in sorted(schemas.items()):
         rendered = _schema_to_typescript(schema, 0)
+        type_name = _schema_type_name(name)
         if rendered.startswith("{\n"):
-            blocks.append(f"export interface {name} {rendered}")
+            blocks.append(f"export interface {type_name} {rendered}")
         else:
-            blocks.append(f"export type {name} = {rendered};")
+            blocks.append(f"export type {type_name} = {rendered};")
     return "\n\n".join(blocks)
 
 

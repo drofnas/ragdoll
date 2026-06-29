@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "../../../app/providers";
 import { AUTH_ACCESS_TOKEN_STORAGE_KEY } from "../../../shared/state/authSession";
+import { PinnedFactCreatePage } from "../../pinned-facts/pages/PinnedFactCreatePage";
 import { ChatPage } from "../pages/ChatPage";
 import {
   chatSessionDetail,
@@ -91,6 +92,7 @@ describe("ChatPage", () => {
           <AppProviders>
             <Routes>
               <Route path="/chat/:sessionId" element={<ChatPage />} />
+              <Route path="/pinned-facts/create" element={<PinnedFactCreatePage />} />
             </Routes>
           </AppProviders>
         </MemoryRouter>
@@ -117,7 +119,6 @@ describe("ChatPage", () => {
       expect(screen.queryByRole("button", { name: /regenerate/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /interrupt/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /pin/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /explain/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/chunk:1/)).not.toBeInTheDocument();
       expect(screen.queryByText("Implementation Plan (chunk:1) · document")).not.toBeInTheDocument();
@@ -154,6 +155,14 @@ describe("ChatPage", () => {
       await user.type(screen.getByRole("textbox", { name: "Message" }), "Where does it boot?");
       await user.click(screen.getByRole("button", { name: "Send message" }));
       await waitFor(() => expect(sentMessages).toContain("Where does it boot?"));
+
+      const pinLink = screen.getByRole("link", { name: "Pin as fact" });
+      expect(pinLink).toHaveAttribute("href", "/pinned-facts/create");
+      await user.click(pinLink);
+      await waitFor(() => expect(screen.getByText("Seeded from chat")).toBeInTheDocument());
+      expect(screen.getByLabelText("Stored value")).toHaveValue(
+        chatSessionDetail.messages?.[1].content ?? ""
+      );
     },
     10000
   );

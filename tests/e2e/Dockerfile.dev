@@ -1,10 +1,13 @@
 FROM mcr.microsoft.com/playwright:v1.58.2-jammy
 
-WORKDIR /app
+WORKDIR /app/tests/e2e
 
-COPY package.json package-lock.json* ./
+COPY tests/e2e/package.json tests/e2e/package-lock.json* ./
 RUN npm install
 
+WORKDIR /app
 COPY . .
+
+WORKDIR /app/tests/e2e
 
 CMD ["npm", "test"]

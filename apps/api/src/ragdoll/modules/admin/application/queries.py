@@ -12,7 +12,6 @@ from ragdoll.modules.admin.api.schemas import (
     AdminEffectiveLimitsResponse,
     AdminManagedUserListResponse,
     AdminManagedUserResponse,
-    UploadRateLimitPolicy,
 )
 from ragdoll.modules.users.infrastructure.repository import UsersRepository
 from ragdoll.platform.db.models import User
@@ -68,9 +67,4 @@ def get_effective_limits(settings: Settings) -> AdminEffectiveLimitsResponse:
         retrieval_chunks=limits.retrieval_chunks,
         output_tokens=limits.output_tokens,
         per_document_chunks=limits.per_document_chunks,
-        upload_rate_limit=UploadRateLimitPolicy(
-            enabled=settings.upload_rate_limit_enabled,
-            requests=settings.upload_rate_limit_requests,
-            window_seconds=settings.upload_rate_limit_window_seconds,
-        ),
     )

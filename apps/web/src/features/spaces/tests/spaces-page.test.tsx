@@ -50,7 +50,7 @@ function stubSpacesApi(initialSpaces: SpaceResponse[]) {
           id: "77777777-7777-7777-7777-777777777777",
           is_default: false,
           name: String((body as { name: string }).name),
-          tracked_field_count: 0
+          pinned_fact_count: 0
         };
         currentSpaces = [...currentSpaces, created];
         return jsonResponse(created, { status: 201 });

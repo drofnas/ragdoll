@@ -30,7 +30,7 @@ tests/
 | Search and discovery | `modules/search` | `features/search` | search query, filters, results, and related contracts | backend module tests + frontend feature tests |
 | Chat and answer generation | `modules/chat` | `features/chat` | chat message, session, citation, and suggestion contracts | backend module tests + E2E |
 | Entities and graph exploration | `modules/entities` and `modules/knowledge_graph` | `features/entities` | entity detail, provenance, history, and graph contracts | backend module tests + frontend feature tests |
-| Tracked state | `modules/tracked_state` | `features/tracked-state` | tracked field, summary, and conflict contracts | backend module tests + frontend feature tests |
+| Pinned facts | `modules/pinned_facts` | `features/pinned-facts` | pinned fact, candidate, history, and revert contracts | backend module tests + frontend feature tests |
 | Changes feed | `modules/changes` | `features/changes` | change list, detail, and read-state contracts | backend module tests + frontend feature tests |
 | Corrections and verification | `modules/corrections` | `features/corrections` and `features/chat` | correction submission and review contracts | backend module tests + E2E |
 | Admin tooling | `modules/admin` | `features/admin` | admin user, effective-limits, readiness, and runtime-status contracts | backend module tests + guarded E2E |

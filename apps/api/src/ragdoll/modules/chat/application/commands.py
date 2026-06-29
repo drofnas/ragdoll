@@ -13,18 +13,13 @@ from ragdoll.modules.chat.application.evidence import gather_chat_evidence
 from ragdoll.modules.chat.application.service import (
     _truncate_title,
     build_chat_message_record,
-    build_chat_suggestions,
     build_chat_session_detail,
-    build_evidence_records,
-    build_synthesis_messages,
-    citations_for_synthesized_answer,
-    compose_deterministic_evidence_answer,
+    synthesize_chat_answer,
 )
 from ragdoll.modules.chat.infrastructure.repository import ChatRepository
 from ragdoll.modules.search.api.schemas import SearchMode
 from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids, resolve_single_owned_space
 from ragdoll.platform.db.models import ChatMessage, ChatSession
-from ragdoll.platform.llm import get_chat_completion_service
 
 logger = get_logger("ragdoll.modules.chat.commands")
 
@@ -98,45 +93,21 @@ def send_chat_message(
         query_text=query_text,
         prior_messages=prior_messages,
     )
-    synthesis_messages = build_synthesis_messages(
+    synthesis = synthesize_chat_answer(
         query_text=query_text,
-        evidence_items=evidence_bundle.evidence_items,
-        history_items=evidence_bundle.history_items,
+        evidence_bundle=evidence_bundle,
     )
-    degraded = False
-    try:
-        answer_text = get_chat_completion_service().generate(synthesis_messages).strip()
-        if not answer_text:
-            raise ValueError("Chat synthesis returned a blank answer.")
-    except Exception as exc:
-        logger.warning(
-            "chat_synthesis_failed session_id=%s space_id=%s document_id=%s error_type=%s error=%s",
-            chat_session.id,
-            chat_session.space_id,
-            chat_session.document_id,
-            type(exc).__name__,
-            exc,
-        )
-        answer_text = compose_deterministic_evidence_answer(
-            query_text=query_text,
-            evidence_items=evidence_bundle.evidence_items,
-        )
-        degraded = True
-
-    citations = citations_for_synthesized_answer(answer_text, evidence_bundle.evidence_items)
-    suggestions = build_chat_suggestions(evidence_bundle.retrieval_results)
-    evidence_records = build_evidence_records(evidence_bundle.evidence_items)
     assistant_message = ChatMessage(
         session_id=chat_session.id,
         space_id=chat_session.space_id,
         author_user_id=None,
         role="assistant",
-        content=answer_text,
-        citations=[citation.model_dump(mode="json") for citation in citations],
-        suggestions=[suggestion.model_dump(mode="json") for suggestion in suggestions],
-        evidence=[record.model_dump(mode="json") for record in evidence_records],
+        content=synthesis.answer_text,
+        citations=[citation.model_dump(mode="json") for citation in synthesis.citations],
+        suggestions=[suggestion.model_dump(mode="json") for suggestion in synthesis.suggestions],
+        evidence=[record.model_dump(mode="json") for record in synthesis.evidence_records],
         retrieval_mode=SearchMode.COMBINED.value,
-        degraded=degraded,
+        degraded=synthesis.degraded,
     )
     repo.add_message(assistant_message)
     if len(chat_session.messages) == 0 and chat_session.title == "New chat":

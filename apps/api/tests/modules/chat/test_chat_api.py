@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from uuid import UUID
+from uuid import uuid4
 
 from ragdoll.api.shared_schemas import Citation, SourceTier
 from ragdoll.modules.chat.application import commands as chat_commands
-from ragdoll.modules.chat.application.evidence import ChatEvidenceItem
+from ragdoll.modules.chat.application.evidence import ChatEvidenceItem, build_ranked_search_evidence
 from ragdoll.modules.chat.application.service import compose_deterministic_evidence_answer, compose_fallback_answer
 from ragdoll.modules.search.api.schemas import SearchEntitySummary, SearchMode, SearchResult, SearchResultDocument
-from ragdoll.platform.db.models import TrackedField, TrackedFieldValue, User
+from ragdoll.platform.db.models import PinnedFact, User
 
 from tests.modules._phase10_helpers import auth_headers, default_space, register_and_login, seed_retrieval_document
 
@@ -28,11 +29,84 @@ class FailingChatCompletionService:
         raise TimeoutError("chat model unavailable")
 
 
+def _document_chunk_result(
+    *,
+    space_id,
+    title: str,
+    preview_text: str,
+    score: float,
+) -> SearchResult:
+    document_id = uuid4()
+    chunk_id = uuid4()
+    return SearchResult(
+        result_id=str(chunk_id),
+        result_kind="document_chunk",
+        score=score,
+        matched_modes=[SearchMode.COMBINED],
+        document=SearchResultDocument(
+            id=document_id,
+            space_id=space_id,
+            title=title,
+            file_type="md",
+            created_at=datetime.now(timezone.utc),
+        ),
+        preview_text=preview_text,
+        entity=None,
+        citations=[
+            Citation(
+                document_id=document_id,
+                locator="chunk:1",
+                chunk_id=str(chunk_id),
+                title=title,
+                source_tier="document",
+            )
+        ],
+    )
+
+
 def test_chat_routes_require_authentication(api_client):
     create = api_client.post("/api/v1/chat/sessions")
     listing = api_client.get("/api/v1/chat/sessions")
     assert create.status_code == 401
     assert listing.status_code == 401
+
+
+def test_build_ranked_search_evidence_prioritizes_frontend_stack_markers_over_cross_cutting_noise(
+    db_session,
+):
+    space_id = uuid4()
+    results = [
+        _document_chunk_result(
+            space_id=space_id,
+            title="cross-cutting-concerns.md",
+            preview_text=(
+                "Password hashing, token signing, and third-party token encryption live in "
+                "core/security.py."
+            ),
+            score=0.99,
+        ),
+        _document_chunk_result(
+            space_id=space_id,
+            title="frontend-architecture.md",
+            preview_text=(
+                "apps/web uses Tailwind CSS v4 through the Vite plugin; shared theme tokens "
+                "live in src/styles/app.css."
+            ),
+            score=0.93,
+        ),
+    ]
+
+    evidence_items = build_ranked_search_evidence(
+        db_session,
+        results,
+        query_text=(
+            "What is the technology stack used for the Frontend Web UI? "
+            "Return a bulleted list with just the tech stack for it."
+        ),
+    )
+
+    assert evidence_items[0].title == "frontend-architecture.md"
+    assert "Tailwind CSS v4" in evidence_items[0].text
 
 
 def test_chat_session_message_flow_returns_citations_and_degraded_answer(api_client, db_session):
@@ -81,7 +155,7 @@ def test_chat_synthesis_success_persists_compact_evidence_audit(api_client, db_s
         start_line=12,
     )
     fake_service = FakeChatCompletionService("Atlas uses Go for backend work and Svelte for frontend work. [E1]")
-    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: fake_service)
+    monkeypatch.setattr("ragdoll.modules.chat.application.service.get_chat_completion_service", lambda: fake_service)
 
     created = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
     session_id = created.json()["id"]
@@ -270,7 +344,10 @@ def test_document_scoped_chat_degraded_fallback_extracts_filego_technology_stack
             (deployment_chunk, 1257),
         ],
     )
-    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: FailingChatCompletionService())
+    monkeypatch.setattr(
+        "ragdoll.modules.chat.application.service.get_chat_completion_service",
+        lambda: FailingChatCompletionService(),
+    )
 
     created = api_client.post(
         f"/api/v1/chat/sessions?space_id={space.id}&document_id={filego_document.id}",
@@ -565,30 +642,24 @@ def test_verified_correction_appears_in_later_chat_answer(api_client, db_session
     assert assistant_message["evidence"][0]["source_type"] == "correction"
 
 
-def test_chat_answer_includes_current_tracked_state_as_pinned_evidence(api_client, db_session):
+def test_chat_answer_includes_current_pinned_fact_as_pinned_evidence(api_client, db_session):
     token = register_and_login(api_client, email="owner@example.com")
     owner = db_session.query(User).filter(User.email == "owner@example.com").one()
     space = default_space(db_session, owner)
-    field = TrackedField(
+    fact = PinnedFact(
         space_id=space.id,
         owner_user_id=owner.id,
         key="release_status",
-        label="Release status",
-        prompt="What is the current release status?",
+        title="Release status",
+        description="What is the current release status?",
         is_active=True,
+        value_kind="text",
+        value_text="Atlas is paused for security review.",
+        status="active",
+        confidence=1.0,
+        evidence=[],
     )
-    db_session.add(field)
-    db_session.flush()
-    db_session.add(
-        TrackedFieldValue(
-            tracked_field_id=field.id,
-            space_id=space.id,
-            source_tier=SourceTier.VERIFIED.value,
-            value_text="Atlas is paused for security review.",
-            citations=[],
-            is_current=True,
-        )
-    )
+    db_session.add(fact)
     db_session.commit()
 
     session_response = api_client.post("/api/v1/chat/sessions", headers=auth_headers(token))
@@ -602,7 +673,7 @@ def test_chat_answer_includes_current_tracked_state_as_pinned_evidence(api_clien
     assert message.status_code == 200, message.text
     assistant_message = message.json()["assistant_message"]
     assert "Release status: Atlas is paused for security review" in assistant_message["content"]
-    assert any(item["source_type"] == "tracked_state" for item in assistant_message["evidence"])
+    assert any(item["source_type"] == "pinned_fact" for item in assistant_message["evidence"])
 
 
 def test_document_scoped_chat_includes_graph_relationship_evidence(api_client, db_session):
@@ -656,7 +727,7 @@ def test_chat_synthesis_prompt_includes_recent_history(api_client, db_session, m
     assert first.status_code == 200, first.text
 
     fake_service = FakeChatCompletionService("It uses Svelte for the frontend. [E1]")
-    monkeypatch.setattr(chat_commands, "get_chat_completion_service", lambda: fake_service)
+    monkeypatch.setattr("ragdoll.modules.chat.application.service.get_chat_completion_service", lambda: fake_service)
     second = api_client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
         headers=auth_headers(token),

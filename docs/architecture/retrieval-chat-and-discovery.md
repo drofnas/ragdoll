@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how search, graph exploration, chat, citations, tracked state, and related discovery surfaces compose retrieval behavior in the rebuild.
+Define how search, graph exploration, chat, citations, pinned facts, and related discovery surfaces compose retrieval behavior in the rebuild.
 
 ## Target Design
 
@@ -12,7 +12,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - `modules/chat`
 - `modules/entities`
 - `modules/knowledge_graph`
-- `modules/tracked_state`
+- `modules/pinned_facts`
 - `modules/changes`
 - `modules/corrections`
 
@@ -30,7 +30,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - `chat`: sessions, evidence fan-in, prompts, answer synthesis, suggestions, citation bundles
 - `entities`: detail, history, provenance, entity-level editing or visibility
 - `knowledge_graph`: graph-native explore and projection-aware graph reads
-- `tracked_state`: current-value summaries and conflict views built from retrieved evidence
+- `pinned_facts`: current-value summaries and conflict views built from retrieved evidence
 - `changes`: drift and "what changed" views derived from versioned state
 - `corrections`: human feedback loop that can influence future truth
 
@@ -44,8 +44,9 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - `GraphLink`
 - `ChatAnswer`
 - `Citation`
-- `TrackedFieldSummary`
-- `ConflictRecord`
+- `PinnedFactSummary`
+- `PinnedFactCandidate`
+- `PinnedFactHistoryEntry`
 
 ## Primary Workflows
 
@@ -60,19 +61,19 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 
 1. User sends a question inside a chat session.
 2. `modules/chat` resolves Space scope, session context, and feature flags.
-3. Chat gathers a bounded evidence packet from verified corrections, current tracked-state values, shared search/RAG results, Knowledge Graph relationships, and recent session history.
+3. Chat gathers a bounded evidence packet from verified corrections, current pinned-fact values, shared search/RAG results, Knowledge Graph relationships, and recent session history.
 4. Chat classifies the answer intent, expands selected document hits from stored chunk text, and ranks evidence by answerability before source quotas are applied.
 5. The configured chat model synthesizes a final answer from the evidence packet, using chat history only to resolve follow-up context and evidence IDs for provenance.
 6. If no answer model is available, the service returns a deterministic evidence-backed fallback only when it can produce a reliable answer shape, such as extracting a Markdown technology-stack table into bullets.
 7. Messages, citations, and a compact evidence audit are persisted to session history.
 8. `apps/web` renders the selected transcript with assistant-ui's external-store runtime over the existing chat session detail query; the backend remains authoritative for messages, citations, evidence audit, suggestions, and corrections.
 
-### Tracked state
+### Pinned facts
 
-1. User defines tracked fields for a Space.
-2. Tracked-state queries gather candidate evidence from entities, documents, search, graph, and corrections.
-3. Policies resolve current values, conflicts, and provenance with verified corrections ranked ahead of document or derived candidates.
-4. Summary cards and conflict panels expose the result to the user.
+1. User defines pinned facts for a Space with evidence-backed current values.
+2. Pinned-facts queries gather candidate evidence from entities, documents, search, graph, and corrections.
+3. Policies resolve current values, conflicts, candidate review, and provenance with verified corrections ranked ahead of document or derived candidates.
+4. Summary cards, candidate review panels, and history timelines expose the result to the user.
 
 ## Failure Modes and Edge Cases
 
@@ -93,7 +94,7 @@ Define how search, graph exploration, chat, citations, tracked state, and relate
 - User-facing answers always expose provenance-bearing citations where applicable.
 - Chat answer synthesis combines multiple evidence sources instead of selecting a single retrieval result as the answer.
 - Graph exploration is documented as a first-class capability, not an incidental UI add-on.
-- Tracked state and changes reuse retrieval evidence instead of inventing separate hidden pipelines.
+- Pinned facts and changes reuse retrieval evidence instead of inventing separate hidden pipelines.
 - Corrections feed back into discovery through explicit application services.
 - Single-Space write workflows reject `all_spaces=true` instead of inferring multi-Space truth.
 

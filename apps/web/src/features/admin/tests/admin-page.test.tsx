@@ -66,11 +66,6 @@ describe("AdminHomePage", () => {
             retrieval_chunks: 20,
             output_tokens: 2400,
             per_document_chunks: 2000,
-            upload_rate_limit: {
-              enabled: true,
-              requests: 10,
-              window_seconds: 60,
-            },
           });
         }
         if (url.includes("/status?type=json")) {

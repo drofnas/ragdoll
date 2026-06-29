@@ -20,7 +20,7 @@ apps/api/tests/
     chat/
     entities/
     knowledge_graph/
-    tracked_state/
+    pinned_facts/
     changes/
     corrections/
     admin/
@@ -57,7 +57,7 @@ tests/e2e/
 - Document upload and status transitions
 - Search and chat citations
 - Entity history and provenance
-- Tracked-state conflict resolution
+- Pinned-fact conflict resolution
 - Corrections verification path
 - Admin guards and plan/flag behavior
 
@@ -70,7 +70,7 @@ tests/e2e/
   - documents
   - entities
   - chat sessions
-  - tracked fields
+  - pinned facts
 
 ## Primary Workflows
 

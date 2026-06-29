@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, String, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, JSON, String, Text, UniqueConstraint, func, text
 from sqlalchemy import Uuid as SqlUuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -114,15 +114,16 @@ class ChatMessage(Base):
     session: Mapped[ChatSession] = relationship(back_populates="messages")
 
 
-class TrackedField(Base):
-    """Space-scoped tracked field definition."""
+class PinnedFact(Base):
+    """Space-scoped pinned fact with its current evidence-backed value."""
 
-    __tablename__ = "tracked_fields"
+    __tablename__ = "pinned_facts"
     __table_args__ = (
-        UniqueConstraint("space_id", "key", name="ux_tracked_fields_space_key"),
-        Index("ix_tracked_fields_space_id", "space_id"),
-        Index("ix_tracked_fields_owner_user_id", "owner_user_id"),
-        Index("ix_tracked_fields_is_active", "is_active"),
+        UniqueConstraint("space_id", "key", name="ux_pinned_facts_space_key"),
+        Index("ix_pinned_facts_space_id", "space_id"),
+        Index("ix_pinned_facts_owner_user_id", "owner_user_id"),
+        Index("ix_pinned_facts_is_active", "is_active"),
+        Index("ix_pinned_facts_status", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(SqlUuid, primary_key=True, default=uuid4)
@@ -137,10 +138,22 @@ class TrackedField(Base):
         nullable=False,
     )
     key: Mapped[str] = mapped_column(String(120), nullable=False)
-    label: Mapped[str] = mapped_column(String(255), nullable=False)
-    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
     entity_type_hint: Mapped[str | None] = mapped_column(String(80), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    value_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown", server_default="unknown")
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_document_id: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -155,34 +168,23 @@ class TrackedField(Base):
         server_default=func.now(),
     )
 
-    values: Mapped[list["TrackedFieldValue"]] = relationship(
-        back_populates="tracked_field",
-        cascade="all, delete-orphan",
-        order_by="TrackedFieldValue.created_at.desc()",
-    )
 
+class PinnedFactCandidate(Base):
+    """Detected or submitted candidate update for one pinned fact."""
 
-class TrackedFieldValue(Base):
-    """Append-only tracked value history with one optional current value."""
-
-    __tablename__ = "tracked_field_values"
+    __tablename__ = "pinned_fact_candidates"
     __table_args__ = (
-        Index("ix_tracked_field_values_tracked_field_id", "tracked_field_id"),
-        Index("ix_tracked_field_values_space_id", "space_id"),
-        Index("ix_tracked_field_values_created_at", "created_at"),
-        Index(
-            "ux_tracked_field_values_current_per_field",
-            "tracked_field_id",
-            unique=True,
-            postgresql_where=text("is_current"),
-            sqlite_where=text("is_current = 1"),
-        ),
+        Index("ix_pinned_fact_candidates_pinned_fact_id", "pinned_fact_id"),
+        Index("ix_pinned_fact_candidates_space_id", "space_id"),
+        Index("ix_pinned_fact_candidates_source_document_id", "source_document_id"),
+        Index("ix_pinned_fact_candidates_status", "status"),
+        UniqueConstraint("pinned_fact_id", "idempotency_key", name="ux_pinned_fact_candidates_fact_idempotency"),
     )
 
     id: Mapped[UUID] = mapped_column(SqlUuid, primary_key=True, default=uuid4)
-    tracked_field_id: Mapped[UUID] = mapped_column(
+    pinned_fact_id: Mapped[UUID] = mapped_column(
         SqlUuid,
-        ForeignKey("tracked_fields.id", ondelete="CASCADE"),
+        ForeignKey("pinned_facts.id", ondelete="CASCADE"),
         nullable=False,
     )
     space_id: Mapped[UUID] = mapped_column(
@@ -190,15 +192,26 @@ class TrackedFieldValue(Base):
         ForeignKey("spaces.id", ondelete="CASCADE"),
         nullable=False,
     )
-    resolved_from_correction_id: Mapped[UUID | None] = mapped_column(
+    source_document_id: Mapped[UUID | None] = mapped_column(
         SqlUuid,
-        ForeignKey("correction_records.id", ondelete="SET NULL"),
+        ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
     )
-    source_tier: Mapped[str] = mapped_column(String(32), nullable=False)
-    value_text: Mapped[str] = mapped_column(Text, nullable=False)
-    citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    proposed_value_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    proposed_value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proposed_value_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    change_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", server_default="pending")
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -206,7 +219,60 @@ class TrackedFieldValue(Base):
         server_default=func.now(),
     )
 
-    tracked_field: Mapped[TrackedField] = relationship(back_populates="values")
+
+class PinnedFactHistory(Base):
+    """Append-only change log for pinned fact versions and restores."""
+
+    __tablename__ = "pinned_fact_history"
+    __table_args__ = (
+        Index("ix_pinned_fact_history_pinned_fact_id", "pinned_fact_id"),
+        Index("ix_pinned_fact_history_space_id", "space_id"),
+        Index("ix_pinned_fact_history_created_at", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(SqlUuid, primary_key=True, default=uuid4)
+    pinned_fact_id: Mapped[UUID] = mapped_column(
+        SqlUuid,
+        ForeignKey("pinned_facts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    space_id: Mapped[UUID] = mapped_column(
+        SqlUuid,
+        ForeignKey("spaces.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    candidate_id: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("pinned_fact_candidates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    restored_from_history_id: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("pinned_fact_history.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        SqlUuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actor_type: Mapped[str] = mapped_column(String(32), nullable=False, default="system", server_default="system")
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    old_value_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    old_value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    old_value_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    new_value_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    new_value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    old_evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    new_evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    update_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+        server_default=func.now(),
+    )
 
 
 class ChangeEvent(Base):
@@ -218,7 +284,7 @@ class ChangeEvent(Base):
         Index("ix_change_events_event_type", "event_type"),
         Index("ix_change_events_created_at", "created_at"),
         Index("ix_change_events_document_id", "document_id"),
-        Index("ix_change_events_tracked_field_id", "tracked_field_id"),
+        Index("ix_change_events_pinned_fact_id", "pinned_fact_id"),
         Index("ix_change_events_correction_id", "correction_id"),
     )
 
@@ -238,9 +304,9 @@ class ChangeEvent(Base):
         ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
     )
-    tracked_field_id: Mapped[UUID | None] = mapped_column(
+    pinned_fact_id: Mapped[UUID | None] = mapped_column(
         SqlUuid,
-        ForeignKey("tracked_fields.id", ondelete="SET NULL"),
+        ForeignKey("pinned_facts.id", ondelete="SET NULL"),
         nullable=True,
     )
     correction_id: Mapped[UUID | None] = mapped_column(
@@ -301,7 +367,7 @@ class CorrectionRecord(Base):
     __table_args__ = (
         Index("ix_correction_records_space_id", "space_id"),
         Index("ix_correction_records_status", "status"),
-        Index("ix_correction_records_tracked_field_id", "tracked_field_id"),
+        Index("ix_correction_records_pinned_fact_id", "pinned_fact_id"),
         Index("ix_correction_records_document_id", "document_id"),
         Index("ix_correction_records_entity_id", "entity_id"),
         Index("ix_correction_records_chat_session_id", "chat_session_id"),
@@ -328,9 +394,9 @@ class CorrectionRecord(Base):
         ForeignKey("chat_messages.id", ondelete="SET NULL"),
         nullable=True,
     )
-    tracked_field_id: Mapped[UUID | None] = mapped_column(
+    pinned_fact_id: Mapped[UUID | None] = mapped_column(
         SqlUuid,
-        ForeignKey("tracked_fields.id", ondelete="SET NULL"),
+        ForeignKey("pinned_facts.id", ondelete="SET NULL"),
         nullable=True,
     )
     document_id: Mapped[UUID | None] = mapped_column(

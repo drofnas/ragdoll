@@ -33,13 +33,13 @@ def test_openapi_export_includes_phase10_contracts(configured_database, tmp_path
 
     assert "/api/v1/chat/sessions" in payload["paths"]
     assert "/api/v1/chat/sessions/{session_id}/messages" in payload["paths"]
-    assert "/api/v1/tracked-state/summary" in payload["paths"]
+    assert "/api/v1/pinned-facts" in payload["paths"]
     assert "/api/v1/changes/{change_id}/read" in payload["paths"]
     assert "/api/v1/corrections/{correction_id}/verify" in payload["paths"]
 
     schemas = payload["components"]["schemas"]
     assert "ChatSendMessageResponse" in schemas
-    assert "TrackedFieldSummary" in schemas
+    assert "PinnedFactDetail" in schemas
     assert "ChangeEventDetail" in schemas
     assert "CorrectionRecordResponse" in schemas
     assert "document_id" in schemas["ChatSessionSummary"]["properties"]

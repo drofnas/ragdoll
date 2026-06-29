@@ -274,7 +274,7 @@ export function SpacesPage() {
                           {space.description || "No description"}
                         </TableCell>
                         <TableCell>{formatCount(space.document_count)}</TableCell>
-                        <TableCell>{formatCount(space.tracked_field_count)}</TableCell>
+                        <TableCell>{formatCount(space.pinned_fact_count)}</TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-2">
                             <Popover

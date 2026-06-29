@@ -11,13 +11,15 @@ import type {
   EntityDetailResponse,
   EntityListResponse,
   GraphResponse,
+  PinnedFactCandidateListResponse,
+  PinnedFactDetectionPreviewResponse,
+  PinnedFactDetail,
+  PinnedFactHistoryResponse,
+  PinnedFactListResponse,
   ProcessingStatus,
   SearchResponse,
   SpaceListResponse,
   SpaceResponse,
-  TrackedFieldDefinitionListResponse,
-  TrackedStateConflictResponse,
-  TrackedStateSummaryResponse,
   UsageSummaryResponse,
   UserProfileResponse
 } from "@contracts";
@@ -50,7 +52,7 @@ export const spaces: SpaceResponse[] = [
     is_default: true,
     name: "Core Space",
     owner_user_id: userProfile.id,
-    tracked_field_count: 2,
+    pinned_fact_count: 2,
     updated_at: "2026-06-22T17:00:00Z"
   },
   {
@@ -62,7 +64,7 @@ export const spaces: SpaceResponse[] = [
     is_default: false,
     name: "Archive Prep",
     owner_user_id: userProfile.id,
-    tracked_field_count: 1,
+    pinned_fact_count: 1,
     updated_at: "2026-06-22T17:00:00Z"
   }
 ];
@@ -247,6 +249,26 @@ export const chatSessionDetail: ChatSessionDetail = {
       content: "The backend uses FastAPI and exposes versioned routes under /api/v1.",
       created_at: "2026-06-22T17:12:00Z",
       degraded: true,
+      evidence: [
+        {
+          citations: [
+            {
+              document_id: documentDetail.id,
+              line_number: 12,
+              locator: "chunk:1",
+              source_tier: "document",
+              title: documentDetail.title
+            }
+          ],
+          created_at: "2026-06-22T17:12:00Z",
+          id: "E1",
+          score: 0.97,
+          source_tier: "document",
+          source_type: "document_chunk",
+          text: "FastAPI powers the backend runtime for the rebuilt product.",
+          title: documentDetail.title
+        }
+      ],
       id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
       retrieval_mode: "combined",
       role: "assistant",
@@ -368,57 +390,66 @@ export const entityGraph: GraphResponse = {
   seed_entity_id: entityDetail.id
 };
 
-export const trackedFieldDefinitions: TrackedFieldDefinitionListResponse = {
-  items: [
+export const pinnedFactDetail: PinnedFactDetail = {
+  confidence: 0.95,
+  conflict_count: 1,
+  created_by: {
+    email: userProfile.email,
+    full_name: userProfile.full_name,
+    id: userProfile.id
+  },
+  created_at: "2026-06-22T17:00:00Z",
+  description: "What backend framework powers this repo today?",
+  entity_type_hint: "framework",
+  evidence: [
     {
-      created_at: "2026-06-22T17:00:00Z",
-      entity_type_hint: "framework",
-      id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-      is_active: true,
-      key: "current_backend_framework",
-      label: "Current backend framework",
-      prompt: "What backend framework powers this repo today?",
-      space_id: spaces[0].id,
-      updated_at: "2026-06-22T17:05:00Z"
+      citations: [
+        {
+          document_id: documentDetail.id,
+          locator: "page 1",
+          source_tier: "document",
+          title: documentDetail.title
+        }
+      ],
+      quote: "FastAPI powers the API service.",
+      source_chunk_ids: []
     }
   ],
+  history_count: 2,
+  id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  is_active: true,
+  key: "current_backend_framework",
+  last_checked_at: "2026-06-22T17:06:00Z",
+  pending_candidate_count: 1,
+  source_document_id: documentDetail.id,
+  space_id: spaces[0].id,
+  status: "active",
+  title: "Current backend framework",
+  updated_by: {
+    email: userProfile.email,
+    full_name: userProfile.full_name,
+    id: userProfile.id
+  },
+  updated_at: "2026-06-22T17:05:00Z",
+  value_json: null,
+  value_kind: "text",
+  value_text: "FastAPI"
+};
+
+export const pinnedFactsListResponse: PinnedFactListResponse = {
+  items: [pinnedFactDetail],
   page: 1,
   page_size: 50,
   total: 1
 };
 
-export const trackedStateSummary: TrackedStateSummaryResponse = {
+export const pinnedFactCandidates: PinnedFactCandidateListResponse = {
   items: [
     {
-      ...trackedFieldDefinitions.items[0],
-      conflict_count: 1,
-      current_source_tier: "verified",
-      current_value: "FastAPI",
-      current_value_updated_at: "2026-06-22T17:06:00Z",
-      pending_correction_count: 1,
-      status: "resolved"
-    }
-  ]
-};
-
-export const trackedStateConflicts: TrackedStateConflictResponse = {
-  items: [
-    {
-      candidates: [
-        {
-          citations: [
-            {
-              document_id: documentDetail.id,
-              locator: "page 1",
-              source_tier: "document",
-              title: documentDetail.title
-            }
-          ],
-          created_at: "2026-06-22T17:06:00Z",
-          source_tier: "document",
-          status: "candidate",
-          value_text: "FastAPI"
-        },
+      change_type: "conflict",
+      confidence: 0.72,
+      created_at: "2026-06-22T17:07:00Z",
+      evidence: [
         {
           citations: [
             {
@@ -428,16 +459,81 @@ export const trackedStateConflicts: TrackedStateConflictResponse = {
               title: documentDetail.title
             }
           ],
-          created_at: "2026-06-22T17:07:00Z",
-          source_tier: "document",
-          status: "candidate",
-          value_text: "Starlette"
+          quote: "Starlette appears in a migration note.",
+          source_chunk_ids: []
         }
       ],
-      field: trackedFieldDefinitions.items[0],
-      status: "conflict"
+      id: "e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1",
+      pinned_fact_id: pinnedFactDetail.id,
+      proposed_value_json: null,
+      proposed_value_kind: "text",
+      proposed_value_text: "Starlette",
+      review_notes: null,
+      reviewed_at: null,
+      reviewed_by: null,
+      source_document_id: documentDetail.id,
+      space_id: spaces[0].id,
+      status: "pending"
     }
   ]
+};
+
+export const pinnedFactHistory: PinnedFactHistoryResponse = {
+  items: [
+    {
+      actor_type: "user",
+      actor_user_id: userProfile.id,
+      candidate_id: null,
+      created_at: "2026-06-22T17:00:00Z",
+      id: "f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1",
+      new_evidence: pinnedFactDetail.evidence,
+      new_value_json: null,
+      new_value_kind: "text",
+      new_value_text: "FastAPI",
+      old_evidence: [],
+      old_value_json: null,
+      old_value_kind: null,
+      old_value_text: null,
+      pinned_fact_id: pinnedFactDetail.id,
+      reason: "created",
+      restored_from_history_id: null,
+      update_note: null
+    }
+  ]
+};
+
+export const pinnedFactDetectionPreviewResponse: PinnedFactDetectionPreviewResponse = {
+  assistant_message: {
+    citations: [
+      {
+        document_id: documentDetail.id,
+        locator: "page 1",
+        source_tier: "document",
+        title: documentDetail.title
+      }
+    ],
+    content: "FastAPI powers the API service. [E1]",
+    created_at: "2026-06-22T17:12:00Z",
+    degraded: false,
+    evidence: [
+      {
+        citations: pinnedFactDetail.evidence[0].citations,
+        created_at: "2026-06-22T17:12:00Z",
+        id: "E1",
+        score: 98,
+        source_tier: "document",
+        source_type: "document_chunk",
+        text: pinnedFactDetail.evidence[0].quote,
+        title: documentDetail.title
+      }
+    ],
+    id: "abababab-abab-abab-abab-abababababab",
+    retrieval_mode: "combined",
+    role: "assistant",
+    suggestions: []
+  },
+  retrieval_results: searchResponse.items,
+  source_document_id: documentDetail.id
 };
 
 export const changeListResponse: ChangeListResponse = {
@@ -450,10 +546,10 @@ export const changeListResponse: ChangeListResponse = {
       event_type: "chat_answered",
       id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
       is_read: false,
+      pinned_fact_id: null,
       space_id: spaces[0].id,
       summary: "A retrieval-backed answer cited the implementation plan.",
-      title: "Chat answer generated",
-      tracked_field_id: null
+      title: "Chat answer generated"
     }
   ],
   page: 1,
@@ -490,7 +586,7 @@ export const correctionDetail: CorrectionRecordResponse = {
   space_id: spaces[0].id,
   status: "pending",
   submitted_by: userProfile.id,
-  tracked_field_id: trackedFieldDefinitions.items[0].id,
+  pinned_fact_id: pinnedFactDetail.id,
   updated_at: "2026-06-22T17:17:00Z"
 };
 

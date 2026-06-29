@@ -108,9 +108,6 @@ class Settings(BaseSettings):
     instance_limit_output_tokens: int = Field(default=2400, ge=1, le=32768)
     instance_limit_per_document_chunks: int = Field(default=2000, ge=1, le=100000)
 
-    upload_rate_limit_enabled: bool = True
-    upload_rate_limit_requests: int = 10
-    upload_rate_limit_window_seconds: int = 60
     redis_url: str | None = "redis://redis:6379/0"
     document_processing_queue_name: str = "document-processing"
     document_processing_job_timeout_seconds: int = Field(default=2700, ge=30, le=86400)

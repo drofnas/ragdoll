@@ -17,7 +17,6 @@ from ragdoll.modules.ingestion.domain.policies import (
     derive_upload_metadata,
     enforce_document_limit,
     enforce_storage_limit,
-    enforce_upload_rate_limit,
     enforce_upload_size_limit,
     mark_processing_stage_failed,
     reset_processing_status_for_stage,
@@ -126,12 +125,6 @@ def upload_document(
     metadata = derive_upload_metadata(filename, content_type)
     file_size = len(content)
 
-    enforce_upload_rate_limit(
-        user_id=owner_user_id,
-        enabled=settings.upload_rate_limit_enabled,
-        max_requests=settings.upload_rate_limit_requests,
-        window_seconds=settings.upload_rate_limit_window_seconds,
-    )
     enforce_upload_size_limit(file_size=file_size)
 
     usage_repo = UsageRepository(session)

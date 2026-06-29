@@ -46,7 +46,7 @@ class SpaceResponse(BaseModel):
     description: str | None = None
     is_default: bool
     document_count: int = Field(ge=0)
-    tracked_field_count: int = Field(ge=0)
+    pinned_fact_count: int = Field(ge=0)
     archived_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

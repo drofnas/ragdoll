@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from ragdoll.api.shared_schemas import SpaceScope
 from ragdoll.modules.changes.application.service import record_change_event
 from ragdoll.modules.corrections.infrastructure.repository import CorrectionsRepository
+from ragdoll.modules.pinned_facts.application.service import apply_verified_correction_to_fact
 from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids, resolve_single_owned_space
-from ragdoll.modules.tracked_state.application.service import recompute_tracked_field
-from ragdoll.modules.tracked_state.infrastructure.repository import TrackedStateRepository
+from ragdoll.modules.pinned_facts.infrastructure.repository import PinnedFactsRepository
 from ragdoll.platform.db.models import CorrectionRecord
 
 
@@ -20,13 +20,13 @@ def utc_now() -> datetime:
 
 def create_correction(session: Session, subject: str, *, space_scope: SpaceScope, payload) -> CorrectionRecord:
     owner_user_id = UUID(subject)
-    tracked_field = None
-    if payload.tracked_field_id is not None:
-        tracked_field = TrackedStateRepository(session).get_visible_or_404(
+    pinned_fact = None
+    if payload.pinned_fact_id is not None:
+        pinned_fact = PinnedFactsRepository(session).get_visible_or_404(
             resolve_owned_space_ids(session, owner_user_id, SpaceScope(all_spaces=True)),
-            payload.tracked_field_id,
+            payload.pinned_fact_id,
         )
-        space_id = tracked_field.space_id
+        space_id = pinned_fact.space_id
     else:
         space_id = resolve_single_owned_space(session, owner_user_id, space_scope).id
 
@@ -35,7 +35,7 @@ def create_correction(session: Session, subject: str, *, space_scope: SpaceScope
         submitted_by=owner_user_id,
         chat_session_id=payload.chat_session_id,
         chat_message_id=payload.chat_message_id,
-        tracked_field_id=tracked_field.id if tracked_field is not None else payload.tracked_field_id,
+        pinned_fact_id=pinned_fact.id if pinned_fact is not None else payload.pinned_fact_id,
         document_id=payload.document_id,
         entity_id=payload.entity_id,
         locator_text=payload.locator_text.strip() if payload.locator_text else None,
@@ -54,7 +54,7 @@ def create_correction(session: Session, subject: str, *, space_scope: SpaceScope
         summary=f"Correction submitted for value {correction.proposed_value}.",
         actor_user_id=owner_user_id,
         correction_id=correction.id,
-        tracked_field_id=correction.tracked_field_id,
+        pinned_fact_id=correction.pinned_fact_id,
         chat_session_id=correction.chat_session_id,
     )
     session.commit()
@@ -82,12 +82,12 @@ def review_correction(
         summary=f"Correction was {status}.",
         actor_user_id=UUID(subject),
         correction_id=correction.id,
-        tracked_field_id=correction.tracked_field_id,
+        pinned_fact_id=correction.pinned_fact_id,
         chat_session_id=correction.chat_session_id,
     )
     session.commit()
     session.refresh(correction)
-    if correction.tracked_field_id is not None and status == "verified":
-        field = TrackedStateRepository(session).get_visible_or_404([correction.space_id], correction.tracked_field_id)
-        recompute_tracked_field(session, subject, field)
+    if correction.pinned_fact_id is not None and status == "verified":
+        fact = PinnedFactsRepository(session).get_visible_or_404([correction.space_id], correction.pinned_fact_id)
+        apply_verified_correction_to_fact(session, subject, fact, correction)
     return correction

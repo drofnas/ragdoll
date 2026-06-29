@@ -7,8 +7,9 @@ from ragdoll.platform.db.models.interaction import (
     ChatMessage,
     ChatSession,
     CorrectionRecord,
-    TrackedField,
-    TrackedFieldValue,
+    PinnedFact,
+    PinnedFactCandidate,
+    PinnedFactHistory,
 )
 from ragdoll.platform.db.models.retrieval import (
     CanonicalEntity,
@@ -36,8 +37,9 @@ __all__ = [
     "GraphEdge",
     "GraphNode",
     "Space",
-    "TrackedField",
-    "TrackedFieldValue",
+    "PinnedFact",
+    "PinnedFactCandidate",
+    "PinnedFactHistory",
     "UsageEvent",
     "User",
     "UserUsageSnapshot",

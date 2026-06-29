@@ -66,7 +66,7 @@ export function RegisterPage() {
               Spaces
             </p>
             <p className="mt-2 text-sm leading-6 text-foreground">
-              Create focused work areas for uploads, search, and tracked state.
+              Create focused work areas for uploads, search, and pinned facts.
             </p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-5">
