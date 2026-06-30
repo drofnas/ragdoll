@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Page, PageHeader } from "@/components/app/page";
+import { PageToast, usePageToast } from "@/components/app/page-toast";
 import { SelectField } from "@/components/app/select-field";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,7 +26,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { ApiProblemError } from "@/shared/api/client";
 import {
   formatCitationLabel,
@@ -55,37 +55,6 @@ interface ReviewActionState {
   correctionId: string;
 }
 
-interface ActionBannerState {
-  description: string;
-  id: number;
-  title: string;
-  variant: "destructive" | "success";
-  visible: boolean;
-}
-
-interface BannerFrame {
-  left: number;
-  width: number;
-}
-
-const ACTION_BANNER_DISMISS_MS = 10_000;
-const ACTION_BANNER_FADE_MS = 300;
-
-const ACTION_BANNER_SURFACE_STYLES: Record<ActionBannerState["variant"], { backgroundColor: string; borderColor: string }> = {
-  destructive: {
-    backgroundColor:
-      "color-mix(in hsl, hsl(var(--destructive)) 10%, hsl(var(--background)))",
-    borderColor:
-      "color-mix(in hsl, hsl(var(--destructive)) 25%, hsl(var(--background)))"
-  },
-  success: {
-    backgroundColor:
-      "color-mix(in hsl, hsl(var(--primary)) 10%, hsl(var(--background)))",
-    borderColor:
-      "color-mix(in hsl, hsl(var(--primary)) 20%, hsl(var(--background)))"
-  }
-};
-
 function addIdToSet(current: Set<string>, id: string) {
   if (current.has(id)) {
     return current;
@@ -111,8 +80,7 @@ export function ChangesPage() {
   const queryClient = useQueryClient();
   const { buildReadScopeParams, isReady } = useSpaceScope();
   const pageContentRef = useRef<HTMLDivElement | null>(null);
-  const dismissTimeoutRef = useRef<number | null>(null);
-  const removeTimeoutRef = useRef<number | null>(null);
+  const { showToast, toast } = usePageToast();
 
   const activeTab = searchParams.get("tab") === "corrections" ? "corrections" : "activity";
   const changeId = searchParams.get("change_id");
@@ -125,8 +93,6 @@ export function ChangesPage() {
   );
 
   const [reviewNotesById, setReviewNotesById] = useState<Record<string, string>>({});
-  const [actionBanner, setActionBanner] = useState<ActionBannerState | null>(null);
-  const [bannerFrame, setBannerFrame] = useState<BannerFrame | null>(null);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewActionState | null>(null);
@@ -187,32 +153,6 @@ export function ChangesPage() {
     .filter((item) => !item.is_read)
     .map((item) => item.id);
 
-  function clearActionBannerTimers() {
-    if (dismissTimeoutRef.current !== null) {
-      window.clearTimeout(dismissTimeoutRef.current);
-      dismissTimeoutRef.current = null;
-    }
-    if (removeTimeoutRef.current !== null) {
-      window.clearTimeout(removeTimeoutRef.current);
-      removeTimeoutRef.current = null;
-    }
-  }
-
-  function showActionBanner(
-    variant: ActionBannerState["variant"],
-    title: string,
-    description: string
-  ) {
-    clearActionBannerTimers();
-    setActionBanner({
-      description,
-      id: Date.now(),
-      title,
-      variant,
-      visible: true
-    });
-  }
-
   useEffect(() => {
     if (changeId) {
       rememberLoadedChangeId(changeId);
@@ -257,57 +197,11 @@ export function ChangesPage() {
     }
   }, [correctionId, correctionsQuery.data, expandedCorrectionId]);
 
-  useEffect(() => {
-    const element = pageContentRef.current;
-    if (!element) {
-      return;
-    }
-
-    function updateBannerFrame() {
-      const rect = element.getBoundingClientRect();
-      setBannerFrame({
-        left: rect.left + 16,
-        width: Math.max(rect.width - 32, 0)
-      });
-    }
-
-    updateBannerFrame();
-    const resizeObserver = new ResizeObserver(updateBannerFrame);
-    resizeObserver.observe(element);
-    window.addEventListener("resize", updateBannerFrame);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateBannerFrame);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!actionBanner) {
-      clearActionBannerTimers();
-      return;
-    }
-
-    const bannerId = actionBanner.id;
-    dismissTimeoutRef.current = window.setTimeout(() => {
-      setActionBanner((current) =>
-        current && current.id === bannerId ? { ...current, visible: false } : current
-      );
-    }, ACTION_BANNER_DISMISS_MS);
-    removeTimeoutRef.current = window.setTimeout(() => {
-      setActionBanner((current) => (current && current.id === bannerId ? null : current));
-    }, ACTION_BANNER_DISMISS_MS + ACTION_BANNER_FADE_MS);
-
-    return clearActionBannerTimers;
-  }, [actionBanner?.id]);
-
-  useEffect(() => clearActionBannerTimers, []);
-
   async function handleMarkRead(targetChangeId: string) {
     setMarkingReadId(targetChangeId);
     try {
       await markChangeRead(targetChangeId);
-      showActionBanner("success", "Saved", "Change marked as read.");
+      showToast({ description: "Change marked as read.", title: "Saved", variant: "success" });
       queryClient.setQueryData<ChangeEventDetail>(
         ["change-detail", targetChangeId],
         (current) => (current ? { ...current, is_read: true } : current)
@@ -318,13 +212,17 @@ export function ChangesPage() {
       );
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        showActionBanner("destructive", "Changes action failed", error.problem.detail);
+        showToast({
+          description: error.problem.detail,
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       } else {
-        showActionBanner(
-          "destructive",
-          "Changes action failed",
-          "Unable to mark that change as read right now."
-        );
+        showToast({
+          description: "Unable to mark that change as read right now.",
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       }
     } finally {
       setMarkingReadId(null);
@@ -340,7 +238,11 @@ export function ChangesPage() {
     setIsMarkingAllRead(true);
     try {
       await Promise.all(targetIds.map((changeId) => markChangeRead(changeId)));
-      showActionBanner("success", "Saved", "All visible changes marked as read.");
+      showToast({
+        description: "All visible changes marked as read.",
+        title: "Saved",
+        variant: "success"
+      });
       await Promise.all(
         targetIds.map((changeId) =>
           queryClient.setQueryData<ChangeEventDetail>(
@@ -354,11 +256,11 @@ export function ChangesPage() {
         (current) => markChangeIdsReadInList(current, targetIdSet)
       );
     } catch (error) {
-      showActionBanner(
-        "destructive",
-        "Changes action failed",
-        "Unable to mark the visible changes as read right now."
-      );
+      showToast({
+        description: "Unable to mark the visible changes as read right now.",
+        title: "Changes action failed",
+        variant: "destructive"
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["changes"] }),
         ...targetIds.map((changeId) =>
@@ -379,11 +281,11 @@ export function ChangesPage() {
           ? await verifyCorrection(targetCorrectionId, { review_notes: reviewNotes })
           : await rejectCorrection(targetCorrectionId, { review_notes: reviewNotes });
 
-      showActionBanner(
-        "success",
-        "Saved",
-        action === "verify" ? "Correction verified." : "Correction rejected."
-      );
+      showToast({
+        description: action === "verify" ? "Correction verified." : "Correction rejected.",
+        title: "Saved",
+        variant: "success"
+      });
       queryClient.setQueryData<CorrectionRecordResponse>(
         ["correction-detail", targetCorrectionId],
         updatedCorrection
@@ -402,13 +304,17 @@ export function ChangesPage() {
       );
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        showActionBanner("destructive", "Changes action failed", error.problem.detail);
+        showToast({
+          description: error.problem.detail,
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       } else {
-        showActionBanner(
-          "destructive",
-          "Changes action failed",
-          "Unable to review that correction right now."
-        );
+        showToast({
+          description: "Unable to review that correction right now.",
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       }
     } finally {
       setReviewAction(null);
@@ -603,36 +509,7 @@ export function ChangesPage() {
         </Tabs>
       </div>
 
-      {actionBanner ? (
-        <div
-          className="pointer-events-none fixed bottom-[10px] z-50"
-          data-testid="changes-action-banner-shell"
-          style={
-            bannerFrame
-              ? {
-                  left: `${bannerFrame.left}px`,
-                  width: `${bannerFrame.width}px`
-                }
-              : {
-                  left: "16px",
-                  right: "16px"
-                }
-          }
-        >
-          <Alert
-            className={cn(
-              "shadow-lg transition-opacity duration-300 ease-out",
-              actionBanner.visible ? "opacity-100" : "opacity-0"
-            )}
-            data-testid="changes-action-banner"
-            style={ACTION_BANNER_SURFACE_STYLES[actionBanner.variant]}
-            variant={actionBanner.variant}
-          >
-            <AlertTitle>{actionBanner.title}</AlertTitle>
-            <AlertDescription>{actionBanner.description}</AlertDescription>
-          </Alert>
-        </div>
-      ) : null}
+      <PageToast contentRef={pageContentRef} testIdPrefix="changes-action-banner" toast={toast} />
     </Page>
   );
 }
