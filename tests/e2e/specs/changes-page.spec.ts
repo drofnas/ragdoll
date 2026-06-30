@@ -81,12 +81,22 @@ test.describe("changes page accordions", () => {
       .getByRole("button", { name: new RegExp(uploadName.replace(".", "\\."), "i") })
       .first();
     const markAllReadButton = page.getByRole("button", { name: "Mark All Read" });
+    const actionBanner = page.getByTestId("changes-action-banner");
 
     await expect(trigger).toBeVisible();
     await expect(markAllReadButton).toBeVisible();
     await expect(markAllReadButton).toBeEnabled();
     await markAllReadButton.click();
-    await expect(page.getByText("All visible changes marked as read.")).toBeVisible();
+    await expect(actionBanner).toBeVisible();
+    await expect(actionBanner).toContainText("All visible changes marked as read.");
+    await expect(trigger).toBeVisible();
+
+    const bannerBox = await actionBanner.boundingBox();
+    const viewport = page.viewportSize();
+    expect(bannerBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(Math.abs(viewport!.height - (bannerBox!.y + bannerBox!.height))).toBeLessThan(40);
+
     await expect(markAllReadButton).toBeDisabled();
     await expect(activityAccordion.getByText("read").first()).toBeVisible();
 

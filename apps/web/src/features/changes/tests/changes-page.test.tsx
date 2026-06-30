@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -51,6 +51,7 @@ describe("ChangesPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
     window.localStorage.clear();
   });
 
@@ -251,9 +252,16 @@ describe("ChangesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Mark All Read" }));
 
-    await waitFor(() =>
-      expect(screen.getByText("All visible changes marked as read.")).toBeInTheDocument()
-    );
+    const banner = await screen.findByTestId("changes-action-banner");
+    expect(banner).toHaveTextContent("Saved");
+    expect(banner).toHaveTextContent("All visible changes marked as read.");
+    expect(banner).not.toHaveClass("bg-card");
+    expect(screen.getByTestId("changes-action-banner-shell")).toHaveClass("fixed");
+    expect(
+      within(screen.getByTestId("changes-page-content")).queryByText(
+        "All visible changes marked as read."
+      )
+    ).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText("read").length).toBeGreaterThanOrEqual(3));
     expect(screen.getByRole("button", { name: "Read" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Mark All Read" })).toBeDisabled();
@@ -323,11 +331,9 @@ describe("ChangesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Mark All Read" }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText("Unable to mark the visible changes as read right now.")
-      ).toBeInTheDocument()
-    );
+    const banner = await screen.findByTestId("changes-action-banner");
+    expect(banner).toHaveTextContent("Changes action failed");
+    expect(banner).toHaveTextContent("Unable to mark the visible changes as read right now.");
     await waitFor(() => expect(changeListRequests).toBeGreaterThan(1));
     await waitFor(() => expect(changeDetailRequests).toBeGreaterThan(1));
   });
@@ -409,11 +415,185 @@ describe("ChangesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Mark read" }));
 
-    await waitFor(() =>
-      expect(screen.getByText("Change marked as read.")).toBeInTheDocument()
-    );
+    const banner = await screen.findByTestId("changes-action-banner");
+    expect(banner).toHaveTextContent("Saved");
+    expect(banner).toHaveTextContent("Change marked as read.");
     await waitFor(() => expect(screen.getAllByText("read").length).toBeGreaterThan(0));
     expect(changeDetailRequests).toBe(1);
+  });
+
+  it("auto-dismisses the floating action banner after 10 seconds", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let currentDetail = changeDetail;
+    let currentList = changeListResponse;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}/read`)) {
+          currentDetail = { ...currentDetail, is_read: true };
+          currentList = {
+            ...currentList,
+            items: currentList.items.map((item) =>
+              item.id === changeDetail.id ? { ...item, is_read: true } : item
+            )
+          };
+          return jsonResponse({
+            change_event_id: changeDetail.id,
+            read_at: "2026-06-22T17:18:00Z"
+          });
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}`)) {
+          return jsonResponse(currentDetail);
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse(currentList);
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", {
+      name: new RegExp(changeListResponse.items[0].title, "i")
+    });
+
+    await user.click(trigger);
+    await screen.findByRole("button", { name: "Mark read" });
+    vi.useFakeTimers();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
+    });
+
+    const banner = screen.getByTestId("changes-action-banner");
+    expect(banner).toHaveClass("opacity-100");
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.getByTestId("changes-action-banner")).toHaveClass("opacity-0");
+
+    await act(async () => {
+      vi.advanceTimersByTime(301);
+    });
+
+    expect(screen.queryByTestId("changes-action-banner")).not.toBeInTheDocument();
+  });
+
+  it("replaces the current banner and resets the dismissal timer instead of stacking", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let currentDetail = changeDetail;
+    let currentList = {
+      ...changeListResponse,
+      items: [changeListResponse.items[0], secondChangeSummary],
+      total: 2
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}/read`)) {
+          currentDetail = { ...currentDetail, is_read: true };
+          currentList = {
+            ...currentList,
+            items: currentList.items.map((item) =>
+              item.id === changeDetail.id ? { ...item, is_read: true } : item
+            )
+          };
+          return jsonResponse({
+            change_event_id: changeDetail.id,
+            read_at: "2026-06-22T17:18:00Z"
+          });
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}`)) {
+          return jsonResponse(currentDetail);
+        }
+        if (url.includes(`/api/v1/changes/${secondChangeDetail.id}/read`)) {
+          currentList = {
+            ...currentList,
+            items: currentList.items.map((item) =>
+              item.id === secondChangeDetail.id ? { ...item, is_read: true } : item
+            )
+          };
+          return jsonResponse({
+            change_event_id: secondChangeDetail.id,
+            read_at: "2026-06-22T17:19:00Z"
+          });
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse(currentList);
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    const user = userEvent.setup();
+    const triggerLabel = await screen.findByText(changeListResponse.items[0].title);
+    const trigger = triggerLabel.closest("button");
+    expect(trigger).not.toBeNull();
+    await screen.findByRole("button", {
+      name: new RegExp(secondChangeSummary.title, "i")
+    });
+
+    await user.click(trigger as HTMLButtonElement);
+    await screen.findByRole("button", { name: "Mark read" });
+    await user.click(screen.getByRole("button", { name: "Mark read" }));
+
+    const banner = await screen.findByTestId("changes-action-banner");
+    expect(banner).toHaveTextContent("Change marked as read.");
+    vi.useFakeTimers();
+
+    await act(async () => {
+      vi.advanceTimersByTime(9_000);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Mark All Read" }));
+    });
+
+    const updatedBanner = screen.getByTestId("changes-action-banner");
+    expect(updatedBanner).toHaveTextContent("All visible changes marked as read.");
+    expect(screen.getAllByTestId("changes-action-banner")).toHaveLength(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+
+    expect(screen.getByTestId("changes-action-banner")).toHaveClass("opacity-100");
+
+    await act(async () => {
+      vi.advanceTimersByTime(8_000);
+    });
+
+    expect(screen.getByTestId("changes-action-banner")).toHaveClass("opacity-0");
   });
 
   it("opens the selected change accordion from the deep link query param", async () => {
