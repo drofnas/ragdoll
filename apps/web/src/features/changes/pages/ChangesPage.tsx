@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +63,17 @@ function addIdToSet(current: Set<string>, id: string) {
   return next;
 }
 
+function markChangeIdsReadInList(current: ChangeListResponse | undefined, changeIds: Set<string>) {
+  return current
+    ? {
+        ...current,
+        items: current.items.map((item) =>
+          changeIds.has(item.id) ? { ...item, is_read: true } : item
+        )
+      }
+    : current;
+}
+
 export function ChangesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -82,6 +93,7 @@ export function ChangesPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewActionState | null>(null);
   const [loadedChangeIds, setLoadedChangeIds] = useState(
     () => new Set<string>(changeId ? [changeId] : [])
@@ -133,9 +145,12 @@ export function ChangesPage() {
         page_size: 10,
         status: correctionStatus || undefined,
         ...scopeQuery
-      }),
+    }),
     queryKey: ["corrections", correctionsPage, correctionStatus, scopeQuery]
   });
+  const unreadVisibleChangeIds = (changesQuery.data?.items ?? [])
+    .filter((item) => !item.is_read)
+    .map((item) => item.id);
 
   useEffect(() => {
     if (changeId) {
@@ -194,15 +209,7 @@ export function ChangesPage() {
       );
       queryClient.setQueriesData<ChangeListResponse>(
         { queryKey: ["changes"] },
-        (current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) =>
-                  item.id === targetChangeId ? { ...item, is_read: true } : item
-                )
-              }
-            : current
+        (current) => markChangeIdsReadInList(current, new Set([targetChangeId]))
       );
     } catch (error) {
       if (error instanceof ApiProblemError) {
@@ -212,6 +219,43 @@ export function ChangesPage() {
       }
     } finally {
       setMarkingReadId(null);
+    }
+  }
+
+  async function handleMarkAllRead() {
+    if (unreadVisibleChangeIds.length === 0) {
+      return;
+    }
+    const targetIds = [...unreadVisibleChangeIds];
+    const targetIdSet = new Set(targetIds);
+    setIsMarkingAllRead(true);
+    setErrorMessage(null);
+    setFeedbackMessage(null);
+    try {
+      await Promise.all(targetIds.map((changeId) => markChangeRead(changeId)));
+      setFeedbackMessage("All visible changes marked as read.");
+      await Promise.all(
+        targetIds.map((changeId) =>
+          queryClient.setQueryData<ChangeEventDetail>(
+            ["change-detail", changeId],
+            (current) => (current ? { ...current, is_read: true } : current)
+          )
+        )
+      );
+      queryClient.setQueriesData<ChangeListResponse>(
+        { queryKey: ["changes"] },
+        (current) => markChangeIdsReadInList(current, targetIdSet)
+      );
+    } catch (error) {
+      setErrorMessage("Unable to mark the visible changes as read right now.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["changes"] }),
+        ...targetIds.map((changeId) =>
+          queryClient.invalidateQueries({ queryKey: ["change-detail", changeId] })
+        )
+      ]);
+    } finally {
+      setIsMarkingAllRead(false);
     }
   }
 
@@ -283,13 +327,24 @@ export function ChangesPage() {
         </TabsList>
 
         <TabsContent value="activity">
-          <section className="min-w-0">
-            <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle>Activity feed</CardTitle>
+          <section className="min-w-0 space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-semibold tracking-tight">Activity feed</h2>
                 <Badge variant="outline">{changesQuery.data?.total ?? 0} events</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => void handleMarkAllRead()}
+                  disabled={isMarkingAllRead || unreadVisibleChangeIds.length === 0}
+                >
+                  {isMarkingAllRead ? "Marking..." : "Mark All Read"}
+                </Button>
+              </div>
+            </div>
+            <Card className="min-w-0" data-testid="changes-activity-card">
+              <CardContent className="space-y-4 p-6">
                 {changesQuery.error instanceof ApiProblemError ? (
                   <Alert variant="destructive">
                     <AlertTitle>Unable to load changes</AlertTitle>
@@ -346,13 +401,15 @@ export function ChangesPage() {
         </TabsContent>
 
         <TabsContent value="corrections">
-          <section className="min-w-0">
-            <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle>Corrections</CardTitle>
+          <section className="min-w-0 space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-semibold tracking-tight">Corrections</h2>
                 <Badge variant="outline">{correctionsQuery.data?.total ?? 0} records</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </div>
+            </div>
+            <Card className="min-w-0" data-testid="changes-corrections-card">
+              <CardContent className="space-y-4 p-6">
                 <SelectField
                   label="Status filter"
                   options={CORRECTION_STATUS_OPTIONS.map((option) => ({

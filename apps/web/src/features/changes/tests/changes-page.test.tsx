@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,11 +28,271 @@ function renderChangesPage(initialEntry: string) {
   );
 }
 
+function hasExactText(text: string) {
+  return (_content: string, element: Element | null) => element?.textContent === text;
+}
+
+const secondChangeSummary = {
+  ...changeListResponse.items[0],
+  id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+  summary: "A second retrieval-backed answer cited the implementation plan.",
+  title: "Second chat answer generated"
+};
+
+const secondChangeDetail = {
+  ...changeDetail,
+  ...secondChangeSummary,
+  payload: {
+    session_id: "ffffffff-ffff-ffff-ffff-ffffffffffff"
+  }
+};
+
 describe("ChangesPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     window.localStorage.clear();
+  });
+
+  it("renders the activity heading and count above the card", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse(changeListResponse);
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    await screen.findByRole("button", {
+      name: new RegExp(changeListResponse.items[0].title, "i")
+    });
+
+    expect(await screen.findByRole("heading", { name: "Activity feed" })).toBeInTheDocument();
+    expect(screen.getByText(hasExactText("1 events"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark All Read" })).toBeEnabled();
+    expect(
+      within(screen.getByTestId("changes-activity-card")).queryByRole("heading", {
+        name: "Activity feed"
+      })
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("changes-activity-card")).queryByText(hasExactText("1 events"))
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("changes-activity-card")).queryByRole("button", {
+        name: "Mark All Read"
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables mark all read when the visible activity page is already read", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse({
+            ...changeListResponse,
+            items: [{ ...changeListResponse.items[0], is_read: true }]
+          });
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    await screen.findByRole("button", {
+      name: new RegExp(changeListResponse.items[0].title, "i")
+    });
+
+    expect(screen.getByRole("button", { name: "Mark All Read" })).toBeDisabled();
+  });
+
+  it("marks all visible unread changes as read and updates loaded detail state", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let firstDetail = changeDetail;
+    let secondDetail = secondChangeDetail;
+    let currentList = {
+      ...changeListResponse,
+      items: [changeListResponse.items[0], secondChangeSummary],
+      total: 2
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}/read`)) {
+          firstDetail = { ...firstDetail, is_read: true };
+          currentList = {
+            ...currentList,
+            items: currentList.items.map((item) =>
+              item.id === changeDetail.id ? { ...item, is_read: true } : item
+            )
+          };
+          return jsonResponse({
+            change_event_id: changeDetail.id,
+            read_at: "2026-06-22T17:18:00Z"
+          });
+        }
+        if (url.includes(`/api/v1/changes/${secondChangeDetail.id}/read`)) {
+          secondDetail = { ...secondDetail, is_read: true };
+          currentList = {
+            ...currentList,
+            items: currentList.items.map((item) =>
+              item.id === secondChangeDetail.id ? { ...item, is_read: true } : item
+            )
+          };
+          return jsonResponse({
+            change_event_id: secondChangeDetail.id,
+            read_at: "2026-06-22T17:19:00Z"
+          });
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}`)) {
+          return jsonResponse(firstDetail);
+        }
+        if (url.includes(`/api/v1/changes/${secondChangeDetail.id}`)) {
+          return jsonResponse(secondDetail);
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse(currentList);
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    const user = userEvent.setup();
+    const firstTriggerLabel = await screen.findByText(changeListResponse.items[0].title);
+    const firstTrigger = firstTriggerLabel.closest("button");
+    expect(firstTrigger).not.toBeNull();
+    await screen.findByRole("button", {
+      name: new RegExp(secondChangeSummary.title, "i")
+    });
+
+    await user.click(firstTrigger as HTMLButtonElement);
+    await screen.findByRole("button", { name: "Mark read" });
+
+    await user.click(screen.getByRole("button", { name: "Mark All Read" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("All visible changes marked as read.")).toBeInTheDocument()
+    );
+    await waitFor(() => expect(screen.getAllByText("read").length).toBeGreaterThanOrEqual(3));
+    expect(screen.getByRole("button", { name: "Read" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mark All Read" })).toBeDisabled();
+  });
+
+  it("shows an error and refetches activity data if mark all read fails", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    let changeListRequests = 0;
+    let changeDetailRequests = 0;
+    let firstDetail = changeDetail;
+    const currentList = {
+      ...changeListResponse,
+      items: [changeListResponse.items[0], secondChangeSummary],
+      total: 2
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}/read`)) {
+          firstDetail = { ...firstDetail, is_read: true };
+          return jsonResponse({
+            change_event_id: changeDetail.id,
+            read_at: "2026-06-22T17:18:00Z"
+          });
+        }
+        if (url.includes(`/api/v1/changes/${secondChangeDetail.id}/read`)) {
+          return jsonResponse(
+            {
+              detail: "read failed"
+            },
+            { status: 500 }
+          );
+        }
+        if (url.includes(`/api/v1/changes/${changeDetail.id}`)) {
+          changeDetailRequests += 1;
+          return jsonResponse(firstDetail);
+        }
+        if (url.includes("/api/v1/changes")) {
+          changeListRequests += 1;
+          return jsonResponse(currentList);
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    const user = userEvent.setup();
+    const firstTriggerLabel = await screen.findByText(changeListResponse.items[0].title);
+    const firstTrigger = firstTriggerLabel.closest("button");
+    expect(firstTrigger).not.toBeNull();
+
+    await user.click(firstTrigger as HTMLButtonElement);
+    await screen.findByRole("button", { name: "Mark read" });
+
+    await user.click(screen.getByRole("button", { name: "Mark All Read" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Unable to mark the visible changes as read right now.")
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(changeListRequests).toBeGreaterThan(1));
+    await waitFor(() => expect(changeDetailRequests).toBeGreaterThan(1));
   });
 
   it("loads change detail on first expand, keeps it cached, and marks the item as read without refetching detail", async () => {
@@ -204,6 +464,18 @@ describe("ChangesPage", () => {
       const trigger = await screen.findByRole("button", {
         name: new RegExp(correctionDetail.proposed_value, "i")
       });
+      expect(await screen.findByRole("heading", { name: "Corrections" })).toBeInTheDocument();
+      expect(screen.getByText(hasExactText("1 records"))).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("changes-corrections-card")).queryByRole("heading", {
+          name: "Corrections"
+        })
+      ).not.toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("changes-corrections-card")).queryByText(
+          hasExactText("1 records")
+        )
+      ).not.toBeInTheDocument();
 
       await screen.findByLabelText(/Review notes/i);
       expect(correctionDetailRequests).toBe(1);
