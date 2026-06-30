@@ -136,6 +136,43 @@ describe("ChangesPage", () => {
     expect(screen.getByRole("button", { name: "Mark All Read" })).toBeDisabled();
   });
 
+  it("renders the empty activity state from the filtered response shape", async () => {
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/v1/auth/me")) {
+          return jsonResponse(userProfile);
+        }
+        if (url.includes("/api/v1/spaces")) {
+          return jsonResponse(spaceListResponse);
+        }
+        if (url.includes("/api/v1/changes")) {
+          return jsonResponse({
+            ...changeListResponse,
+            items: [],
+            total: 0
+          });
+        }
+        if (url.includes("/api/v1/corrections")) {
+          return jsonResponse(correctionListResponse);
+        }
+        return jsonResponse({}, { status: 404 });
+      })
+    );
+
+    renderChangesPage("/changes");
+
+    expect(await screen.findByRole("heading", { name: "Activity feed" })).toBeInTheDocument();
+    expect(screen.getByText(hasExactText("0 events"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark All Read" })).toBeDisabled();
+    expect(
+      screen.getByText("No change events are available for this scope yet.")
+    ).toBeInTheDocument();
+  });
+
   it("marks all visible unread changes as read and updates loaded detail state", async () => {
     window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, "token");
 

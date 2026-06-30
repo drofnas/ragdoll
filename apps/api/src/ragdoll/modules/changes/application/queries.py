@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,10 @@ from ragdoll.core.pagination import PaginationParams
 from ragdoll.modules.changes.api.schemas import ChangeEventDetail, ChangeEventReadResult, ChangeEventSummary, ChangeListResponse
 from ragdoll.modules.changes.infrastructure.repository import ChangesRepository
 from ragdoll.modules.spaces.application.scope import resolve_owned_space_ids
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _build_summary(event, *, is_read: bool) -> ChangeEventSummary:
@@ -37,7 +42,8 @@ def list_changes(
     user_id = UUID(subject)
     repo = ChangesRepository(session)
     space_ids = resolve_owned_space_ids(session, user_id, space_scope)
-    events = repo.list_events(space_ids)
+    since = utc_now() - timedelta(days=30)
+    events = repo.list_events(space_ids, since=since)
     reads = repo.get_read_map(user_id=user_id, change_ids=[event.id for event in events])
     total = len(events)
     page_events = events[pagination.offset : pagination.offset + pagination.page_size]

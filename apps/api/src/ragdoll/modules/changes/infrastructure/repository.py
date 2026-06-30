@@ -21,8 +21,11 @@ class ChangesRepository:
     def add_event(self, event: ChangeEvent) -> None:
         self.session.add(event)
 
-    def list_events(self, space_ids: list[UUID]) -> list[ChangeEvent]:
-        stmt = select(ChangeEvent).where(ChangeEvent.space_id.in_(space_ids)).order_by(ChangeEvent.created_at.desc())
+    def list_events(self, space_ids: list[UUID], *, since: datetime | None = None) -> list[ChangeEvent]:
+        stmt = select(ChangeEvent).where(ChangeEvent.space_id.in_(space_ids))
+        if since is not None:
+            stmt = stmt.where(ChangeEvent.created_at >= since)
+        stmt = stmt.order_by(ChangeEvent.created_at.desc())
         return list(self.session.scalars(stmt))
 
     def get_event_or_404(self, space_ids: list[UUID], change_id: UUID) -> ChangeEvent:

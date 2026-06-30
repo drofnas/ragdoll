@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import pytest
 
-from tests.modules._phase10_helpers import auth_headers, build_processing_runtime, register_and_login
+from ragdoll.platform.db.models import ChangeEvent, User
+from tests.modules._phase10_helpers import (
+    auth_headers,
+    build_processing_runtime,
+    default_space,
+    register_and_login,
+)
 from tests.support.document_processing import drain_test_document_jobs
 
 
@@ -50,3 +57,35 @@ def test_changes_capture_processing_and_read_state(api_client, processing_runtim
     reread = api_client.get(f"/api/v1/changes/{change_id}", headers=auth_headers(token))
     assert reread.status_code == 200, reread.text
     assert reread.json()["is_read"] is True
+
+
+def test_changes_listing_only_returns_activity_from_the_last_30_days(api_client, db_session):
+    token = register_and_login(api_client, email="owner@example.com")
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    space = default_space(db_session, owner)
+
+    recent_event = ChangeEvent(
+        space_id=space.id,
+        event_type="document_processed",
+        title="Recent document processed",
+        summary="A recent change event should remain visible in the activity feed.",
+        payload={"document_title": "recent.txt"},
+        created_at=datetime.now(timezone.utc) - timedelta(days=5),
+    )
+    old_event = ChangeEvent(
+        space_id=space.id,
+        event_type="document_processed",
+        title="Old document processed",
+        summary="An older change event should fall outside the rolling 30-day window.",
+        payload={"document_title": "old.txt"},
+        created_at=datetime.now(timezone.utc) - timedelta(days=31),
+    )
+    db_session.add_all([recent_event, old_event])
+    db_session.commit()
+
+    listing = api_client.get("/api/v1/changes", headers=auth_headers(token))
+    assert listing.status_code == 200, listing.text
+
+    payload = listing.json()
+    assert payload["total"] == 1
+    assert [item["id"] for item in payload["items"]] == [str(recent_event.id)]
