@@ -5,11 +5,12 @@ import type {
   CorrectionListResponse,
   CorrectionRecordResponse
 } from "@contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Page, PageHeader } from "@/components/app/page";
+import { PageToast, usePageToast } from "@/components/app/page-toast";
 import { SelectField } from "@/components/app/select-field";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,10 +64,23 @@ function addIdToSet(current: Set<string>, id: string) {
   return next;
 }
 
+function markChangeIdsReadInList(current: ChangeListResponse | undefined, changeIds: Set<string>) {
+  return current
+    ? {
+        ...current,
+        items: current.items.map((item) =>
+          changeIds.has(item.id) ? { ...item, is_read: true } : item
+        )
+      }
+    : current;
+}
+
 export function ChangesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { buildReadScopeParams, isReady } = useSpaceScope();
+  const pageContentRef = useRef<HTMLDivElement | null>(null);
+  const { showToast, toast } = usePageToast();
 
   const activeTab = searchParams.get("tab") === "corrections" ? "corrections" : "activity";
   const changeId = searchParams.get("change_id");
@@ -79,9 +93,8 @@ export function ChangesPage() {
   );
 
   const [reviewNotesById, setReviewNotesById] = useState<Record<string, string>>({});
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewActionState | null>(null);
   const [loadedChangeIds, setLoadedChangeIds] = useState(
     () => new Set<string>(changeId ? [changeId] : [])
@@ -133,9 +146,12 @@ export function ChangesPage() {
         page_size: 10,
         status: correctionStatus || undefined,
         ...scopeQuery
-      }),
+    }),
     queryKey: ["corrections", correctionsPage, correctionStatus, scopeQuery]
   });
+  const unreadVisibleChangeIds = (changesQuery.data?.items ?? [])
+    .filter((item) => !item.is_read)
+    .map((item) => item.id);
 
   useEffect(() => {
     if (changeId) {
@@ -183,42 +199,81 @@ export function ChangesPage() {
 
   async function handleMarkRead(targetChangeId: string) {
     setMarkingReadId(targetChangeId);
-    setErrorMessage(null);
-    setFeedbackMessage(null);
     try {
       await markChangeRead(targetChangeId);
-      setFeedbackMessage("Change marked as read.");
+      showToast({ description: "Change marked as read.", title: "Saved", variant: "success" });
       queryClient.setQueryData<ChangeEventDetail>(
         ["change-detail", targetChangeId],
         (current) => (current ? { ...current, is_read: true } : current)
       );
       queryClient.setQueriesData<ChangeListResponse>(
         { queryKey: ["changes"] },
-        (current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) =>
-                  item.id === targetChangeId ? { ...item, is_read: true } : item
-                )
-              }
-            : current
+        (current) => markChangeIdsReadInList(current, new Set([targetChangeId]))
       );
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        setErrorMessage(error.problem.detail);
+        showToast({
+          description: error.problem.detail,
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       } else {
-        setErrorMessage("Unable to mark that change as read right now.");
+        showToast({
+          description: "Unable to mark that change as read right now.",
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       }
     } finally {
       setMarkingReadId(null);
     }
   }
 
+  async function handleMarkAllRead() {
+    if (unreadVisibleChangeIds.length === 0) {
+      return;
+    }
+    const targetIds = [...unreadVisibleChangeIds];
+    const targetIdSet = new Set(targetIds);
+    setIsMarkingAllRead(true);
+    try {
+      await Promise.all(targetIds.map((changeId) => markChangeRead(changeId)));
+      showToast({
+        description: "All visible changes marked as read.",
+        title: "Saved",
+        variant: "success"
+      });
+      await Promise.all(
+        targetIds.map((changeId) =>
+          queryClient.setQueryData<ChangeEventDetail>(
+            ["change-detail", changeId],
+            (current) => (current ? { ...current, is_read: true } : current)
+          )
+        )
+      );
+      queryClient.setQueriesData<ChangeListResponse>(
+        { queryKey: ["changes"] },
+        (current) => markChangeIdsReadInList(current, targetIdSet)
+      );
+    } catch (error) {
+      showToast({
+        description: "Unable to mark the visible changes as read right now.",
+        title: "Changes action failed",
+        variant: "destructive"
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["changes"] }),
+        ...targetIds.map((changeId) =>
+          queryClient.invalidateQueries({ queryKey: ["change-detail", changeId] })
+        )
+      ]);
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  }
+
   async function handleReview(targetCorrectionId: string, action: "verify" | "reject") {
     setReviewAction({ action, correctionId: targetCorrectionId });
-    setErrorMessage(null);
-    setFeedbackMessage(null);
     try {
       const reviewNotes = reviewNotesById[targetCorrectionId] || null;
       const updatedCorrection =
@@ -226,7 +281,11 @@ export function ChangesPage() {
           ? await verifyCorrection(targetCorrectionId, { review_notes: reviewNotes })
           : await rejectCorrection(targetCorrectionId, { review_notes: reviewNotes });
 
-      setFeedbackMessage(action === "verify" ? "Correction verified." : "Correction rejected.");
+      showToast({
+        description: action === "verify" ? "Correction verified." : "Correction rejected.",
+        title: "Saved",
+        variant: "success"
+      });
       queryClient.setQueryData<CorrectionRecordResponse>(
         ["correction-detail", targetCorrectionId],
         updatedCorrection
@@ -245,9 +304,17 @@ export function ChangesPage() {
       );
     } catch (error) {
       if (error instanceof ApiProblemError) {
-        setErrorMessage(error.problem.detail);
+        showToast({
+          description: error.problem.detail,
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       } else {
-        setErrorMessage("Unable to review that correction right now.");
+        showToast({
+          description: "Unable to review that correction right now.",
+          title: "Changes action failed",
+          variant: "destructive"
+        });
       }
     } finally {
       setReviewAction(null);
@@ -256,184 +323,193 @@ export function ChangesPage() {
 
   return (
     <Page>
-      <PageHeader
-        eyebrow="Review hub"
-        title="Changes"
-        description="Review activity updates, inspect change details, and manage correction review from one place."
-      />
+      <div ref={pageContentRef} className="space-y-6" data-testid="changes-page-content">
+        <PageHeader
+          eyebrow="Review hub"
+          title="Changes"
+          description="Review activity updates, inspect change details, and manage correction review from one place."
+        />
 
-      {errorMessage ? (
-        <Alert variant="destructive">
-          <AlertTitle>Changes action failed</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
+        <Tabs
+          data-testid="changes-tabs"
+          value={activeTab}
+          onValueChange={(value) => updateParams({ tab: value ?? "activity" })}
+        >
+          <TabsList>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="corrections">Corrections</TabsTrigger>
+          </TabsList>
 
-      {feedbackMessage ? (
-        <Alert variant="success">
-          <AlertTitle>Saved</AlertTitle>
-          <AlertDescription>{feedbackMessage}</AlertDescription>
-        </Alert>
-      ) : null}
+          <TabsContent value="activity">
+            <section className="min-w-0 space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-semibold tracking-tight">Activity feed</h2>
+                  <Badge variant="outline">{changesQuery.data?.total ?? 0} events</Badge>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => void handleMarkAllRead()}
+                    disabled={isMarkingAllRead || unreadVisibleChangeIds.length === 0}
+                  >
+                    {isMarkingAllRead ? "Marking..." : "Mark All Read"}
+                  </Button>
+                </div>
+              </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => updateParams({ tab: value ?? "activity" })}>
-        <TabsList>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="corrections">Corrections</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="activity">
-          <section className="min-w-0">
-            <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle>Activity feed</CardTitle>
-                <Badge variant="outline">{changesQuery.data?.total ?? 0} events</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {changesQuery.error instanceof ApiProblemError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Unable to load changes</AlertTitle>
-                    <AlertDescription>{changesQuery.error.problem.detail}</AlertDescription>
-                  </Alert>
-                ) : changesQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading change events…</p>
-                ) : changesQuery.data && changesQuery.data.items.length > 0 ? (
-                  <>
-                    <Accordion
-                      type="single"
-                      collapsible
-                      className="space-y-3"
-                      data-testid="changes-activity-accordion"
-                      value={expandedChangeId}
-                      onValueChange={(value) => {
-                        setExpandedChangeId(value);
-                        if (value) {
-                          rememberLoadedChangeId(value);
-                          updateParams({ change_id: value, tab: "activity" });
-                          return;
-                        }
-                        updateParams({ change_id: null });
-                      }}
-                    >
-                      {changesQuery.data.items.map((item) => (
-                        <ActivityAccordionItem
-                          key={item.id}
-                          hasLoaded={loadedChangeIds.has(item.id)}
-                          isMarkingRead={markingReadId === item.id}
-                          isOpen={item.id === expandedChangeId}
-                          item={item}
-                          onMarkRead={handleMarkRead}
-                        />
-                      ))}
-                    </Accordion>
-                    <Pagination
-                      currentPage={changePage}
-                      totalPages={Math.max(
-                        1,
-                        Math.ceil(changesQuery.data.total / changesQuery.data.page_size)
-                      )}
-                      onPageChange={(nextPage) => updateParams({ changes_page: String(nextPage) })}
-                    />
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No change events are available for this scope yet.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-        </TabsContent>
-
-        <TabsContent value="corrections">
-          <section className="min-w-0">
-            <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle>Corrections</CardTitle>
-                <Badge variant="outline">{correctionsQuery.data?.total ?? 0} records</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SelectField
-                  label="Status filter"
-                  options={CORRECTION_STATUS_OPTIONS.map((option) => ({
-                    ...option,
-                    value: option.value || "__all__"
-                  }))}
-                  value={correctionStatus || "__all__"}
-                  onValueChange={(value) =>
-                    updateParams({
-                      corrections_page: "1",
-                      status: value === "__all__" ? "" : value
-                    })
-                  }
-                />
-
-                {correctionsQuery.error instanceof ApiProblemError ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>Unable to load corrections</AlertTitle>
-                    <AlertDescription>{correctionsQuery.error.problem.detail}</AlertDescription>
-                  </Alert>
-                ) : correctionsQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading corrections…</p>
-                ) : correctionsQuery.data && correctionsQuery.data.items.length > 0 ? (
-                  <>
-                    <Accordion
-                      type="single"
-                      collapsible
-                      className="space-y-3"
-                      data-testid="changes-corrections-accordion"
-                      value={expandedCorrectionId}
-                      onValueChange={(value) => {
-                        setExpandedCorrectionId(value);
-                        if (value) {
-                          rememberLoadedCorrectionId(value);
-                          updateParams({ correction_id: value, tab: "corrections" });
-                          return;
-                        }
-                        updateParams({ correction_id: null });
-                      }}
-                    >
-                      {correctionsQuery.data.items.map((item) => (
-                        <CorrectionAccordionItem
-                          key={item.id}
-                          hasLoaded={loadedCorrectionIds.has(item.id)}
-                          isOpen={item.id === expandedCorrectionId}
-                          isReviewing={
-                            reviewAction?.correctionId === item.id ? reviewAction.action : null
+              <Card className="min-w-0" data-testid="changes-activity-card">
+                <CardContent className="space-y-4 p-6">
+                  {changesQuery.error instanceof ApiProblemError ? (
+                    <Alert variant="destructive">
+                      <AlertTitle>Unable to load changes</AlertTitle>
+                      <AlertDescription>{changesQuery.error.problem.detail}</AlertDescription>
+                    </Alert>
+                  ) : changesQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading change events…</p>
+                  ) : changesQuery.data && changesQuery.data.items.length > 0 ? (
+                    <>
+                      <Accordion
+                        type="single"
+                        collapsible
+                        className="space-y-3"
+                        data-testid="changes-activity-accordion"
+                        value={expandedChangeId}
+                        onValueChange={(value) => {
+                          setExpandedChangeId(value);
+                          if (value) {
+                            rememberLoadedChangeId(value);
+                            updateParams({ change_id: value, tab: "activity" });
+                            return;
                           }
-                          item={item}
-                          onReview={handleReview}
-                          onReviewNotesChange={(value) =>
-                            setReviewNotesById((current) => ({
-                              ...current,
-                              [item.id]: value
-                            }))
+                          updateParams({ change_id: null });
+                        }}
+                      >
+                        {changesQuery.data.items.map((item) => (
+                          <ActivityAccordionItem
+                            key={item.id}
+                            hasLoaded={loadedChangeIds.has(item.id)}
+                            isMarkingRead={markingReadId === item.id}
+                            isOpen={item.id === expandedChangeId}
+                            item={item}
+                            onMarkRead={handleMarkRead}
+                          />
+                        ))}
+                      </Accordion>
+                      <Pagination
+                        currentPage={changePage}
+                        totalPages={Math.max(
+                          1,
+                          Math.ceil(changesQuery.data.total / changesQuery.data.page_size)
+                        )}
+                        onPageChange={(nextPage) => updateParams({ changes_page: String(nextPage) })}
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No change events are available for this scope yet.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="corrections">
+            <section className="min-w-0 space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-semibold tracking-tight">Corrections</h2>
+                  <Badge variant="outline">{correctionsQuery.data?.total ?? 0} records</Badge>
+                </div>
+              </div>
+
+              <Card className="min-w-0" data-testid="changes-corrections-card">
+                <CardContent className="space-y-4 p-6">
+                  <SelectField
+                    label="Status filter"
+                    options={CORRECTION_STATUS_OPTIONS.map((option) => ({
+                      ...option,
+                      value: option.value || "__all__"
+                    }))}
+                    value={correctionStatus || "__all__"}
+                    onValueChange={(value) =>
+                      updateParams({
+                        corrections_page: "1",
+                        status: value === "__all__" ? "" : value
+                      })
+                    }
+                  />
+
+                  {correctionsQuery.error instanceof ApiProblemError ? (
+                    <Alert variant="destructive">
+                      <AlertTitle>Unable to load corrections</AlertTitle>
+                      <AlertDescription>{correctionsQuery.error.problem.detail}</AlertDescription>
+                    </Alert>
+                  ) : correctionsQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading corrections…</p>
+                  ) : correctionsQuery.data && correctionsQuery.data.items.length > 0 ? (
+                    <>
+                      <Accordion
+                        type="single"
+                        collapsible
+                        className="space-y-3"
+                        data-testid="changes-corrections-accordion"
+                        value={expandedCorrectionId}
+                        onValueChange={(value) => {
+                          setExpandedCorrectionId(value);
+                          if (value) {
+                            rememberLoadedCorrectionId(value);
+                            updateParams({ correction_id: value, tab: "corrections" });
+                            return;
                           }
-                          reviewNotes={reviewNotesById[item.id] ?? ""}
-                        />
-                      ))}
-                    </Accordion>
-                    <Pagination
-                      currentPage={correctionsPage}
-                      totalPages={Math.max(
-                        1,
-                        Math.ceil(correctionsQuery.data.total / correctionsQuery.data.page_size)
-                      )}
-                      onPageChange={(nextPage) =>
-                        updateParams({ corrections_page: String(nextPage) })
-                      }
-                    />
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No corrections match the current scope and filter.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-        </TabsContent>
-      </Tabs>
+                          updateParams({ correction_id: null });
+                        }}
+                      >
+                        {correctionsQuery.data.items.map((item) => (
+                          <CorrectionAccordionItem
+                            key={item.id}
+                            hasLoaded={loadedCorrectionIds.has(item.id)}
+                            isOpen={item.id === expandedCorrectionId}
+                            isReviewing={
+                              reviewAction?.correctionId === item.id ? reviewAction.action : null
+                            }
+                            item={item}
+                            onReview={handleReview}
+                            onReviewNotesChange={(value) =>
+                              setReviewNotesById((current) => ({
+                                ...current,
+                                [item.id]: value
+                              }))
+                            }
+                            reviewNotes={reviewNotesById[item.id] ?? ""}
+                          />
+                        ))}
+                      </Accordion>
+                      <Pagination
+                        currentPage={correctionsPage}
+                        totalPages={Math.max(
+                          1,
+                          Math.ceil(correctionsQuery.data.total / correctionsQuery.data.page_size)
+                        )}
+                        onPageChange={(nextPage) =>
+                          updateParams({ corrections_page: String(nextPage) })
+                        }
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No corrections match the current scope and filter.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <PageToast contentRef={pageContentRef} testIdPrefix="changes-action-banner" toast={toast} />
     </Page>
   );
 }
