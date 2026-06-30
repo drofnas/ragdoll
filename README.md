@@ -9,7 +9,7 @@
 Ragdoll is a self-hosted knowledge workspace. It ingests documents, builds searchable and graph-backed context, keeps evidence and corrections attached to answers, and exposes that state through search, chat, entities, pinned facts, changes, and admin surfaces.
 
 License: [Business Source License 1.1](LICENSE)  
-Free for personal use and internal organizational use; see [License Summary](LICENSE-SUMMARY.md)  
+Free for personal use and internal organizational use; see [Commercial Terms](COMMERCIAL-TERMS.md)  
 Apache License 2.0 on 2030-01-01
 
 ## Architecture Visual
