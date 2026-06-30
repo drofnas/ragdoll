@@ -15,16 +15,15 @@ Apache License 2.0 on 2030-01-01
 ## Architecture Visual
 
 ```mermaid
-flowchart LR
+flowchart TD
   Upload["Document upload"] --> Ingestion["Ingestion API"]
   Ingestion --> Queue["Queue and worker"]
   Queue --> Processing["Text, embedding, and entity processing"]
   Processing --> Storage["Postgres + pgvector"]
   Processing --> Graph["Graph projection"]
   Storage --> Search["Search"]
-  Storage --> Chat["Chat"]
+  Search --> Chat["Chat"]
   Graph --> Entities["Entities"]
-  Graph --> Chat
 ```
 
 This is the fast, high-level story: documents move through ingestion and background processing into retrieval and graph projections that power the product experience. For the canonical detailed flow, start with [docs/architecture/ingestion-and-processing.md](docs/architecture/ingestion-and-processing.md) and then use the broader [architecture guide](docs/architecture/README.md).
