@@ -1,4 +1,4 @@
-# License Summary (Non-Binding)
+# Commercial Terms (Non-Binding)
 
 This document is a human-readable summary of the Business Source License (BSL) 1.1 used by Ragdoll. It is provided for convenience only and does not replace the LICENSE file.
 
