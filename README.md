@@ -1,6 +1,6 @@
 # Ragdoll
 
-## Tech Stack
+#### Tech Stack
 
 - 🚀 Backend: Python (FastAPI), Redis, PostgreSQL
 - 💻 Frontend: TypeScript, Vite + React
