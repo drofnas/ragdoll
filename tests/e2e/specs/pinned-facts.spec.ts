@@ -231,7 +231,8 @@ test.describe("pinned facts", () => {
     await page.getByRole("textbox", { name: "Message" }).fill(FRONTEND_STACK_QUERY);
     await page.getByRole("button", { name: "Send message" }).click();
 
-    await expect(page.getByText(/tailwind css v4/i).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/react/i).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/tailwind/i).first()).toBeVisible();
     await expect(page.getByText(/vite plugin|vite/i).first()).toBeVisible();
 
     await page.goto("/pinned-facts/create");

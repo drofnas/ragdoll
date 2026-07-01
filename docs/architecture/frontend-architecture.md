@@ -4,6 +4,18 @@
 
 Describe the live `apps/web` route model, provider stack, feature ownership, and shared browser boundaries.
 
+## Technology Stack
+
+### Frontend Web UI
+
+- React 19
+- TypeScript
+- Tailwind CSS v4
+- Vite
+
+The Frontend Web UI is implemented with React 19 and TypeScript. Styling uses
+Tailwind CSS v4, and the browser build pipeline is powered by Vite.
+
 ## Current Shape
 
 ```text
